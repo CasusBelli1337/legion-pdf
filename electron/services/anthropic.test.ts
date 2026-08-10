@@ -8,18 +8,17 @@ import {
   RateLimitError,
 } from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
-import type { AiChunk } from '@shared/types';
+import type { AiAskRequest, AiChunk } from '@shared/types';
 import {
   CENTURION_MODEL,
-  CenturionError,
+  CENTURION_MESSAGES,
   CenturionService,
   MIN_MAX_TOKENS,
   RETRY_MULTIPLIER,
   clampCeiling,
   classifyError,
-  readAskPayload,
 } from './anthropic';
-import type { CenturionAskPayload, CenturionClient, CenturionStream } from './anthropic';
+import type { CenturionClient, CenturionStream } from './anthropic';
 
 interface FakeAttempt {
   deltas: string[];
@@ -79,7 +78,7 @@ function fakeClient(attempts: FakeAttempt[], failWith?: unknown): Recorder {
   return { client, params, failWith };
 }
 
-function payload(overrides: Partial<CenturionAskPayload> = {}): CenturionAskPayload {
+function payload(overrides: Partial<AiAskRequest> = {}): AiAskRequest {
   return {
     docId: 'doc-1',
     messages: [{ role: 'user', content: 'What is this document about?' }],
@@ -280,7 +279,7 @@ describe('error taxonomy', () => {
   it('gives every failure a sentence an attorney can act on', () => {
     const failure = classifyError(new RateLimitError(429, {}, 'slow down', headers));
     expect(failure.message).toMatch(/Wait about a minute/);
-    expect(failure.toIpcError().message).toBe(`[RATE_LIMIT] ${failure.message}`);
+    expect(failure.message).toBe(CENTURION_MESSAGES.RATE_LIMIT);
   });
 
   it('surfaces a transport failure through ask as NETWORK', async () => {
@@ -292,30 +291,52 @@ describe('error taxonomy', () => {
     });
     expect(chunks.at(-1)?.done).toBe(true);
   });
+
+  // An Error crossing IPC keeps only its message, so the code travels on the
+  // terminal chunk instead of in a prefix the renderer has to parse back out.
+  it('closes the stream with the taxonomy code on every failure', async () => {
+    const recorder = fakeClient([], new APIConnectionError({ message: 'ENOTFOUND' }));
+    const { service, chunks } = serviceFor(recorder);
+
+    await expect(service.ask(payload(), (chunk) => chunks.push(chunk))).rejects.toThrow();
+
+    // Under the id of the attempt that failed, so the panel discards its text.
+    expect(chunks.at(-1)).toEqual({ requestId: 'req-1', text: '', done: true, code: 'NETWORK' });
+  });
+
+  it('leaves the code off the terminal chunk of a successful ask', async () => {
+    const recorder = fakeClient([{ deltas: ['Done.'], stopReason: 'end_turn' }]);
+    const { service, chunks } = serviceFor(recorder);
+
+    await service.ask(payload(), (chunk) => chunks.push(chunk));
+
+    expect(chunks.at(-1)?.code).toBeUndefined();
+  });
 });
 
 describe('request guards', () => {
-  it('refuses a request that carries no document text', () => {
-    for (const documentText of [undefined, '', '   ']) {
-      expect(() => readAskPayload({ ...payload(), documentText } as CenturionAskPayload)).toThrow(
-        CenturionError
-      );
+  it('refuses to ask about a document whose text never arrived', async () => {
+    for (const documentText of ['', '   ']) {
+      const recorder = fakeClient([{ deltas: ['ok'], stopReason: 'end_turn' }]);
+      const { service, chunks } = serviceFor(recorder);
+
+      await expect(
+        service.ask(payload({ documentText }), (chunk) => chunks.push(chunk))
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      // Refused before a single token was spent.
+      expect(recorder.params).toHaveLength(0);
+      expect(chunks.at(-1)).toMatchObject({ done: true, code: 'BAD_REQUEST' });
     }
   });
 
-  it('refuses a conversation that does not start with the attorney', () => {
-    expect(() =>
-      readAskPayload(payload({ messages: [{ role: 'assistant', content: 'hello' }] }))
-    ).toThrow(CenturionError);
-  });
+  it('refuses a conversation that does not start with the attorney', async () => {
+    const recorder = fakeClient([{ deltas: ['ok'], stopReason: 'end_turn' }]);
+    const { service } = serviceFor(recorder);
 
-  it('defaults the context label but keeps a supplied one', () => {
-    const withoutLabel = {
-      ...payload(),
-      contextLabel: undefined,
-    } as unknown as CenturionAskPayload;
-    expect(readAskPayload(withoutLabel).contextLabel).toBe('the whole document');
-    expect(readAskPayload(payload()).contextLabel).toBe('the whole document, pages 1-1');
+    await expect(
+      service.ask(payload({ messages: [{ role: 'assistant', content: 'hello' }] }), () => undefined)
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(recorder.params).toHaveLength(0);
   });
 
   it('keeps the ceiling generous no matter what the panel asked for', () => {

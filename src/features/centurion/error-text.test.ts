@@ -4,31 +4,32 @@ import { contextLabel, selectedPages } from './ask-payload';
 import type { ContextSelection } from './ask-payload';
 
 describe('readFailure', () => {
-  it('unwraps the Electron IPC prefix and the taxonomy code', () => {
+  it('unwraps the Electron IPC prefix and pairs the sentence with the chunk code', () => {
     const wrapped = new Error(
-      "Error invoking remote method 'ai:ask': Error: [RATE_LIMIT] Wait about a minute and ask again."
+      "Error invoking remote method 'ai:ask': Error: Wait about a minute and ask again."
     );
-    expect(readFailure(wrapped)).toEqual({
+    expect(readFailure(wrapped, 'RATE_LIMIT')).toEqual({
       code: 'RATE_LIMIT',
       message: 'Wait about a minute and ask again.',
     });
   });
 
-  it('passes an untagged message through as UNKNOWN', () => {
+  it('falls back to UNKNOWN when no chunk code arrived', () => {
     expect(readFailure(new Error('The renderer blew up'))).toEqual({
       code: 'UNKNOWN',
       message: 'The renderer blew up',
     });
+    expect(readFailure(new Error('The renderer blew up'), null).code).toBe('UNKNOWN');
   });
 
   it('never leaves the attorney with a blank message', () => {
     expect(readFailure(new Error('')).message).toMatch(/unexpected problem/);
-    expect(readFailure(new Error('[NO_KEY]')).message).toMatch(/unexpected problem/);
+    expect(readFailure(new Error('   '), 'NO_KEY').message).toMatch(/unexpected problem/);
   });
 
   it('recognises the no-key case so the panel can offer key setup', () => {
-    expect(isMissingKey(readFailure(new Error('[NO_KEY] No API key yet.')))).toBe(true);
-    expect(isMissingKey(readFailure(new Error('[BAD_KEY] Rejected.')))).toBe(false);
+    expect(isMissingKey(readFailure(new Error('No API key yet.'), 'NO_KEY'))).toBe(true);
+    expect(isMissingKey(readFailure(new Error('Rejected.'), 'BAD_KEY'))).toBe(false);
   });
 });
 

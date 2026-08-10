@@ -19,6 +19,7 @@ import type {
   DocumentSession,
   ExhibitDetail,
   ExhibitOptions,
+  ExtractDetail,
   ExtractOptions,
   FlattenDetail,
   FlattenOptions,
@@ -142,9 +143,9 @@ export interface IpcInvokeContract {
   'file:recentClear': { request: []; response: RecentFile[] };
   'file:close': { request: [docId: string]; response: void };
 
-  /** Creates a NEW document; the renderer opens it in a fresh tab. */
+  /** Creates a NEW document; `detail.docId` is the tab the renderer opens. */
   'ops:merge': { request: [options: MergeOptions]; response: OpResult<MergeDetail> };
-  /** Non-destructive: `bytes` is the unchanged source; parts live in `detail`. */
+  /** Non-destructive: `bytes` is the unchanged source; the parts are new documents. */
   'ops:split': {
     request: [docId: string, options: SplitOptions];
     response: OpResult<SplitDetail>;
@@ -152,7 +153,11 @@ export interface IpcInvokeContract {
   'ops:reorder': { request: [docId: string, options: ReorderOptions]; response: OpResult };
   'ops:rotate': { request: [docId: string, options: RotateOptions]; response: OpResult };
   'ops:delete': { request: [docId: string, options: DeletePagesOptions]; response: OpResult };
-  'ops:extract': { request: [docId: string, options: ExtractOptions]; response: OpResult };
+  /** Creates a NEW document from the selected pages; `detail.docId` is its tab. */
+  'ops:extract': {
+    request: [docId: string, options: ExtractOptions];
+    response: OpResult<ExtractDetail>;
+  };
   'ops:insertBlank': { request: [docId: string, options: InsertBlankOptions]; response: OpResult };
   'ops:insertFrom': { request: [docId: string, options: InsertFromOptions]; response: OpResult };
   'ops:bookmarksGet': { request: [docId: string]; response: BookmarkNode[] };

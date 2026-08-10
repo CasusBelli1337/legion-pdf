@@ -75,24 +75,34 @@ Progress streaming: long ops emit `{docId, phase, current, total}` on
 
 ## Viewer overlay API (what stamps/redaction build against)
 
-`src/components/viewer/` exports React context `ViewerApi`:
+`src/components/viewer/` exports the React context `ViewerApi`. The interface
+itself lives in `src/components/viewer/viewer-types.ts` (with
+`PageOverlayContext`, `PageOverlayRenderer`, and `SearchProgress`); import it,
+and everything else the lane exposes, from `src/components/viewer` — never from
+a file inside.
 
 ```ts
 interface ViewerApi {
   docId: string;
+  pageCount: number;
   currentPage: number;
-  goToPage(n: number): void;
-  zoom: number;
-  // page geometry: convert client coords ↔ PDF user-space coords
-  clientToPdf(page: number, pt: {x: number; y: number}): PdfPoint | null;
-  pdfToClient(page: number, pt: PdfPoint): {x: number; y: number} | null;
-  pageSize(page: number): {width: number; height: number}; // PDF points
+  goToPage(page: number): void;
+  zoom: number;             // 1 = 100%, clamped to 0.1–8 by the store
+  setZoom(zoom: number): void;
+  // page geometry: convert client coords ↔ PDF user-space coords.
+  // Null whenever that page is not currently mounted.
+  clientToPdf(page: number, point: ClientPoint): PdfPoint | null;
+  pdfToClient(page: number, point: PdfPoint): ClientPoint | null;
+  pageSize(page: number): PageSize | null;  // PDF points; null until read
   // overlay mounting: features render into a per-page overlay layer
   registerOverlay(id: string, render: PageOverlayRenderer): () => void;
-  // text geometry for search/search-redact
-  findText(query: string): Promise<TextMatch[]>; // page + quad boxes
+  // text geometry for search/search-redact; quads are in PDF points
+  findText(query: string, onProgress?: SearchProgress): Promise<TextMatch[]>;
 }
 ```
+
+`useViewerApi()` returns `ViewerApi | null` — null whenever no document is open,
+so every consumer handles the empty case.
 
 Tool panels register in `src/app/tool-registry.ts`:
 

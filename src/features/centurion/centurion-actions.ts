@@ -85,7 +85,8 @@ export async function askCenturion(
     const result = await window.librarius.ai.ask(payload);
     store().finishAsk(result.text);
   } catch (error) {
-    const failure = readFailure(error);
+    // The code came in on the terminal chunk; the rejection carries the sentence.
+    const failure = readFailure(error, store().failureCode);
     store().failAsk(failure.message);
     // The key can disappear between turns (cleared here or in another window);
     // when main says so, drop straight back to key setup rather than looping.

@@ -4,10 +4,8 @@
  * eyeballed.
  */
 
+import { OCR_CANCELLED } from '@shared/types';
 import type { OcrDetectResult, OcrRunDetail, ProgressEvent } from '@shared/types';
-
-/** Mirrors the sentinel the main process puts in a cancelled run's message. */
-const CANCELLED = 'OCR_CANCELLED';
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
   return count === 1 ? singular : pluralForm;
@@ -52,20 +50,27 @@ export function percentComplete(event: ProgressEvent | null): number {
   return Math.max(0, Math.min(100, Math.round((event.current / event.total) * 100)));
 }
 
+function total(counts: readonly number[]): number {
+  return counts.reduce((sum, count) => sum + count, 0);
+}
+
 /** The completion receipt: what was done, in counts the user can check. */
 export function runReceipt(detail: OcrRunDetail): string {
   const pages = detail.pagesOcred.length;
-  const characters = detail.charsPerPage.reduce((total, count) => total + count, 0);
-  return `Added searchable text to ${groupDigits(pages)} ${plural(
-    pages,
-    'page'
-  )} — ${groupDigits(characters)} ${plural(characters, 'character')} recognized.`;
+  const words = total(detail.wordsPerPage);
+  const characters = total(detail.charsPerPage);
+  return `Added searchable text to ${groupDigits(pages)} ${plural(pages, 'page')} — ${groupDigits(
+    words
+  )} ${plural(words, 'word')}, ${groupDigits(characters)} ${plural(
+    characters,
+    'character'
+  )} recognized.`;
 }
 
 /** True when the run stopped because the user pressed Cancel. */
 export function isCancellation(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes(CANCELLED);
+  return message.includes(OCR_CANCELLED);
 }
 
 /**

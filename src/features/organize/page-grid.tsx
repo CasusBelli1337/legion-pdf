@@ -142,6 +142,7 @@ interface PageGridProps {
 export function PageGrid({ session, selection, thumbnails, ...handlers }: PageGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- library-managed subscription: TanStack Virtual owns the store this reads, and its unmemoized getters are read during render only.
   const virtualizer = useVirtualizer({
     count: Math.ceil(session.pageCount / COLUMNS),
     getScrollElement: () => scrollRef.current,

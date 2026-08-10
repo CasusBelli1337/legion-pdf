@@ -84,9 +84,18 @@ export async function saveActiveAs(): Promise<void> {
   }
 }
 
+/**
+ * Guards the toolbar button, the File menu, and the Ctrl+P accelerator against
+ * each other. A second print while one is preparing would bump the sheet's
+ * generation and abort BOTH runs, so the attorney would get an error instead of
+ * a print dialog.
+ */
+let printIsRunning = false;
+
 export async function printActive(): Promise<void> {
   const docId = activeId();
-  if (docId === null) return;
+  if (docId === null || printIsRunning) return;
+  printIsRunning = true;
   try {
     // Chromium prints the DOM, and the viewer only holds the pages on screen,
     // so every page is rendered into a hidden print sheet first.
@@ -95,7 +104,9 @@ export async function printActive(): Promise<void> {
   } catch (error) {
     report('Could not print:', error);
   } finally {
+    // Always: a half-built sheet holds a blob URL per page until it is dropped.
     finishPrint();
+    printIsRunning = false;
   }
 }
 

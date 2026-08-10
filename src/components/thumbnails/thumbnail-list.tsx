@@ -21,6 +21,7 @@ interface ThumbnailListProps {
 
 export function ThumbnailList({ document, pageCount, currentPage, onSelect }: ThumbnailListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- library-managed subscription: TanStack Virtual owns the store this reads, and its unmemoized getters are read during render only.
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: pageCount,
     getScrollElement: () => scrollRef.current,

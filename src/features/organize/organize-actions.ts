@@ -5,6 +5,7 @@
  */
 
 import type { MergeSource } from '@shared/types';
+import { openNewDocuments } from './new-documents';
 
 function pageWord(count: number): string {
   return count === 1 ? 'page' : 'pages';
@@ -31,6 +32,7 @@ export async function extractPages(
   removeFromSource: boolean
 ): Promise<string> {
   const result = await window.librarius.ops.extract(docId, { pages, removeFromSource });
+  await openNewDocuments([result.detail.docId]);
   const tail = removeFromSource ? ' They were removed from this document.' : '';
   return `Pulled ${result.pagesOut} ${pageWord(result.pagesOut)} into a new tab.${tail}`;
 }
@@ -57,12 +59,14 @@ export async function reorderPages(docId: string, order: number[]): Promise<stri
 
 export async function splitDocument(docId: string, ranges: string[]): Promise<string> {
   const result = await window.librarius.ops.split(docId, { ranges });
-  const parts = result.detail.partPageCounts.length;
+  await openNewDocuments(result.detail.partDocIds);
+  const parts = result.detail.partDocIds.length;
   return `Split into ${parts} ${parts === 1 ? 'document' : 'documents'}, each in its own tab.`;
 }
 
 export async function combineDocuments(sources: MergeSource[]): Promise<string> {
   const result = await window.librarius.ops.merge({ sources, preserveBookmarks: true });
+  await openNewDocuments([result.detail.docId]);
   return `Combined ${sources.length} files into one ${result.pagesOut}-page document in a new tab.`;
 }
 

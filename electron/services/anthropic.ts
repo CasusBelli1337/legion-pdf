@@ -18,7 +18,13 @@ import Anthropic, {
   PermissionDeniedError,
   RateLimitError,
 } from '@anthropic-ai/sdk';
-import type { AiAskRequest, AiAskResult, AiChunk, AiMessage } from '@shared/types';
+import type {
+  AiAskRequest,
+  AiAskResult,
+  AiChunk,
+  AiMessage,
+  CenturionErrorCode,
+} from '@shared/types';
 
 /** Verified against the claude-api skill: the current Opus, no date suffix. */
 export const CENTURION_MODEL = 'claude-opus-5';
@@ -31,18 +37,6 @@ export const MAX_MAX_TOKENS = 128_000;
 
 /** How much extra room the single automatic retry gets. */
 export const RETRY_MULTIPLIER = 4;
-
-export type CenturionErrorCode =
-  | 'NO_KEY'
-  | 'BAD_KEY'
-  | 'RATE_LIMIT'
-  | 'NETWORK'
-  | 'CONTEXT_TOO_LONG'
-  | 'BUSY'
-  | 'CLIPPED'
-  | 'DECLINED'
-  | 'BAD_REQUEST'
-  | 'UNKNOWN';
 
 /** One plain-English sentence per failure, written for an attorney, not a developer. */
 export const CENTURION_MESSAGES: Record<CenturionErrorCode, string> = {
@@ -69,49 +63,21 @@ export class CenturionError extends Error {
     super(message);
     this.name = 'CenturionError';
   }
-
-  // #seam:centurion-error-code - the renderer half is src/features/centurion/error-text.ts
-  /**
-   * Electron flattens a thrown Error to its message across IPC, so the code
-   * rides along in a `[CODE] ` prefix the renderer strips back off.
-   */
-  toIpcError(): Error {
-    return new Error(`[${this.code}] ${this.message}`);
-  }
 }
 
-// #seam:centurion-ask-payload - the renderer half is src/features/centurion/ask-payload.ts
 /**
- * What the Centurion panel actually sends. `AiAskRequest` in shared/ does not
- * carry the document text yet, so the renderer adds these two fields and this
- * guard is the main-process half of the contract. Shared-type change requested:
- * fold `documentText` and `contextLabel` into `AiAskRequest`.
+ * A request that carries no document text would have Claude answering from
+ * nothing at all, which reads exactly like a real answer - so it is refused
+ * before a single token is spent.
  */
-export interface CenturionAskPayload extends AiAskRequest {
-  /** Page-labelled text extracted in the renderer. Never empty. */
-  documentText: string;
-  /** Plain English for the prompt, e.g. "pages 1-20 of 312". */
-  contextLabel: string;
-}
-
-/** Narrows an IPC request, failing loudly rather than asking with no document. */
-export function readAskPayload(request: AiAskRequest): CenturionAskPayload {
-  const candidate = request as Partial<CenturionAskPayload>;
-  const { documentText, contextLabel } = candidate;
-  if (typeof documentText !== 'string' || documentText.trim() === '') {
+function assertAskable(request: AiAskRequest): void {
+  if (request.documentText.trim() === '') {
     throw new CenturionError(
       'BAD_REQUEST',
       'Centurion received no document text to read. Reopen the document and try again.'
     );
   }
-  if (request.messages.length === 0 || request.messages[0]?.role !== 'user') {
-    throw new CenturionError('BAD_REQUEST');
-  }
-  return {
-    ...request,
-    documentText,
-    contextLabel: typeof contextLabel === 'string' ? contextLabel : 'the whole document',
-  };
+  if (request.messages[0]?.role !== 'user') throw new CenturionError('BAD_REQUEST');
 }
 
 const SYSTEM_PROMPT = [
@@ -133,7 +99,7 @@ const SYSTEM_PROMPT = [
   '- You are reading the document, not advising on it. Give a legal opinion only if asked for one.',
 ].join('\n');
 
-function documentBlock(payload: CenturionAskPayload): Anthropic.TextBlockParam {
+function documentBlock(payload: AiAskRequest): Anthropic.TextBlockParam {
   return {
     type: 'text',
     text: `<document context="${payload.contextLabel}">\n${payload.documentText}\n</document>`,
@@ -143,7 +109,7 @@ function documentBlock(payload: CenturionAskPayload): Anthropic.TextBlockParam {
   };
 }
 
-function buildMessages(payload: CenturionAskPayload): Anthropic.MessageParam[] {
+function buildMessages(payload: AiAskRequest): Anthropic.MessageParam[] {
   const [first, ...rest] = payload.messages;
   if (first === undefined) throw new CenturionError('BAD_REQUEST');
   const head: Anthropic.MessageParam = {
@@ -238,25 +204,30 @@ export class CenturionService {
    * OWN requestId, so a retry after a clipped answer tells the panel to discard
    * the partial text rather than append to it.
    */
-  async ask(payload: CenturionAskPayload, onChunk: (chunk: AiChunk) => void): Promise<AiAskResult> {
+  async ask(payload: AiAskRequest, onChunk: (chunk: AiChunk) => void): Promise<AiAskResult> {
     let lastRequestId = '';
     const sink = (chunk: AiChunk): void => {
       lastRequestId = chunk.requestId;
       onChunk(chunk);
     };
     try {
+      assertAskable(payload);
       const result = await this.run(payload, sink);
       onChunk({ requestId: result.requestId, text: '', done: true });
       return result;
     } catch (error) {
-      onChunk({ requestId: lastRequestId, text: '', done: true });
-      throw classifyError(error);
+      // The taxonomy code rides on the terminal chunk: an Error crossing IPC
+      // arrives as a bare message string, and a code parsed back out of English
+      // is a protocol waiting to drift.
+      const failure = classifyError(error);
+      onChunk({ requestId: lastRequestId, text: '', done: true, code: failure.code });
+      throw failure;
     }
   }
 
   /** One attempt, then at most one retry at RETRY_MULTIPLIER times the ceiling. */
   private async run(
-    payload: CenturionAskPayload,
+    payload: AiAskRequest,
     onChunk: (chunk: AiChunk) => void
   ): Promise<AiAskResult> {
     const ceiling = clampCeiling(payload.maxTokens);
@@ -271,7 +242,7 @@ export class CenturionService {
   }
 
   private async attempt(
-    payload: CenturionAskPayload,
+    payload: AiAskRequest,
     maxTokens: number,
     onChunk: (chunk: AiChunk) => void
   ): Promise<AiAskResult> {

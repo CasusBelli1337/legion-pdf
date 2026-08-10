@@ -4,7 +4,8 @@
  */
 
 export { PdfViewer } from './pdf-viewer';
-export { ViewerApiProvider, useViewerApi, useViewerController } from './viewer-api';
+export { ViewerApiProvider } from './viewer-api';
+export { useViewerApi, useViewerController } from './viewer-context';
 export { finishPrint, preparePrint } from './print-controller';
 export { forgetTabView } from './tab-view-state';
 export { usePdfDocument, acquireDocument, releaseDocument } from './pdf-document-cache';

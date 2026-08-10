@@ -19,6 +19,7 @@ import type {
   DocumentSession,
   ExhibitDetail,
   ExhibitOptions,
+  ExtractDetail,
   ExtractOptions,
   FlattenDetail,
   FlattenOptions,
@@ -78,7 +79,7 @@ export interface OpsBridge {
   reorder(docId: string, options: ReorderOptions): Promise<OpResult>;
   rotate(docId: string, options: RotateOptions): Promise<OpResult>;
   delete(docId: string, options: DeletePagesOptions): Promise<OpResult>;
-  extract(docId: string, options: ExtractOptions): Promise<OpResult>;
+  extract(docId: string, options: ExtractOptions): Promise<OpResult<ExtractDetail>>;
   insertBlank(docId: string, options: InsertBlankOptions): Promise<OpResult>;
   insertFrom(docId: string, options: InsertFromOptions): Promise<OpResult>;
   bookmarksGet(docId: string): Promise<BookmarkNode[]>;

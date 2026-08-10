@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { app, ipcMain, safeStorage } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { AiAskRequest, AiAskResult, AiChunk, AiKeyStatus } from '@shared/types';
-import { CenturionError, CenturionService, readAskPayload } from '../services/anthropic';
+import { CenturionError, CenturionService } from '../services/anthropic';
 import { Keystore, KeystoreError } from '../services/keystore';
 import type { IpcContext } from './context';
 
@@ -33,7 +33,7 @@ function registerKeyHandlers(keystore: Keystore): void {
     try {
       keystore.setKey(key);
     } catch (error) {
-      throw toIpcError(error);
+      throw plainError(error);
     }
     return { hasKey: keystore.hasKey() };
   });
@@ -49,27 +49,50 @@ function registerAskHandler(context: IpcContext, keystore: Keystore): void {
     const emit = (chunk: AiChunk): void => {
       context.getWindow()?.webContents.send(IPC.ai.chunk, chunk);
     };
+    const apiKey = readKey(keystore, emit);
     try {
-      const payload = readAskPayload(request);
-      const apiKey = keystore.getKey();
-      if (apiKey === null) throw new CenturionError('NO_KEY');
-      return await new CenturionService({ apiKey }).ask(payload, emit);
+      return await new CenturionService({ apiKey }).ask(request, emit);
     } catch (error) {
-      // A payload/key failure never opened a stream, so close it here too: the
-      // panel's typing indicator must stop on every path, not just the happy one.
-      emit({ requestId: '', text: '', done: true });
-      throw toIpcError(error);
+      // The service already closed the stream with the taxonomy code; only the
+      // sentence has to survive the IPC boundary.
+      throw plainError(error);
     }
   });
 }
 
 /**
- * Electron flattens a thrown Error to its message across IPC, so the taxonomy
- * code rides in a `[CODE] ` prefix and everything else surfaces as plain
- * English. The API key can never appear here: neither error type carries it.
+ * The key lookup happens before any stream exists, so a failure here closes the
+ * panel's typing indicator itself rather than leaving it typing forever.
  */
-function toIpcError(error: unknown): Error {
-  if (error instanceof CenturionError) return error.toIpcError();
-  if (error instanceof KeystoreError) return new Error(`[${error.code}] ${error.message}`);
-  return new CenturionError('UNKNOWN').toIpcError();
+function readKey(keystore: Keystore, emit: (chunk: AiChunk) => void): string {
+  try {
+    const apiKey = keystore.getKey();
+    if (apiKey === null) throw new CenturionError('NO_KEY');
+    return apiKey;
+  } catch (error) {
+    const failure = keyFailure(error);
+    emit({ requestId: '', text: '', done: true, code: failure.code });
+    // The cause is a KeystoreError or a CenturionError; neither ever quotes the
+    // key, and Electron drops it on the way to the renderer regardless.
+    throw new Error(failure.message, { cause: error });
+  }
+}
+
+/** A locked or unreadable key file is a key problem to the attorney. */
+function keyFailure(error: unknown): CenturionError {
+  if (error instanceof CenturionError) return error;
+  if (error instanceof KeystoreError) return new CenturionError('BAD_KEY', error.message);
+  return new CenturionError('UNKNOWN');
+}
+
+/**
+ * Electron flattens a thrown Error to its message across IPC. Every message here
+ * is already written for an attorney, and the API key can never appear in one:
+ * neither error type carries it.
+ */
+function plainError(error: unknown): Error {
+  if (error instanceof CenturionError || error instanceof KeystoreError) {
+    return new Error(error.message);
+  }
+  return new Error(new CenturionError('UNKNOWN').message);
 }

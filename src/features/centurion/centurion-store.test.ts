@@ -5,7 +5,12 @@ import { readFailure } from './error-text';
 const DOC = 'doc-1';
 
 beforeEach(() => {
-  useCenturionStore.setState({ threads: {}, hasKey: null, askingDocId: null });
+  useCenturionStore.setState({
+    threads: {},
+    hasKey: null,
+    askingDocId: null,
+    failureCode: null,
+  });
 });
 
 function actions(): ReturnType<typeof useCenturionStore.getState> {
@@ -107,13 +112,27 @@ describe('streaming', () => {
   it('leaves a failed ask with a plain-English error and no half answer', () => {
     actions().startAsk(DOC, 'Question');
     actions().applyChunk({ requestId: 'req-1', text: 'half an ans', done: false });
+    actions().applyChunk({ requestId: 'req-1', text: '', done: true, code: 'CLIPPED' });
 
-    actions().failAsk(readFailure(new Error('[CLIPPED] The answer was cut off twice.')).message);
+    const failure = readFailure(new Error('The answer was cut off twice.'), actions().failureCode);
+    actions().failAsk(failure.message);
 
+    expect(failure.code).toBe('CLIPPED');
     expect(threadOf(DOC).streamingText).toBe('');
     expect(threadOf(DOC).status).toBe('idle');
     expect(threadOf(DOC).error).toBe('The answer was cut off twice.');
     expect(threadOf(DOC).turns.map((turn) => turn.role)).toEqual(['user']);
     expect(actions().askingDocId).toBeNull();
+  });
+
+  // The code is the only part of a failure that survives IPC as data; the panel
+  // reads it off the terminal chunk rather than parsing it out of English.
+  it('keeps the failure code from the terminal chunk and clears it on the next ask', () => {
+    actions().startAsk(DOC, 'Question');
+    actions().applyChunk({ requestId: 'req-1', text: '', done: true, code: 'NO_KEY' });
+    expect(actions().failureCode).toBe('NO_KEY');
+
+    actions().startAsk(DOC, 'Another question');
+    expect(actions().failureCode).toBeNull();
   });
 });

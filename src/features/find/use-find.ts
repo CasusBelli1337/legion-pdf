@@ -4,7 +4,7 @@
  * search implementation with one set of coordinates.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { TextMatch } from '@shared/types';
 import type { ViewerApi } from '../../components/viewer';
 
@@ -35,7 +35,9 @@ export function useFind(api: ViewerApi | null): FindState {
   const [progress, setProgress] = useState<string | null>(null);
   const docId = api?.docId ?? null;
   const isCurrent = results.docId === docId && docId !== null;
-  const matches = isCurrent ? results.matches : [];
+  // Memoized so the hit list keeps its identity between renders: `goTo` and
+  // `step` close over it, and a fresh [] each render would rebuild them both.
+  const matches = useMemo(() => (isCurrent ? results.matches : []), [isCurrent, results.matches]);
   const hasSearched = isCurrent;
 
   const goTo = useCallback(

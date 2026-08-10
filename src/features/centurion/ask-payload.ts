@@ -1,9 +1,7 @@
-// #seam:centurion-ask-payload - the main-process half is electron/services/anthropic.ts
 /**
- * The context selector and the request it produces. `AiAskRequest` in shared/
- * does not carry the document text yet, so the panel adds `documentText` and
- * `contextLabel`; the main process reads them back through `readAskPayload`.
- * Shared-type change requested: fold both fields into `AiAskRequest`.
+ * The context selector and the `AiAskRequest` it produces. The document text and
+ * its plain-English label are part of the shared request type, so the panel and
+ * the main process agree on the payload by compiling, not by convention.
  */
 
 import type { AiAskRequest, AiMessage } from '@shared/types';
@@ -13,11 +11,6 @@ export type ContextMode = 'whole' | 'range' | 'current';
 
 /** Generous by design: a max_tokens stop is a failure, so the ceiling starts high. */
 export const DEFAULT_MAX_TOKENS = 8192;
-
-export interface CenturionAskPayload extends AiAskRequest {
-  documentText: string;
-  contextLabel: string;
-}
 
 export interface ContextSelection {
   mode: ContextMode;
@@ -65,7 +58,7 @@ export function buildAskPayload(
   messages: AiMessage[],
   selection: ContextSelection,
   documentText: string
-): CenturionAskPayload {
+): AiAskRequest {
   const pages = selectedPages(selection);
   return {
     docId,

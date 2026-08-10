@@ -4,7 +4,7 @@
  * file, and page rotations ride along with the copied pages (F-2 acceptance).
  */
 
-import type { BookmarkNode, MergeDetail, OpResult } from '@shared/types';
+import type { BookmarkNode, MergePagesDetail, OpResult } from '@shared/types';
 import { readOutline } from './bookmarks-read';
 import { writeOutline } from './bookmarks-write';
 import { createPdf, finish, loadPdf, type ProgressReporter } from './pdf-io';
@@ -41,7 +41,7 @@ export async function mergeDocuments(
   sources: readonly MergeSourceDocument[],
   settings: MergeSettings,
   onProgress?: ProgressReporter
-): Promise<OpResult<MergeDetail>> {
+): Promise<OpResult<MergePagesDetail>> {
   if (sources.length === 0) {
     throw new RangeError('Combining needs at least one file — nothing was selected.');
   }

@@ -5,25 +5,17 @@
  * store's copy in one step.
  */
 
-import type { ExtractOptions, OpResult } from '@shared/types';
+import type { ExtractOptions, ExtractPagesDetail, OpResult } from '@shared/types';
 import { countPages } from '../pdf-meta';
 import { normalizePages, survivingPages } from './page-selection';
 import { loadPdf, savePdf, sealResult, type ProgressReporter } from './pdf-io';
 import { rebuildFromPages } from './rebuild';
 
-export interface ExtractDetail {
-  /** The source document: rebuilt without the extracted pages, or unchanged. */
-  sourceBytes: Uint8Array;
-  sourcePageCount: number;
-  /** 1-based pages that were pulled out, in document order. */
-  extractedPages: number[];
-}
-
 export async function extractPages(
   bytes: Uint8Array,
   options: ExtractOptions,
   onProgress?: ProgressReporter
-): Promise<OpResult<ExtractDetail>> {
+): Promise<OpResult<ExtractPagesDetail>> {
   const source = await loadPdf(bytes);
   const pagesIn = source.getPageCount();
   const pages = normalizePages(options.pages, pagesIn, 'page selection');
@@ -31,7 +23,7 @@ export async function extractPages(
   const extracted = await rebuildFromPages(source, pages, onProgress);
   const extractedBytes = await savePdf(extracted, 'extracted document');
 
-  const detail: ExtractDetail = {
+  const detail: ExtractPagesDetail = {
     sourceBytes: bytes,
     sourcePageCount: pagesIn,
     extractedPages: pages,

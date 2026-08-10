@@ -10,7 +10,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { IPC } from '@shared/ipc';
 import type { ProgressEvent } from '@shared/types';
 import { useAppStore } from '../../app/store';
-import { COMBINE_PROGRESS_ID, NEW_DOCUMENT_PHASE } from './new-documents';
 
 export interface OpsRunner {
   /** What is happening right now, or null when idle. */
@@ -39,8 +38,8 @@ export function useOpsRunner(docId: string | null): OpsRunner {
   useEffect(() => {
     if (busy === null) return;
     return window.librarius.onProgress(IPC.ops.progress, (event) => {
-      if (event.phase === NEW_DOCUMENT_PHASE) return;
-      if (event.docId === docId || event.docId === COMBINE_PROGRESS_ID) setProgress(event);
+      // A null id is a combine: it is building the document this panel asked for.
+      if (event.docId === docId || event.docId === null) setProgress(event);
     });
   }, [docId, busy]);
 

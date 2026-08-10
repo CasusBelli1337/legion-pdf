@@ -9,9 +9,7 @@
  */
 
 import { spawn as nodeSpawn } from 'node:child_process';
-
-/** Sentinel the renderer matches on: a cancelled run is not an error to report. */
-export const OCR_CANCELLED = 'OCR_CANCELLED';
+import { OCR_CANCELLED } from '@shared/types';
 
 export class OcrCancelledError extends Error {
   readonly code = OCR_CANCELLED;

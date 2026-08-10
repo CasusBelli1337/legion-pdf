@@ -148,6 +148,7 @@ describe.skipIf(!TOOLS_PRESENT)('OCR end to end with the real Tesseract binary',
     expect(result.pagesOut).toBe(1);
     expect(result.detail.pagesOcred).toEqual([1]);
     expect(result.detail.charsPerPage[0]).toBeGreaterThan(100);
+    expect(result.detail.wordsPerPage[0]).toBeGreaterThan(20);
 
     const after = await detectTextLayer(result.bytes);
     expect(after.pagesWithText).toEqual([1]);

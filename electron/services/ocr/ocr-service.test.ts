@@ -100,6 +100,7 @@ describe('OcrService.run', () => {
     expect(result.pagesOut).toBe(3);
     expect(result.detail.pagesOcred).toEqual([1, 2]);
     expect(result.detail.charsPerPage).toEqual([19, 19]);
+    expect(result.detail.wordsPerPage).toEqual([2, 2]);
     const after = await detectTextLayer(result.bytes);
     expect(after.pagesWithText).toEqual([1, 2]);
     expect(after.pagesNeedingOcr).toEqual([3]);
@@ -155,7 +156,11 @@ describe('OcrService.run', () => {
       runHocr: vi.fn(async () => EMPTY_HOCR),
     });
     const result = await service.run('doc-1', await threePagePdf(), OPTIONS);
-    expect(result.detail).toEqual({ pagesOcred: [1, 2], charsPerPage: [0, 0] });
+    expect(result.detail).toEqual({
+      pagesOcred: [1, 2],
+      charsPerPage: [0, 0],
+      wordsPerPage: [0, 0],
+    });
   });
 
   it('FAILS when a page yields no words and the raster is not blank', async () => {
