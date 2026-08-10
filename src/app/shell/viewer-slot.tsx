@@ -1,11 +1,11 @@
 /**
- * Center stage. Holds the empty state and the drop target today; the viewer
- * lane mounts the real continuous-scroll renderer here.
+ * Center stage: the drop target and the empty state around the viewer itself.
  */
 
 import { useCallback, useState } from 'react';
 import type { DragEvent } from 'react';
 import { FileText } from 'lucide-react';
+import { PdfViewer } from '../../components/viewer';
 import { useActiveSession, useAppStore } from '../store';
 
 interface ViewerSlotProps {
@@ -35,7 +35,7 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
 
   return (
     <section
-      className={`relative flex min-w-0 flex-1 items-center justify-center overflow-auto bg-armory-base transition-colors duration-150 ${
+      className={`relative flex min-h-0 min-w-0 flex-1 items-stretch justify-center bg-armory-base transition-colors duration-150 ${
         isDragging ? 'ring-2 ring-purple-700 ring-inset' : ''
       }`}
       onDragOver={(event) => {
@@ -46,20 +46,14 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
       onDrop={onDrop}
     >
       {session === null ? (
-        <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 self-center text-center">
           <FileText size={40} className="text-text-muted" aria-hidden />
           <p className="text-sm text-text-secondary">Drop a PDF here or press Ctrl+O</p>
           <p className="readout text-text-muted">Awaiting document</p>
           {error !== null && <p className="max-w-md text-xs text-danger">{error}</p>}
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-2 text-center">
-          <p className="text-sm text-text-secondary">{session.fileName} is loaded.</p>
-          <p className="readout text-text-muted">
-            {session.pageCount} pages - viewer arrives with the viewer lane
-          </p>
-          {error !== null && <p className="max-w-md text-xs text-danger">{error}</p>}
-        </div>
+        <PdfViewer key={session.id} session={session} />
       )}
     </section>
   );

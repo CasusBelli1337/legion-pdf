@@ -1,0 +1,43 @@
+/*
+ * Print rules. On screen the sheet is hidden; when Chromium switches to print
+ * media the app disappears and the prepared page images are all that is left,
+ * one per sheet of paper, edge to edge.
+ */
+
+#librarius-print-sheet {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body > #root {
+    display: none !important;
+  }
+
+  #librarius-print-sheet {
+    display: block !important;
+  }
+
+  #librarius-print-sheet img {
+    display: block;
+    width: 100%;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  #librarius-print-sheet img:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  @page {
+    size: auto;
+    margin: 0;
+  }
+}

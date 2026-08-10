@@ -5,7 +5,7 @@
  *
  * Run: node qa/make-fixtures.mjs
  */
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -143,4 +143,4 @@ for (const f of files) {
   const s = await stat(path.join(OUT, f));
   if (s.size === 0) throw new Error(`Empty fixture: ${f}`);
 }
-console.log(`OK — ${files.length} fixtures written to qa/fixtures/`);
+process.stdout.write(`OK — ${files.length} fixtures written to qa/fixtures/\n`);

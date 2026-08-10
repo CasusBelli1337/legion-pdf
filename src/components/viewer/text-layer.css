@@ -1,0 +1,61 @@
+/*
+ * The pdfjs text layer, distilled from pdfjs-dist/web/pdf_viewer.css. Only the
+ * .textLayer rules are copied — importing the whole viewer stylesheet would
+ * drag its :root variables and print rules into the app. Selection is purple to
+ * match the Armory palette.
+ *
+ * TextLayer positions its spans as percentages of the page box and sizes them
+ * from --font-height x --total-scale-factor, which the page sets to the zoom.
+ */
+
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  z-index: 0;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  --total-scale-factor: 1;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  --scale-x: 1;
+  --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role='img'] {
+  user-select: none;
+  cursor: default;
+}
+
+.textLayer ::selection {
+  background: color-mix(in srgb, var(--color-purple-500) 40%, transparent);
+}
