@@ -10,12 +10,12 @@ import type { LucideIcon } from 'lucide-react';
 import { Bot, EyeOff, Hash, LayoutGrid, ScanText, Stamp } from 'lucide-react';
 import {
   BatesPanelPlaceholder,
-  CenturionPanelPlaceholder,
-  OcrPanelPlaceholder,
-  OrganizePanelPlaceholder,
   RedactPanelPlaceholder,
   StampsPanelPlaceholder,
 } from './shell/placeholder-panels';
+import { CenturionPanel } from '@renderer/features/centurion';
+import { OcrPanel } from '@renderer/features/ocr';
+import { OrganizePanel } from '@renderer/features/organize';
 
 export interface ToolPanel {
   /** Stable id, also the right-dock selection key. */
@@ -28,12 +28,12 @@ export interface ToolPanel {
 }
 
 export const TOOL_PANELS: readonly ToolPanel[] = [
-  { id: 'organize', title: 'Organize Pages', icon: LayoutGrid, panel: OrganizePanelPlaceholder },
+  { id: 'organize', title: 'Organize Pages', icon: LayoutGrid, panel: OrganizePanel },
   { id: 'bates', title: 'Bates Numbering', icon: Hash, panel: BatesPanelPlaceholder },
   { id: 'stamps', title: 'Stamps & Marks', icon: Stamp, panel: StampsPanelPlaceholder },
-  { id: 'ocr', title: 'Text Recognition', icon: ScanText, panel: OcrPanelPlaceholder },
+  { id: 'ocr', title: 'Text Recognition', icon: ScanText, panel: OcrPanel },
   { id: 'redact', title: 'Redaction', icon: EyeOff, panel: RedactPanelPlaceholder },
-  { id: 'centurion', title: 'Centurion', icon: Bot, panel: CenturionPanelPlaceholder },
+  { id: 'centurion', title: 'Centurion', icon: Bot, panel: CenturionPanel },
 ];
 
 export function findToolPanel(toolId: string | null): ToolPanel | null {

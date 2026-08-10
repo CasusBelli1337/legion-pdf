@@ -4,6 +4,7 @@
  * shortcuts, and buttons all share exactly one implementation.
  */
 
+import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
 import { useAppStore } from './store';
 
 /** Plain English for the attorney, never a stack trace. */
@@ -87,9 +88,14 @@ export async function printActive(): Promise<void> {
   const docId = activeId();
   if (docId === null) return;
   try {
+    // Chromium prints the DOM, and the viewer only holds the pages on screen,
+    // so every page is rendered into a hidden print sheet first.
+    await preparePrint(docId);
     await window.librarius.app.print(docId);
   } catch (error) {
     report('Could not print:', error);
+  } finally {
+    finishPrint();
   }
 }
 
@@ -99,6 +105,7 @@ export async function closeDocument(docId: string): Promise<void> {
   } catch (error) {
     report('Could not close that document:', error);
   } finally {
+    forgetTabView(docId);
     useAppStore.getState().closeSession(docId);
   }
 }

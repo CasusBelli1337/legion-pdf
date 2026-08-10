@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from 'react';
+import { ViewerApiProvider } from '../components/viewer';
 import { registerRasterResponder } from '../lib/rasterize';
 import { closeDocument, openDialog, openPaths, printActive, saveActive } from './document-actions';
 import { runMenuAction } from './menu-actions';
@@ -41,11 +42,13 @@ export function App() {
         onPrint={() => void printActive()}
       />
       <TabBar onClose={(docId) => void closeDocument(docId)} />
-      <div className="flex min-h-0 flex-1">
-        <ThumbnailRail />
-        <ViewerSlot onOpenPaths={(paths) => void openPaths(paths)} />
-        <RightDock />
-      </div>
+      <ViewerApiProvider>
+        <div className="flex min-h-0 flex-1">
+          <ThumbnailRail />
+          <ViewerSlot onOpenPaths={(paths) => void openPaths(paths)} />
+          <RightDock />
+        </div>
+      </ViewerApiProvider>
       <StatusFooter />
     </div>
   );
