@@ -5,14 +5,12 @@
  * store, the geometry from the controller the viewer registers into.
  */
 
-import { createContext, useContext, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useActiveSession, useAppStore } from '../../app/store';
 import { ViewerController } from './viewer-controller';
+import { ViewerApiContext, ViewerControllerContext } from './viewer-context';
 import type { ViewerApi } from './viewer-types';
-
-const ViewerApiContext = createContext<ViewerApi | null>(null);
-const ViewerControllerContext = createContext<ViewerController | null>(null);
 
 interface ViewerApiProviderProps {
   children: ReactNode;
@@ -51,18 +49,4 @@ export function ViewerApiProvider({ children }: ViewerApiProviderProps) {
       <ViewerApiContext.Provider value={api}>{children}</ViewerApiContext.Provider>
     </ViewerControllerContext.Provider>
   );
-}
-
-/** The viewer contract, or null when no document is open. */
-export function useViewerApi(): ViewerApi | null {
-  return useContext(ViewerApiContext);
-}
-
-/** Viewer-internal: the mutable controller the provider owns. */
-export function useViewerController(): ViewerController {
-  const controller = useContext(ViewerControllerContext);
-  if (controller === null) {
-    throw new Error('The viewer must be rendered inside a ViewerApiProvider.');
-  }
-  return controller;
 }

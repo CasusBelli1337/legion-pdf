@@ -16,7 +16,7 @@ import { useDocumentSearch } from './use-document-search';
 import { usePageNavigation } from './use-page-navigation';
 import { usePageSizes, type PageSizeIndex } from './use-page-sizes';
 import { useZoomControls } from './use-zoom-controls';
-import { useViewerController } from './viewer-api';
+import { useViewerController } from './viewer-context';
 import type { ViewerController } from './viewer-controller';
 
 export interface ViewerState {

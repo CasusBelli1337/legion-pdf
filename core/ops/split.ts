@@ -9,7 +9,7 @@
  */
 
 import { RangeCollapseError } from '@shared/types';
-import type { OpResult, SplitDetail } from '@shared/types';
+import type { OpResult, SplitPartsDetail } from '@shared/types';
 import { countPages } from '../pdf-meta';
 import { parsePageRanges } from './page-selection';
 import { loadPdf, savePdf, type ProgressReporter } from './pdf-io';
@@ -19,7 +19,7 @@ export async function splitByRanges(
   bytes: Uint8Array,
   ranges: readonly string[],
   onProgress?: ProgressReporter
-): Promise<OpResult<SplitDetail>> {
+): Promise<OpResult<SplitPartsDetail>> {
   const source = await loadPdf(bytes);
   const pagesIn = source.getPageCount();
   if (ranges.length === 0) {

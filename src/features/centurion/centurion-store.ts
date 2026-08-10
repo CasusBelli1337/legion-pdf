@@ -10,7 +10,7 @@
  */
 
 import { create } from 'zustand';
-import type { AiChunk } from '@shared/types';
+import type { AiChunk, CenturionErrorCode } from '@shared/types';
 import type { ContextMode } from './ask-payload';
 
 export type CenturionStatus = 'idle' | 'working' | 'streaming';
@@ -41,6 +41,11 @@ export interface CenturionState {
   hasKey: boolean | null;
   /** The document a request is in flight for, so chunks route to the right thread. */
   askingDocId: string | null;
+  /**
+   * The taxonomy code from the last failed ask. It arrives on the terminal
+   * chunk, since an Error crossing IPC keeps only its message.
+   */
+  failureCode: CenturionErrorCode | null;
 
   setHasKey(hasKey: boolean): void;
   setContextMode(docId: string, mode: ContextMode): void;
@@ -148,6 +153,7 @@ function askActions(
     startAsk: (docId, question) =>
       set((state) => ({
         askingDocId: docId,
+        failureCode: null,
         ...withThread(state, docId, (thread) => ({
           ...settled(thread),
           turns: [...thread.turns, { id: newTurnId(), role: 'user', content: question }],
@@ -156,14 +162,15 @@ function askActions(
         })),
       })),
 
-    // Terminal `done` chunks are ignored on purpose: finishAsk / failAsk own the
-    // transition, so the answer never blinks out between the two.
+    // A terminal chunk moves no text: finishAsk / failAsk own that transition, so
+    // the answer never blinks out between the two. All it carries is the failure
+    // code, which the catch in centurion-actions pairs with the message.
     applyChunk: (chunk) =>
-      set((state) =>
-        chunk.done || state.askingDocId === null
-          ? {}
-          : withThread(state, state.askingDocId, (thread) => applyDelta(thread, chunk))
-      ),
+      set((state) => {
+        if (chunk.done) return chunk.code === undefined ? {} : { failureCode: chunk.code };
+        if (state.askingDocId === null) return {};
+        return withThread(state, state.askingDocId, (thread) => applyDelta(thread, chunk));
+      }),
 
     finishAsk: (text) =>
       set((state) =>
@@ -183,6 +190,7 @@ export const useCenturionStore = create<CenturionState>((set) => ({
   threads: {},
   hasKey: null,
   askingDocId: null,
+  failureCode: null,
   setHasKey: (hasKey) => set(() => ({ hasKey })),
   ...threadActions(set),
   ...askActions(set),

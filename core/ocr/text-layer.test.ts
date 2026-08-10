@@ -38,7 +38,7 @@ describe('writeTextLayer', () => {
     expect(result.bytes.byteLength).toBeGreaterThan(0);
     expect(result.pagesIn).toBe(1);
     expect(result.pagesOut).toBe(1);
-    expect(result.detail).toEqual({ pagesOcred: [1], charsPerPage: [8] });
+    expect(result.detail).toEqual({ pagesOcred: [1], charsPerPage: [8], wordsPerPage: [1] });
 
     const items = await extractTextItems(result.bytes, 1);
     expect(items.map((item) => item.str)).toEqual(['SUPERIOR']);
@@ -58,6 +58,7 @@ describe('writeTextLayer', () => {
     const result = await writeTextLayer(await blankPdf(), [page(words)]);
 
     expect(result.detail.charsPerPage).toEqual([20]);
+    expect(result.detail.wordsPerPage).toEqual([3]);
     const items = await extractTextItems(result.bytes, 1);
     expect(items.map((item) => item.str)).toEqual(['EXHIBIT', 'A', 'ASHFORD000123']);
   });
@@ -94,7 +95,7 @@ describe('writeTextLayer', () => {
 
   it('accepts a page with no words when its raster was proven blank', async () => {
     const result = await writeTextLayer(await blankPdf(), [page([], { blank: true })]);
-    expect(result.detail).toEqual({ pagesOcred: [1], charsPerPage: [0] });
+    expect(result.detail).toEqual({ pagesOcred: [1], charsPerPage: [0], wordsPerPage: [0] });
     expect(await extractTextItems(result.bytes, 1)).toEqual([]);
   });
 

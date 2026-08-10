@@ -7,11 +7,10 @@
  * selection instead of carrying page numbers from another file.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { DocumentSession, MergeSource } from '@shared/types';
 import { useActiveSession } from '../../app/store';
 import { CombineView } from './combine-view';
-import { ensureNewDocumentWatcher } from './new-documents';
 import { OrganizeStatus } from './organize-status';
 import { OrganizeToolbar } from './organize-toolbar';
 import { combineDocuments, reorderPages, splitDocument } from './organize-actions';
@@ -159,8 +158,6 @@ function OrganizeBody({ session }: { session: DocumentSession }) {
 
 export function OrganizePanel() {
   const session = useActiveSession();
-
-  useEffect(() => ensureNewDocumentWatcher(), []);
 
   if (session === null) return <EmptyPanel />;
   return <OrganizeBody key={session.id} session={session} />;

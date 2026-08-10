@@ -1,18 +1,19 @@
-// #seam:centurion-error-code - the main-process half is electron/services/anthropic.ts
 /**
- * Main throws plain-English errors tagged `[CODE] message`; Electron flattens
- * them to a message string with its own prefix on the way across IPC. This is
- * the one place that unwraps both, so every panel state is driven by a code and
- * shows a sentence written for an attorney.
+ * What the panel shows when an ask fails. The taxonomy code arrives on the
+ * terminal `ai:chunk` (`AiChunk.code`), typed by shared/; the thrown error
+ * carries only the plain-English sentence, because Electron flattens an Error to
+ * its message across IPC. This is the one place that strips Electron's wrapper
+ * off that sentence and pairs it with the code.
  */
+
+import type { CenturionErrorCode } from '@shared/types';
 
 const IPC_PREFIX = /^Error invoking remote method '[^']+':\s*/;
 const ERROR_PREFIX = /^Error:\s*/;
-const CODE_PREFIX = /^\[([A-Z_]+)\]\s*/;
 
 export interface CenturionFailure {
-  /** Taxonomy code from main, or 'UNKNOWN' when the error came from elsewhere. */
-  code: string;
+  /** Code from main, or 'UNKNOWN' when the failure never reached the service. */
+  code: CenturionErrorCode;
   /** Plain English, ready to render. Never a stack trace. */
   message: string;
 }
@@ -20,15 +21,15 @@ export interface CenturionFailure {
 const FALLBACK =
   'Centurion hit an unexpected problem. Try again; if it repeats, restart Librarius.';
 
-export function readFailure(error: unknown): CenturionFailure {
-  const raw = (error instanceof Error ? error.message : String(error))
+export function readFailure(error: unknown, code?: CenturionErrorCode | null): CenturionFailure {
+  const message = (error instanceof Error ? error.message : String(error))
     .replace(IPC_PREFIX, '')
     .replace(ERROR_PREFIX, '')
     .trim();
-  const match = CODE_PREFIX.exec(raw);
-  if (match === null) return { code: 'UNKNOWN', message: raw === '' ? FALLBACK : raw };
-  const message = raw.slice(match[0].length).trim();
-  return { code: match[1] ?? 'UNKNOWN', message: message === '' ? FALLBACK : message };
+  return {
+    code: code ?? 'UNKNOWN',
+    message: message === '' ? FALLBACK : message,
+  };
 }
 
 /** True when the failure means "there is no key yet", so the panel shows key setup. */

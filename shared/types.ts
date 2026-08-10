@@ -98,9 +98,21 @@ export function isRangeCollapseError(value: unknown): boolean {
   );
 }
 
+/**
+ * The sentinel a cancelled OCR run carries in its error message. Main throws it
+ * and the renderer matches on it, so it lives here rather than as two string
+ * constants that can drift apart.
+ */
+export const OCR_CANCELLED = 'OCR_CANCELLED';
+
 /** Streamed by every long-running op on `<group>:progress`. UI shows "Page 37/214". */
 export interface ProgressEvent {
-  docId: string;
+  /**
+   * The document being worked on, or null when the op is BUILDING one that does
+   * not exist yet (combine). The UI shows a null-id event against whatever it is
+   * currently running.
+   */
+  docId: string | null;
   /** Plain-English phase label, e.g. "Reading pages" or "Burning redactions". */
   phase: string;
   current: number;

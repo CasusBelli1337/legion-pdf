@@ -13,6 +13,7 @@ import { IPC } from '@shared/ipc';
 import type {
   BookmarkNode,
   DeletePagesOptions,
+  ExtractDetail,
   ExtractOptions,
   FlattenDetail,
   FlattenOptions,
@@ -46,33 +47,20 @@ import {
 } from '@core/ops';
 import type { IpcContext } from './context';
 
-// #seam:ops-new-document
-/**
- * Ops that produce a WHOLE NEW document (combine, split parts, extract) adopt
- * it into the store here and announce it on `ops:progress` with this phase, so
- * the renderer can open it in a fresh tab. The renderer half carries the same
- * marker: src/features/organize/new-documents.ts. Replace both sides together
- * if the IPC contract ever grows a channel that returns a new document id.
- */
-export const NEW_DOCUMENT_PHASE = 'New document ready';
-
-/** A combine has no document id yet, so its progress is reported under this one. */
-export const COMBINE_PROGRESS_ID = 'combine';
-
-function reporter(context: IpcContext, docId: string, phase: string): ProgressReporter {
+/** A combine is building a document that has no id yet, hence `docId: null`. */
+function reporter(context: IpcContext, docId: string | null, phase: string): ProgressReporter {
   return (current, total) =>
     context.emitProgress(IPC.ops.progress, { docId, phase, current, total });
 }
 
-async function announce(context: IpcContext, bytes: Uint8Array, fileName: string): Promise<void> {
+/**
+ * Ops that produce a WHOLE NEW document (combine, split parts, extract) adopt it
+ * into the store here; the id travels back in the op's `detail` and the renderer
+ * opens it in a fresh tab.
+ */
+async function adopt(context: IpcContext, bytes: Uint8Array, fileName: string): Promise<string> {
   const session = await context.store.adopt(bytes, fileName);
-  context.emitProgress(IPC.ops.progress, {
-    docId: session.id,
-    phase: NEW_DOCUMENT_PHASE,
-    current: session.pageCount,
-    total: session.pageCount,
-    message: session.fileName,
-  });
+  return session.id;
 }
 
 /** Swaps the store's bytes for the op's output; the store marks it dirty. */
@@ -123,10 +111,10 @@ async function handleMerge(
   const result = await mergeDocuments(
     sources,
     { preserveBookmarks: options.preserveBookmarks },
-    reporter(context, COMBINE_PROGRESS_ID, 'Combining files')
+    reporter(context, null, 'Combining files')
   );
-  await announce(context, result.bytes, 'Combined.pdf');
-  return result;
+  const docId = await adopt(context, result.bytes, 'Combined.pdf');
+  return { ...result, detail: { ...result.detail, docId } };
 }
 
 async function handleSplit(
@@ -140,30 +128,44 @@ async function handleSplit(
     options.ranges,
     reporter(context, docId, 'Splitting')
   );
+  const partDocIds: string[] = [];
   for (const [index, part] of result.detail.parts.entries()) {
-    await announce(context, part, partName(fileName, options.ranges[index] ?? '', index));
+    partDocIds.push(
+      await adopt(context, part, partName(fileName, options.ranges[index] ?? '', index))
+    );
   }
-  return result;
+  return {
+    bytes: result.bytes,
+    pagesIn: result.pagesIn,
+    pagesOut: result.pagesOut,
+    detail: { partDocIds, partPageCounts: result.detail.partPageCounts },
+  };
 }
 
 async function handleExtract(
   context: IpcContext,
   docId: string,
   options: ExtractOptions
-): Promise<OpResult> {
+): Promise<OpResult<ExtractDetail>> {
   const fileName = context.store.session(docId).fileName;
   const result = await extractPages(
     context.store.bytes(docId),
     options,
     reporter(context, docId, 'Extracting pages')
   );
+  // The source is only touched when the pages were MOVED out; `sourceBytes` is
+  // the rebuilt document in that case and the untouched input otherwise.
   if (options.removeFromSource) await context.store.setBytes(docId, result.detail.sourceBytes);
-  await announce(context, result.bytes, `${stem(fileName)} extracted.pdf`);
   return {
     bytes: result.bytes,
     pagesIn: result.pagesIn,
     pagesOut: result.pagesOut,
-    detail: undefined,
+    detail: {
+      docId: await adopt(context, result.bytes, `${stem(fileName)} extracted.pdf`),
+      extractedPages: result.detail.extractedPages,
+      sourceRebuilt: options.removeFromSource,
+      sourcePageCount: result.detail.sourcePageCount,
+    },
   };
 }
 

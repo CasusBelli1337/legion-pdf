@@ -12,6 +12,11 @@ files:
   - node_modules/**/*
 asarUnpack:
   - resources/**
+# The bundled Tesseract binary is spawned as a child process, so it ships beside
+# the app (process.resourcesPath/tesseract-win) rather than inside the asar.
+extraResources:
+  - from: resources/tesseract-win
+    to: tesseract-win
 win:
   target:
     - target: nsis

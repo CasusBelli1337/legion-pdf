@@ -176,6 +176,7 @@ export async function writeTextLayer(
     detail: {
       pagesOcred: pages.map((page) => page.page),
       charsPerPage: pages.map((page) => characterCount(page.words)),
+      wordsPerPage: pages.map((page) => page.words.length),
     },
   };
 }

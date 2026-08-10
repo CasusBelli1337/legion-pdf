@@ -38,6 +38,7 @@ export function usePageNavigation(options: NavigationOptions): PageNavigation {
   const setCurrentPage = useAppStore((state) => state.setCurrentPage);
   const restoredFor = useRef<string | null>(null);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- library-managed subscription: TanStack Virtual owns the store this reads, and its unmemoized getters are read during render only.
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: pageCount,
     getScrollElement: () => scrollRef.current,

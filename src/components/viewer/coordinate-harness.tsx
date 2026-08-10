@@ -7,7 +7,7 @@
 
 import { useCallback, useState } from 'react';
 import { X } from 'lucide-react';
-import { useViewerApi, useViewerController } from './viewer-api';
+import { useViewerApi, useViewerController } from './viewer-context';
 import type { ViewerController } from './viewer-controller';
 import type { ViewerApi } from './viewer-types';
 

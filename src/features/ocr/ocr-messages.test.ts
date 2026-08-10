@@ -95,15 +95,25 @@ describe('percentComplete', () => {
 });
 
 describe('runReceipt', () => {
-  it('reports pages and characters, in counts the user can check', () => {
-    expect(runReceipt({ pagesOcred: [1, 2, 3], charsPerPage: [1200, 1300, 1100] })).toBe(
-      'Added searchable text to 3 pages — 3,600 characters recognized.'
-    );
+  it('reports pages, words, and characters, in counts the user can check', () => {
+    expect(
+      runReceipt({
+        pagesOcred: [1, 2, 3],
+        charsPerPage: [1200, 1300, 1100],
+        wordsPerPage: [210, 230, 190],
+      })
+    ).toBe('Added searchable text to 3 pages — 630 words, 3,600 characters recognized.');
   });
 
   it('uses singular grammar for one page', () => {
-    expect(runReceipt({ pagesOcred: [4], charsPerPage: [1] })).toBe(
-      'Added searchable text to 1 page — 1 character recognized.'
+    expect(runReceipt({ pagesOcred: [4], charsPerPage: [1], wordsPerPage: [1] })).toBe(
+      'Added searchable text to 1 page — 1 word, 1 character recognized.'
+    );
+  });
+
+  it('groups digits so a big production stays readable', () => {
+    expect(runReceipt({ pagesOcred: [1], charsPerPage: [48213], wordsPerPage: [8402] })).toContain(
+      '8,402 words, 48,213 characters'
     );
   });
 });

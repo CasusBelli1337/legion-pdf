@@ -29,6 +29,8 @@ export interface OcrRunDetail {
   pagesOcred: number[];
   /** Characters of text written per page, in pagesOcred order. */
   charsPerPage: number[];
+  /** Words recognized per page, in pagesOcred order. */
+  wordsPerPage: number[];
 }
 
 /* ── redact: true destruction (lane E) ────────────────────────────────── */
@@ -88,13 +90,36 @@ export interface AiAskRequest {
   contextPages?: number[];
   /** Generous by design — a max_tokens stop is a failure, not a result. */
   maxTokens: number;
+  /** Page-labelled document text extracted in the renderer. Never empty. */
+  documentText: string;
+  /** Plain English for the prompt, e.g. "pages 1-20 of 312". */
+  contextLabel: string;
 }
+
+/**
+ * Centurion's failure taxonomy. Main classifies every failure into one of these
+ * and sends it on the terminal `ai:chunk`; the panel drives its state off the
+ * code and shows the sentence that came with it.
+ */
+export type CenturionErrorCode =
+  | 'NO_KEY'
+  | 'BAD_KEY'
+  | 'RATE_LIMIT'
+  | 'NETWORK'
+  | 'CONTEXT_TOO_LONG'
+  | 'BUSY'
+  | 'CLIPPED'
+  | 'DECLINED'
+  | 'BAD_REQUEST'
+  | 'UNKNOWN';
 
 /** One streamed delta on `ai:chunk`. */
 export interface AiChunk {
   requestId: string;
   text: string;
   done: boolean;
+  /** Set only on the terminal chunk of a FAILED ask; absent on every success. */
+  code?: CenturionErrorCode;
 }
 
 export interface AiAskResult {

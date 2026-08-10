@@ -5,20 +5,6 @@
 
 import { ComingOnlinePanel } from './coming-online-panel';
 
-export function OrganizePanelPlaceholder() {
-  return (
-    <ComingOnlinePanel
-      title="Organize Pages"
-      summary="Rearrange, rotate, delete, extract, split, and combine documents."
-      capabilities={[
-        'Drag pages into a new order',
-        'Rotate, delete, or pull pages into a new PDF',
-        'Split by page ranges, or combine several files into one',
-      ]}
-    />
-  );
-}
-
 export function BatesPanelPlaceholder() {
   return (
     <ComingOnlinePanel
@@ -47,20 +33,6 @@ export function StampsPanelPlaceholder() {
   );
 }
 
-export function OcrPanelPlaceholder() {
-  return (
-    <ComingOnlinePanel
-      title="Text Recognition"
-      summary="Make a scanned document searchable, on this machine and fully offline."
-      capabilities={[
-        'Finds the pages that have no text layer',
-        'Uses every CPU core, with page-by-page progress',
-        'Writes an invisible text layer under the scan',
-      ]}
-    />
-  );
-}
-
 export function RedactPanelPlaceholder() {
   return (
     <ComingOnlinePanel
@@ -70,20 +42,6 @@ export function RedactPanelPlaceholder() {
         'Draw boxes, or mark every instance of a term at once',
         'Applying rebuilds the page from a raster - the text is destroyed',
         'A verification receipt confirms the text is absent from the saved file',
-      ]}
-    />
-  );
-}
-
-export function CenturionPanelPlaceholder() {
-  return (
-    <ComingOnlinePanel
-      title="Centurion"
-      summary="Ask Claude about the document you have open."
-      capabilities={[
-        'Answers stream in as they are written',
-        'Your API key is encrypted by Windows and never written to a file',
-        'Clipped answers are retried, never shown as finished',
       ]}
     />
   );

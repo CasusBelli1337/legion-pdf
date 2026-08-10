@@ -11,7 +11,6 @@ export type { PageJobContext } from './page-worker';
 export { BUNDLE_DIRECTORY, TesseractNotFoundError, resolveTesseract } from './tesseract-binary';
 export type { ResolveTesseractOptions, TesseractLocation } from './tesseract-binary';
 export {
-  OCR_CANCELLED,
   OcrCancelledError,
   TesseractFailedError,
   runTesseractHocr,

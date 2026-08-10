@@ -21,9 +21,19 @@ export interface MergeOptions {
   preserveBookmarks: boolean;
 }
 
-/** Evidence returned by merge: how many pages each source contributed. */
-export interface MergeDetail {
+/** What core/ops/merge reports: how many pages each source contributed. */
+export interface MergePagesDetail {
   perSourcePages: number[];
+}
+
+/**
+ * What `ops:merge` returns. Merge builds a WHOLE NEW document, so the main
+ * process adopts the bytes into the store and reports the id the renderer opens
+ * in a fresh tab.
+ */
+export interface MergeDetail extends MergePagesDetail {
+  /** Store id of the new combined document. */
+  docId: string;
 }
 
 export interface SplitOptions {
@@ -31,9 +41,19 @@ export interface SplitOptions {
   ranges: PageRangeSpec[];
 }
 
-export interface SplitDetail {
-  /** One byte array per requested range, in request order. */
+/** What core/ops/split reports: one byte array per requested range, in order. */
+export interface SplitPartsDetail {
   parts: Uint8Array[];
+  partPageCounts: number[];
+}
+
+/**
+ * What `ops:split` returns. The parts are adopted into the store in the main
+ * process, so only their ids cross IPC — the bytes never travel twice.
+ */
+export interface SplitDetail {
+  /** Store id per requested range, in request order. */
+  partDocIds: string[];
   partPageCounts: number[];
 }
 
@@ -58,6 +78,30 @@ export interface ExtractOptions {
   pages: number[];
   /** Also delete the extracted pages from the source document. */
   removeFromSource: boolean;
+}
+
+/**
+ * What core/ops/extract reports. `bytes` on the OpResult is the EXTRACTED
+ * document; the source rides along here so the caller can swap the store's copy
+ * in one step. It is the unchanged input unless `removeFromSource` was set, in
+ * which case it is the source REBUILT without the extracted pages.
+ */
+export interface ExtractPagesDetail {
+  sourceBytes: Uint8Array;
+  sourcePageCount: number;
+  /** 1-based pages that were pulled out, in document order. */
+  extractedPages: number[];
+}
+
+/** What `ops:extract` returns. The extracted document is adopted into the store. */
+export interface ExtractDetail {
+  /** Store id of the new document holding the extracted pages. */
+  docId: string;
+  extractedPages: number[];
+  /** True when the source was rebuilt without those pages (`removeFromSource`). */
+  sourceRebuilt: boolean;
+  /** The source's page count after the op; unchanged unless `sourceRebuilt`. */
+  sourcePageCount: number;
 }
 
 export interface InsertBlankOptions {
