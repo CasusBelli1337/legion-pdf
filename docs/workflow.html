@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Librarius — Workflow</title>
+    <style>
+      body { background: #09090B; color: #FAFAFA; font-family: Inter, system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 2rem; }
+      h1 { color: #C084FC; }
+      h2 { color: #A855F7; margin-top: 2.5rem; }
+      p { color: #A1A1AA; }
+    </style>
+  </head>
+  <body>
+    <h1>Legion Armory — Librarius — Workflow Pipelines</h1>
+    <p>How a document moves through the app, and how the two heavy pipelines (OCR, redaction) work.</p>
+
+    <h2>Document lifecycle</h2>
+    <pre class="mermaid">
+flowchart TD
+  A[Open PDF<br/>dialog / drag-drop / recent] --> B[doc-store main process<br/>bytes = source of truth]
+  B --> C[Renderer tab<br/>pdfjs renders pages virtualized]
+  C --> D{User action}
+  D -->|organize / stamp / bates<br/>watermark / signature / text| E[IPC ops:* stamp:*<br/>core/ pure function on bytes]
+  E --> F[OpResult: new bytes +<br/>pagesIn/pagesOut verified]
+  F --> C
+  D -->|Save| G[Write bytes to path]
+  D -->|Redact / OCR| H[Heavy pipelines below<br/>always Save-As]
+    </pre>
+
+    <h2>OCR pipeline (local Tesseract, all cores)</h2>
+    <pre class="mermaid">
+flowchart TD
+  A[Detect pages without text layer] --> B[Renderer rasterizes pages<br/>300 DPI PNG via pdfjs]
+  B --> C[Main: Tesseract worker pool<br/>N = CPU cores, streams Page 37/214]
+  C --> D[hOCR word boxes per page]
+  D --> E[core/ocr: invisible text layer<br/>written under page image]
+  E --> F[Count check: every requested page<br/>produced a result — else LOUD error]
+  F --> G[Searchable PDF, Save-As]
+    </pre>
+
+    <h2>True redaction (destruction, then proof)</h2>
+    <pre class="mermaid">
+flowchart TD
+  A[Mark boxes: drawn by hand<br/>or search-all-instances] --> B[Apply: affected pages<br/>rasterized at 300 DPI]
+  B --> C[Boxes burned black into raster]
+  C --> D[Page content REPLACED by raster<br/>original text/images destroyed]
+  D --> E[Optional re-OCR of<br/>non-redacted regions]
+  E --> F[VERIFY: re-extract text,<br/>assert every target string absent]
+  F -->|pass| G[Receipt: N instances destroyed<br/>Save-As only]
+  F -->|fail| H[LOUD error — file not written]
+    </pre>
+
+    <h2>Centurion ask flow</h2>
+    <pre class="mermaid">
+sequenceDiagram
+  participant U as Attorney
+  participant R as Renderer panel
+  participant M as Main process
+  participant C as Claude Opus 5
+  U->>R: Question about document
+  R->>M: ai:ask docId + question
+  M->>M: Extract doc text (or page range)
+  M->>C: Messages API (streaming)
+  C-->>M: chunks
+  M-->>R: ai:chunk stream (UI shows typing)
+  M->>M: Check stop_reason — max_tokens = retry higher, never display clipped
+  R-->>U: Answer
+    </pre>
+
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "dark" });
+    </script>
+  </body>
+</html>

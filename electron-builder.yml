@@ -1,0 +1,27 @@
+appId: law.legion.armory.librarius
+productName: Legion Armory - Librarius
+copyright: Copyright (c) 2026 Legion LegalTech
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+  # Main-process deps stay external (electron-vite externalizeDepsPlugin), so
+  # production node_modules must ship with the installer.
+  - node_modules/**/*
+asarUnpack:
+  - resources/**
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: LegionArmory-Librarius-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Librarius

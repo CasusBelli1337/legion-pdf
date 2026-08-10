@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "outDir": "./node_modules/.tmp/tsc-node"
+  },
+  "include": [
+    "electron/**/*.ts",
+    "core/**/*.ts",
+    "shared/**/*.ts",
+    "tests/**/*.ts",
+    "electron.vite.config.ts",
+    "vitest.config.ts",
+    "eslint.config.js"
+  ]
+}

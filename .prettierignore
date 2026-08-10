@@ -1,0 +1,13 @@
+node_modules
+out
+dist
+release
+coverage
+resources/tesseract-win
+resources/tesseract-linux
+package-lock.json
+docs/workflow.html
+
+# Prose is hand-authored; the formatter owns code only.
+*.md
+
