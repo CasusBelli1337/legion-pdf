@@ -82,6 +82,7 @@ const bridge: LibrariusBridge = {
     pageNumbers: (docId, options) => invoke(IPC.stamp.pageNumbers, docId, options),
     signatureList: () => invoke(IPC.stamp.signatureList),
     signatureAdd: (sourcePath, label) => invoke(IPC.stamp.signatureAdd, sourcePath, label),
+    signatureRemove: (signatureId) => invoke(IPC.stamp.signatureRemove, signatureId),
     signaturePlace: (docId, placement) => invoke(IPC.stamp.signaturePlace, docId, placement),
     textBox: (docId, options) => invoke(IPC.stamp.textBox, docId, options),
     whiteout: (docId, options) => invoke(IPC.stamp.whiteout, docId, options),

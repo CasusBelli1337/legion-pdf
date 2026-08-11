@@ -1,88 +1,76 @@
 /**
- * The library grid: one tile per stored signature, thumbnail if the browser
- * will show it and a plain labelled tile if it will not. Importing is a normal
- * file picker, so there is nothing to learn.
+ * The library grid: one tile per stored signature, showing the signature itself
+ * when the main process sent the image with it and a plain labelled tile when
+ * it did not. Importing is a normal file picker and removing asks first, so
+ * there is nothing to learn.
  */
 
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
+import { X } from 'lucide-react';
 import type { SignatureAsset } from '@shared/types';
-import { fileUrl } from './file-url';
+
+const REMOVE_CONFIRM =
+  'Remove this signature from your library? Documents already signed are not affected.';
 
 interface TileProps {
   signature: SignatureAsset;
   selected: boolean;
+  busy: boolean;
   onSelect(): void;
+  onRemove(): void;
 }
 
-function SignatureTile({ signature, selected, onSelect }: TileProps) {
-  const [showable, setShowable] = useState(true);
+function SignatureTile({ signature, selected, busy, onSelect, onRemove }: TileProps) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      title={signature.label}
-      className={`flex h-16 flex-col items-center justify-center gap-1 rounded-md border bg-armory-base p-1 transition-colors duration-150 ${
-        selected
-          ? 'border-purple-500 shadow-glow-sm'
-          : 'border-armory-border hover:border-armory-border-strong'
-      }`}
-    >
-      {showable ? (
-        <img
-          src={fileUrl(signature.filePath)}
-          alt={signature.label}
-          onError={() => setShowable(false)}
-          className="max-h-9 max-w-full object-contain"
-        />
-      ) : (
-        <span className="readout text-text-muted">
-          {signature.widthPx}x{signature.heightPx}
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        title={signature.label}
+        className={`flex h-16 w-full flex-col items-center justify-center gap-1 rounded-md border bg-armory-base p-1 transition-colors duration-150 ${
+          selected
+            ? 'border-purple-500 shadow-glow-sm'
+            : 'border-armory-border hover:border-armory-border-strong'
+        }`}
+      >
+        {signature.dataUrl === undefined ? (
+          <span className="readout text-text-muted">
+            {signature.widthPx}x{signature.heightPx}
+          </span>
+        ) : (
+          <img
+            src={signature.dataUrl}
+            alt={signature.label}
+            /* Paper-white behind the image: scanned signatures are black ink on
+               a transparent background, invisible against the dark tile. */
+            className="max-h-9 max-w-full rounded-sm bg-white object-contain"
+          />
+        )}
+        <span className="w-full truncate text-center text-[10px] text-text-secondary">
+          {signature.label}
         </span>
-      )}
-      <span className="w-full truncate text-center text-[10px] text-text-secondary">
-        {signature.label}
-      </span>
-    </button>
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={`Remove ${signature.label}`}
+        title="Remove from your library"
+        onClick={() => {
+          if (window.confirm(REMOVE_CONFIRM)) onRemove();
+        }}
+        className="absolute right-0 top-0 rounded bg-armory-elevated/90 p-1 text-text-muted transition-colors duration-150 hover:bg-armory-interactive hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <X size={12} aria-hidden />
+      </button>
+    </div>
   );
 }
 
-interface LibraryViewProps {
-  signatures: readonly SignatureAsset[];
-  selectedId: string | null;
-  busy: boolean;
-  onSelect(signature: SignatureAsset): void;
-  onImport(file: File): void;
-}
-
-export function SignatureLibraryView({
-  signatures,
-  selectedId,
-  busy,
-  onSelect,
-  onImport,
-}: LibraryViewProps) {
+function ImportButton({ busy, onImport }: { busy: boolean; onImport(file: File): void }) {
   const picker = useRef<HTMLInputElement>(null);
-
   return (
-    <div className="flex flex-col gap-2">
-      {signatures.length === 0 ? (
-        <p className="text-xs text-text-muted">
-          No signatures yet. Import a PNG with a transparent background.
-        </p>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          {signatures.map((signature) => (
-            <SignatureTile
-              key={signature.id}
-              signature={signature}
-              selected={signature.id === selectedId}
-              onSelect={() => onSelect(signature)}
-            />
-          ))}
-        </div>
-      )}
-
+    <>
       <input
         ref={picker}
         type="file"
@@ -102,6 +90,49 @@ export function SignatureLibraryView({
       >
         {busy ? 'Importing...' : 'Import a signature image'}
       </button>
+    </>
+  );
+}
+
+interface LibraryViewProps {
+  signatures: readonly SignatureAsset[];
+  selectedId: string | null;
+  busy: boolean;
+  onSelect(signature: SignatureAsset): void;
+  onRemove(signature: SignatureAsset): void;
+  onImport(file: File): void;
+}
+
+export function SignatureLibraryView({
+  signatures,
+  selectedId,
+  busy,
+  onSelect,
+  onRemove,
+  onImport,
+}: LibraryViewProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      {signatures.length === 0 ? (
+        <p className="text-xs text-text-muted">
+          No signatures yet. Import a PNG with a transparent background.
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {signatures.map((signature) => (
+            <SignatureTile
+              key={signature.id}
+              signature={signature}
+              selected={signature.id === selectedId}
+              busy={busy}
+              onSelect={() => onSelect(signature)}
+              onRemove={() => onRemove(signature)}
+            />
+          ))}
+        </div>
+      )}
+
+      <ImportButton busy={busy} onImport={onImport} />
     </div>
   );
 }

@@ -73,6 +73,7 @@ describe('applyRedactions', () => {
       pagesRebuilt: [1],
       instancesDestroyed: 1,
       survivingStrings: [],
+      pagesStillCarryingText: [],
     });
   });
 

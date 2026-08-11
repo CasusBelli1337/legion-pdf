@@ -34,6 +34,11 @@ function isAsset(value: unknown): value is SignatureAsset {
   );
 }
 
+/** A stored PNG as inline bytes — the renderer is not allowed to read files. */
+function dataUrlOf(bytes: Buffer): string {
+  return `data:image/png;base64,${bytes.toString('base64')}`;
+}
+
 function parseIndex(text: string, path: string): SignatureAsset[] {
   const parsed: unknown = JSON.parse(text);
   const signatures = (parsed as Partial<SignatureIndex>)?.signatures;
@@ -66,6 +71,15 @@ export class SignatureLibrary {
     }
   }
 
+  /**
+   * The library as the renderer needs it: every signature carrying its own
+   * image inline. A signature whose PNG has gone missing is still listed — its
+   * tile falls back to the label — so one lost file never hides the rest.
+   */
+  async listWithThumbnails(): Promise<SignatureAsset[]> {
+    return Promise.all((await this.list()).map((asset) => this.withThumbnail(asset)));
+  }
+
   /** Copies a PNG into the library. Rejects anything that is not a sane PNG. */
   async add(sourcePath: string, label: string): Promise<SignatureAsset> {
     if (sourcePath.trim().length === 0) {
@@ -88,7 +102,27 @@ export class SignatureLibrary {
       createdAt: new Date().toISOString(),
     };
     await this.write([...(await this.list()), asset]);
-    return asset;
+    return this.withThumbnail(asset);
+  }
+
+  /**
+   * Deletes a signature from the library: the index entry first, then the PNG.
+   * That order matters — a crash in between leaves a stray file behind rather
+   * than a library pointing at an image that is no longer on disk.
+   */
+  async remove(signatureId: string): Promise<SignatureAsset[]> {
+    const signatures = await this.list();
+    const asset = signatures.find((stored) => stored.id === signatureId);
+    if (asset === undefined) {
+      throw new Error(
+        'That signature is not in your library — it may already have been removed. Nothing was changed.'
+      );
+    }
+    await this.write(signatures.filter((stored) => stored.id !== signatureId));
+    await unlink(asset.filePath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+    return this.listWithThumbnails();
   }
 
   /** The PNG bytes behind a stored signature, refusing loudly when it is gone. */
@@ -104,6 +138,15 @@ export class SignatureLibrary {
         `The image for "${asset.label}" is missing from ${asset.filePath} — import it again.`,
         { cause: error }
       );
+    }
+  }
+
+  /** The stored PNG read back at response time, never cached in the index. */
+  private async withThumbnail(asset: SignatureAsset): Promise<SignatureAsset> {
+    try {
+      return { ...asset, dataUrl: dataUrlOf(await readFile(asset.filePath)) };
+    } catch {
+      return asset;
     }
   }
 

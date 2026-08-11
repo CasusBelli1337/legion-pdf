@@ -26,16 +26,6 @@ import type { RedactProgress } from '@core/redact';
 import type { IpcContext } from './context';
 import { reOcrBurnedPages } from './redact-reocr';
 
-// #seam:redact-new-document
-/**
- * Redaction always produces a WHOLE NEW document, and `RedactVerifyResult` has
- * no field to carry its store id, so main adopts the document and announces it
- * on `redact:progress` under this phase. The renderer half carries the same
- * marker and the same phrase: src/features/redact/redacted-document.ts, whose
- * test fails if the two ever drift.
- */
-export const REDACTED_DOCUMENT_PHASE = 'Redacted document ready';
-
 /** Suffix that tells the attorney at a glance which tab is the redacted one. */
 export function redactedFileName(fileName: string): string {
   return `${fileName.replace(/\.pdf$/i, '')} (redacted).pdf`;
@@ -85,15 +75,20 @@ async function verifyAgainAfterOcr(
   return result;
 }
 
-async function announce(context: IpcContext, bytes: Uint8Array, fileName: string): Promise<void> {
+/**
+ * Redaction always produces a WHOLE NEW document. It is adopted into the store
+ * here and its id travels back in the receipt, so the renderer opens the tab
+ * with a plain read by id — the same shape combine, split, and extract use.
+ * Adoption happens only after verification has passed.
+ */
+async function adopt(
+  context: IpcContext,
+  bytes: Uint8Array,
+  fileName: string,
+  receipt: RedactVerifyResult
+): Promise<RedactVerifyResult> {
   const session = await context.store.adopt(bytes, redactedFileName(fileName));
-  context.emitProgress(IPC.redact.progress, {
-    docId: session.id,
-    phase: REDACTED_DOCUMENT_PHASE,
-    current: session.pageCount,
-    total: session.pageCount,
-    message: session.fileName,
-  });
+  return { ...receipt, docId: session.id };
 }
 
 async function handleApply(
@@ -108,8 +103,8 @@ async function handleApply(
   });
 
   if (!options.reOcr) {
-    await announce(context, outcome.result.bytes, fileName);
-    return outcome.result;
+    const detail = await adopt(context, outcome.result.bytes, fileName, outcome.result.detail);
+    return { ...outcome.result, detail };
   }
 
   const searchable = await reOcrBurnedPages(
@@ -125,12 +120,11 @@ async function handleApply(
     outcome.plan.pages,
     outcome.plan.instanceCount
   );
-  await announce(context, searchable, fileName);
   return {
     bytes: searchable,
     pagesIn: outcome.result.pagesIn,
     pagesOut: outcome.result.pagesOut,
-    detail: receipt,
+    detail: await adopt(context, searchable, fileName, receipt),
   };
 }
 

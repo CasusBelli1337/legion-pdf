@@ -92,6 +92,22 @@ describe('failureText', () => {
     expect(text).toContain('was not changed');
   });
 
+  it('names a page that was not really rebuilt, as its own failure', () => {
+    const text = failureText([], [3]);
+    expect(text).toContain('NOT applied');
+    expect(text).toContain('page 3 still carries text');
+  });
+
+  it('reads correctly for several pages', () => {
+    expect(failureText([], [2, 5])).toContain('pages 2, 5 still carry text');
+  });
+
+  it('reports both failure kinds together when both happened', () => {
+    const text = failureText(['SSN 1'], [4]);
+    expect(text).toContain('1 marked item is still readable');
+    expect(text).toContain('and page 4 still carries text');
+  });
+
   it('still refuses loudly when it cannot name what survived', () => {
     expect(failureText([])).toContain('could not be verified');
   });

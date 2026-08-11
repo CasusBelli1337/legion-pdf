@@ -4,6 +4,7 @@
  * verified against the saved output.
  */
 
+export { loadPdf, createPdf, savePdf, sealResult } from './pdf-io';
 export { getBookmarks, setBookmarks } from './bookmarks';
 export { readOutline, countBookmarks } from './bookmarks-read';
 export { writeOutline, removeOutline } from './bookmarks-write';

@@ -68,6 +68,10 @@ export interface RedactVerifyResult {
   instancesDestroyed: number;
   /** Non-empty means the redaction FAILED — never present this as success. */
   survivingStrings: string[];
+  /** Doc-store id of the adopted redacted document (always a NEW document). */
+  docId?: string;
+  /** Rebuilt pages that still draw text — a distinct failure from survivingStrings. */
+  pagesStillCarryingText?: number[];
 }
 
 /* ── ai: Centurion (lane F) ───────────────────────────────────────────── */

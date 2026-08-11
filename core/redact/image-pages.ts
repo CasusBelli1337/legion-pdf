@@ -17,9 +17,8 @@
 
 import { degrees } from 'pdf-lib';
 import type { PDFDocument } from 'pdf-lib';
-import { readOutline, toZeroBased, writeOutline } from '@core/ops';
+import { createPdf, loadPdf, readOutline, savePdf, toZeroBased, writeOutline } from '@core/ops';
 import type { ProgressReporter } from '@core/ops';
-import { createPdf, loadPdf, savePdf } from '@core/ops/pdf-io';
 import { assertRasterMatchesPage, imagePlacement } from './geometry';
 import { carryMetadata, redactTitles } from './carry-over';
 

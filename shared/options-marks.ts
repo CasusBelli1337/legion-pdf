@@ -84,6 +84,11 @@ export interface SignatureAsset {
   label: string;
   /** Absolute path to the stored transparent PNG. */
   filePath: string;
+  /**
+   * data: URL of the PNG for renderer thumbnails — file:// is blocked from
+   * the app origin, so the bytes travel inline. Populated by signatureList/Add.
+   */
+  dataUrl?: string;
   widthPx: number;
   heightPx: number;
   createdAt: string;

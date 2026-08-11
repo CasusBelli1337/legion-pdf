@@ -14,16 +14,17 @@ vi.mock('@renderer/lib/extract-text', () => ({
 }));
 
 const { NoTextLayerError } = await import('@renderer/lib/extract-text');
-const { proveWithPdfjs, selectableTextMarker } = await import('./pdfjs-proof');
+const { isClean, proveWithPdfjs } = await import('./pdfjs-proof');
 
 const BYTES = Uint8Array.from([1, 2, 3]);
+const CLEAN = { survivingStrings: [], pagesStillCarryingText: [] };
 
 describe('proveWithPdfjs', () => {
   it('treats an image-only rebuilt page as the proof, not a failure', async () => {
     extractDocumentText.mockRejectedValueOnce(new NoTextLayerError([2]));
     await expect(
       proveWithPdfjs({ bytes: BYTES, pages: [2], needles: ['SSN 1'], expectNoText: true })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual(CLEAN);
   });
 
   it('reports a marked string pdfjs can still read back', async () => {
@@ -39,7 +40,7 @@ describe('proveWithPdfjs', () => {
         needles: ['SSN 545-45-6789'],
         expectNoText: false,
       })
-    ).resolves.toEqual(['SSN 545-45-6789']);
+    ).resolves.toEqual({ survivingStrings: ['SSN 545-45-6789'], pagesStillCarryingText: [] });
   });
 
   it('matches regardless of case', async () => {
@@ -48,13 +49,14 @@ describe('proveWithPdfjs', () => {
       pages: [2],
       charsPerPage: [15],
     });
-    const survivors = await proveWithPdfjs({
+    const findings = await proveWithPdfjs({
       bytes: BYTES,
       pages: [2],
       needles: ['SSN 545-45-6789'],
       expectNoText: false,
     });
-    expect(survivors).toEqual(['SSN 545-45-6789']);
+    expect(findings.survivingStrings).toEqual(['SSN 545-45-6789']);
+    expect(isClean(findings)).toBe(false);
   });
 
   it('flags a rebuilt page that still yields selectable text at all', async () => {
@@ -65,7 +67,7 @@ describe('proveWithPdfjs', () => {
     });
     await expect(
       proveWithPdfjs({ bytes: BYTES, pages: [1, 3], needles: [], expectNoText: true })
-    ).resolves.toEqual([selectableTextMarker(3)]);
+    ).resolves.toEqual({ survivingStrings: [], pagesStillCarryingText: [3] });
   });
 
   it('allows text on a rebuilt page when re-OCR deliberately put it there', async () => {
@@ -76,14 +78,20 @@ describe('proveWithPdfjs', () => {
     });
     await expect(
       proveWithPdfjs({ bytes: BYTES, pages: [1], needles: ['SSN 1'], expectNoText: false })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual(CLEAN);
   });
 
   it('has nothing to prove when no page was rebuilt', async () => {
     await expect(
       proveWithPdfjs({ bytes: BYTES, pages: [], needles: ['SSN 1'], expectNoText: true })
-    ).resolves.toEqual([]);
+    ).resolves.toEqual(CLEAN);
     expect(extractDocumentText).not.toHaveBeenCalledWith(BYTES, []);
+  });
+
+  it('is only clean when BOTH failure lists are empty', () => {
+    expect(isClean(CLEAN)).toBe(true);
+    expect(isClean({ survivingStrings: ['SSN 1'], pagesStillCarryingText: [] })).toBe(false);
+    expect(isClean({ survivingStrings: [], pagesStillCarryingText: [3] })).toBe(false);
   });
 
   it('lets a real extraction failure through rather than calling it proof', async () => {

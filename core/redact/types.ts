@@ -69,19 +69,42 @@ export class UnsupportedRedactionRasterError extends Error {
   }
 }
 
+/** Both failure kinds, in one sentence an attorney can read. */
+function notVerifiedMessage(
+  survivingStrings: readonly string[],
+  pagesStillCarryingText: readonly number[]
+): string {
+  const parts: string[] = [];
+  if (survivingStrings.length > 0) {
+    parts.push(
+      `${survivingStrings.length} marked ` +
+        `${survivingStrings.length === 1 ? 'item is' : 'items are'} still readable`
+    );
+  }
+  if (pagesStillCarryingText.length > 0) {
+    parts.push(
+      `${pagesStillCarryingText.length === 1 ? 'page' : 'pages'} ` +
+        `${pagesStillCarryingText.join(', ')} still ${
+          pagesStillCarryingText.length === 1 ? 'draws' : 'draw'
+        } text`
+    );
+  }
+  const detail = parts.length > 0 ? parts.join(' and ') : 'the proof did not pass';
+  return `The redaction was NOT applied: ${detail} in the rebuilt document. The original document was not changed.`;
+}
+
 /**
  * Thrown when the verification pass finds a marked string still readable in the
- * output. The bytes are abandoned: nothing that fails verification is ever
- * adopted, saved, or shown to the user as a result.
+ * output, or a rebuilt page that still draws text. The bytes are abandoned:
+ * nothing that fails verification is ever adopted, saved, or shown as a result.
  */
 export class RedactionNotVerifiedError extends Error {
   readonly code = 'REDACTION_NOT_VERIFIED';
-  constructor(readonly survivingStrings: readonly string[]) {
-    super(
-      `The redaction was NOT applied: ${survivingStrings.length} marked ` +
-        `${survivingStrings.length === 1 ? 'item is' : 'items are'} still readable in the ` +
-        'rebuilt document. The original document was not changed.'
-    );
+  constructor(
+    readonly survivingStrings: readonly string[],
+    readonly pagesStillCarryingText: readonly number[] = []
+  ) {
+    super(notVerifiedMessage(survivingStrings, pagesStillCarryingText));
     this.name = 'RedactionNotVerifiedError';
   }
 }

@@ -33,5 +33,5 @@ export {
   UnsupportedRedactionRasterError,
 } from './types';
 export type { BurnedPage, PageRaster, PixelRect, RgbImage } from './types';
-export { assertVerified, textOnPageMarker, verifyRedaction } from './verify';
+export { assertVerified, verifyRedaction } from './verify';
 export type { VerifyRequest } from './verify';

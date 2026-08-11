@@ -1,17 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { IPC, invokeChannelsOf } from '@shared/ipc';
-import { REDACTED_DOCUMENT_PHASE, redactedFileName } from './redact';
+import type { InvokeResponse } from '@shared/ipc';
+import { redactedFileName } from './redact';
 
 /**
  * The engine is unit-tested in core/redact; `ipcMain` does not exist in this
  * environment. What is checked here is the wiring the compiler cannot see: every
  * declared channel has a handler, the destruction path cannot skip its proof,
- * and the two halves of the new-document seam still say the same thing.
+ * and the redacted document reaches the renderer as a store id.
  */
 const HANDLERS = resolve(import.meta.dirname, './redact.ts');
-const RENDERER = resolve(import.meta.dirname, '../../src/features/redact/redacted-document.ts');
 
 function sourceOf(path: string): string {
   return readFileSync(path, 'utf8');
@@ -37,10 +37,10 @@ describe('the verification gate', () => {
   it('asserts the receipt again after re-OCR, before the document is adopted', () => {
     const source = sourceOf(HANDLERS);
     expect(source).toContain('assertVerified(result)');
-    const verifyAgain = source.indexOf('verifyAgainAfterOcr(');
-    const announce = source.indexOf('await announce(context, searchable');
+    const verifyAgain = source.indexOf('const receipt = await verifyAgainAfterOcr(');
+    const adopted = source.indexOf('await adopt(context, searchable');
     expect(verifyAgain).toBeGreaterThan(-1);
-    expect(announce).toBeGreaterThan(verifyAgain);
+    expect(adopted).toBeGreaterThan(verifyAgain);
   });
 
   it('never adopts the source document — every output is a new store entry', () => {
@@ -50,19 +50,37 @@ describe('the verification gate', () => {
   });
 });
 
-describe('#seam:redact-new-document', () => {
+describe('the redacted document', () => {
+  // Drift guard, matching the one ops.test.ts keeps over merge/split/extract:
+  // redaction builds a WHOLE NEW document and the renderer opens it by id. This
+  // assertion stops compiling the moment the receipt loses that id, which is
+  // what the old phase-string announcement seam guarded by matching a phrase in
+  // two files.
+  it('reports the adopted store id in the receipt', () => {
+    expectTypeOf<InvokeResponse<'redact:apply'>['detail']['docId']>().toEqualTypeOf<
+      string | undefined
+    >();
+  });
+
+  // The compiler cannot prove the id came from the store rather than thin air.
+  it('adopts the output into the store at the one creation site', () => {
+    const source = sourceOf(HANDLERS);
+    expect(source.match(/store\.adopt\(/g)).toHaveLength(1);
+    expect(source).toContain('docId: session.id');
+  });
+
   it('names the redacted document so the tab is unmistakable', () => {
     expect(redactedFileName('Deposition.pdf')).toBe('Deposition (redacted).pdf');
     expect(redactedFileName('exhibit.PDF')).toBe('exhibit (redacted).pdf');
     expect(redactedFileName('no-extension')).toBe('no-extension (redacted).pdf');
   });
 
-  it('agrees with the renderer half on the announcement phrase', () => {
-    expect(sourceOf(RENDERER)).toContain(`'${REDACTED_DOCUMENT_PHASE}'`);
-  });
-
-  it('carries the marker on both halves so the pair stays greppable', () => {
-    expect(sourceOf(HANDLERS)).toContain('#seam:redact-new-document');
-    expect(sourceOf(RENDERER)).toContain('#seam:redact-new-document');
+  // The retired protocol announced the new document by pushing a phase string
+  // down the progress channel, which two files had to agree on by hand. The id
+  // now rides the receipt, so no phase constant may come back.
+  it('announces the document through the receipt, never through a progress phase', () => {
+    const source = sourceOf(HANDLERS);
+    expect(source).not.toMatch(/phase:\s*[A-Za-z_]*DOCUMENT[A-Za-z_]*/);
+    expect(source).not.toMatch(/emitProgress\([^)]*\bphase:\s*['"`]/);
   });
 });

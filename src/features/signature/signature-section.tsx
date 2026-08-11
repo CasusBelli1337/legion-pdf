@@ -90,10 +90,12 @@ function Library({
   library,
   selectedId,
   onSelect,
+  onRemove,
 }: {
   library: ReturnType<typeof useSignatureLibrary>;
   selectedId: string | null;
   onSelect(signature: SignatureAsset): void;
+  onRemove(signature: SignatureAsset): void;
 }) {
   return (
     <>
@@ -102,6 +104,7 @@ function Library({
         selectedId={selectedId}
         busy={library.busy}
         onSelect={onSelect}
+        onRemove={onRemove}
         onImport={(file) => void library.importFile(file)}
       />
       {library.error !== null && <Problem message={library.error} />}
@@ -134,7 +137,7 @@ function useSignatureOverlay(
             context={context}
             draft={draft}
             placement={draftState}
-            source={fileUrl(draft.signature.filePath)}
+            source={draft.signature.dataUrl ?? fileUrl(draft.signature.filePath)}
           />
         )}
       </>
@@ -168,6 +171,34 @@ function useApplySignature(
   };
 }
 
+interface SignatureSelection {
+  selected: SignatureAsset | null;
+  pick(signature: SignatureAsset): void;
+  drop(signature: SignatureAsset): void;
+}
+
+/** Which signature is armed. Removing the armed one disarms it, never places it. */
+function useSignatureSelection(
+  library: ReturnType<typeof useSignatureLibrary>,
+  draftState: ReturnType<typeof useSignatureDraft>
+): SignatureSelection {
+  const [selected, setSelected] = useState<SignatureAsset | null>(null);
+  return {
+    selected,
+    pick: (signature) => {
+      setSelected(signature);
+      draftState.clear();
+    },
+    drop: (signature) => {
+      if (selected?.id === signature.id) {
+        setSelected(null);
+        draftState.clear();
+      }
+      void library.remove(signature.id);
+    },
+  };
+}
+
 export function SignatureSection({
   session,
   runner,
@@ -178,20 +209,21 @@ export function SignatureSection({
   const api = useViewerApi();
   const library = useSignatureLibrary();
   const draftState = useSignatureDraft();
-  const [selected, setSelected] = useState<SignatureAsset | null>(null);
+  const { selected, pick, drop } = useSignatureSelection(library, draftState);
   const [date, setDate] = useState<DateStamp>({ withDate: false, dateFormat: 'MM/DD/YYYY' });
 
   const draft = draftState.draft;
   useMarkOverlay(api, OVERLAY_ID, useSignatureOverlay(api, selected, draftState));
   const apply = useApplySignature(session, runner, draftState, date);
-  const pick = (signature: SignatureAsset): void => {
-    setSelected(signature);
-    draftState.clear();
-  };
 
   return (
     <div className="flex flex-col gap-2">
-      <Library library={library} selectedId={selected?.id ?? null} onSelect={pick} />
+      <Library
+        library={library}
+        selectedId={selected?.id ?? null}
+        onSelect={pick}
+        onRemove={drop}
+      />
       {selected !== null && draft === null && (
         <Hint>
           Click the page where the signature should sit. You can move and resize it after.

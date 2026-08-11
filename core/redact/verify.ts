@@ -39,24 +39,27 @@ export interface VerifyRequest {
   instancesDestroyed: number;
 }
 
-/** How a page that still draws text is reported through `survivingStrings`. */
-export function textOnPageMarker(page: number): string {
-  return `text still drawn on page ${page}`;
+/** The two ways a page can fail, kept apart so neither is mistaken for the other. */
+interface PageFindings {
+  /** Marked strings still readable in a rebuilt page's own operators. */
+  survivingStrings: string[];
+  /** Rebuilt pages that still draw text at all — a page that is not an image. */
+  pagesStillCarryingText: number[];
 }
 
-function checkPages(document: PDFDocument, request: VerifyRequest): string[] {
-  const failures: string[] = [];
+function checkPages(document: PDFDocument, request: VerifyRequest): PageFindings {
+  const findings: PageFindings = { survivingStrings: [], pagesStillCarryingText: [] };
   for (const page of request.pagesRebuilt) {
     if (request.expectNoTextOnRebuiltPages) {
-      if (shownCharactersOn(document, page) > 0) failures.push(textOnPageMarker(page));
+      if (shownCharactersOn(document, page) > 0) findings.pagesStillCarryingText.push(page);
       continue;
     }
     const content = pageContentText(document, page);
     for (const needle of request.strings) {
-      if (content.includes(needle.toLowerCase())) failures.push(needle);
+      if (content.includes(needle.toLowerCase())) findings.survivingStrings.push(needle);
     }
   }
-  return failures;
+  return findings;
 }
 
 function assertSomethingToCheck(request: VerifyRequest): void {
@@ -91,18 +94,26 @@ export async function verifyRedaction(request: VerifyRequest): Promise<RedactVer
       );
     }
   }
+  const findings = checkPages(document, request);
   const survivingStrings = [
-    ...new Set([...residueOf(request.bytes, request.strings), ...checkPages(document, request)]),
+    ...new Set([...residueOf(request.bytes, request.strings), ...findings.survivingStrings]),
   ];
   return {
-    verified: survivingStrings.length === 0,
+    verified: survivingStrings.length === 0 && findings.pagesStillCarryingText.length === 0,
     pagesRebuilt: [...request.pagesRebuilt],
     instancesDestroyed: request.instancesDestroyed,
     survivingStrings,
+    pagesStillCarryingText: findings.pagesStillCarryingText,
   };
 }
 
-/** The gate: anything unverified stops here and never reaches the user. */
+/**
+ * The gate: anything unverified stops here and never reaches the user. Either
+ * failure list being non-empty is a failure — `verified` is the single flag, and
+ * this refuses to trust it alone.
+ */
 export function assertVerified(result: RedactVerifyResult): void {
-  if (!result.verified) throw new RedactionNotVerifiedError(result.survivingStrings);
+  const pages = result.pagesStillCarryingText ?? [];
+  if (result.verified && result.survivingStrings.length === 0 && pages.length === 0) return;
+  throw new RedactionNotVerifiedError(result.survivingStrings, pages);
 }
