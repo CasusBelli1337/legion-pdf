@@ -29,12 +29,19 @@ function fileMenu(send: SendAction): MenuItemConstructorOptions {
   };
 }
 
-function editMenu(): MenuItemConstructorOptions {
+/**
+ * Undo/Redo here are the DOCUMENT's history, not the text-field roles they
+ * replace: Ctrl+Z has to step the PDF back, which is what the attorney means by
+ * "undo" in a PDF editor. Typing inside a text box still gets native undo — the
+ * renderer hands the keystroke back to the focused field before it touches the
+ * document (see src/app/undo-actions.ts).
+ */
+function editMenu(send: SendAction): MenuItemConstructorOptions {
   return {
     label: '&Edit',
     submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
+      item('Undo', 'CmdOrCtrl+Z', 'undo', send),
+      item('Redo', 'CmdOrCtrl+Y', 'redo', send),
       { type: 'separator' },
       { role: 'cut' },
       { role: 'copy' },
@@ -75,7 +82,7 @@ function helpMenu(send: SendAction): MenuItemConstructorOptions {
 export function installAppMenu(send: SendAction, isDevelopment: boolean): void {
   const template: MenuItemConstructorOptions[] = [
     fileMenu(send),
-    editMenu(),
+    editMenu(send),
     viewMenu(send, isDevelopment),
     helpMenu(send),
   ];

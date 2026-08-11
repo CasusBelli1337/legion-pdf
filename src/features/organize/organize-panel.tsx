@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import type { DocumentSession, MergeSource } from '@shared/types';
+import { useViewerApi } from '../../components/viewer';
 import { useActiveSession } from '../../app/store';
 import { CombineView } from './combine-view';
 import { OrganizeStatus } from './organize-status';
@@ -41,12 +42,14 @@ interface PanelBodyProps {
   context: ActionContext;
   selection: ReturnType<typeof useOrganizeSelection>;
   thumbnails: ReturnType<typeof usePageThumbnails>;
+  /** The page the viewer is on, selected and scrolled to as the panel opens. */
+  openOn: number;
   onDropBefore(page: number): void;
   onLeaveMode(label: string, work: () => Promise<string>): void;
   onCancel(): void;
 }
 
-function PanelBody({ mode, context, selection, thumbnails, ...handlers }: PanelBodyProps) {
+function PanelBody({ mode, context, selection, thumbnails, openOn, ...handlers }: PanelBodyProps) {
   const { session, busy } = context;
 
   if (mode === 'split') {
@@ -82,6 +85,7 @@ function PanelBody({ mode, context, selection, thumbnails, ...handlers }: PanelB
         session={session}
         selection={selection.selection}
         thumbnails={thumbnails}
+        openOn={openOn}
         onSelect={selection.select}
         onDragPage={selection.beginDrag}
         onDropBefore={handlers.onDropBefore}
@@ -109,7 +113,10 @@ function applyDrag(
 function OrganizeBody({ session }: { session: DocumentSession }) {
   const runner = useOpsRunner(session.id);
   const thumbnails = usePageThumbnails(session);
-  const selection = useOrganizeSelection();
+  // The page on screen as the panel opened; it does not chase the viewer after
+  // that, or the attorney's own selection would be overwritten as he scrolls.
+  const [openOn] = useState(useViewerApi()?.currentPage ?? 1);
+  const selection = useOrganizeSelection(openOn, session.pageCount);
   const [mode, setMode] = useState<PanelMode>('pages');
 
   const context: ActionContext = {
@@ -140,6 +147,7 @@ function OrganizeBody({ session }: { session: DocumentSession }) {
         context={context}
         selection={selection}
         thumbnails={thumbnails}
+        openOn={openOn}
         onDropBefore={(page) => applyDrag(session, selection, runner, page)}
         onLeaveMode={leaveMode}
         onCancel={() => setMode('pages')}

@@ -25,6 +25,8 @@ import type {
   AiMessage,
   CenturionErrorCode,
 } from '@shared/types';
+import { answerToolUses, toolParams } from './centurion-tool-protocol';
+import type { CenturionToolHooks } from './centurion-tool-protocol';
 
 /** Verified against the claude-api skill: the current Opus, no date suffix. */
 export const CENTURION_MODEL = 'claude-opus-5';
@@ -98,6 +100,27 @@ const SYSTEM_PROMPT = [
   '  name the page and move on rather than guessing at what it said.',
   '- You are reading the document, not advising on it. Give a legal opinion only if asked for one.',
 ].join('\n');
+
+/** Added to the system prompt only when the attorney has tools switched on. */
+const TOOL_PROMPT = [
+  '',
+  'You can also DO things to this document rather than only describe it. Your tools change the',
+  'file the attorney has open: Bates numbers, watermarks, exhibit stamps, page numbers,',
+  'bookmarks, and proposed redactions.',
+  '',
+  '- Every call is shown to the attorney as a confirm card and does nothing until he approves it.',
+  '  Propose the call rather than asking for permission in prose first.',
+  '- Fill in every setting from the document and from what he asked for, and say which page you',
+  '  read a prefix, an exhibit letter, or a section title off.',
+  '- One call at a time. Read the result you are given before the next one, and say plainly what',
+  '  changed once you are done.',
+  '- If he declines a call, do not propose the same one again - ask what to change.',
+  '- suggestRedactions only MARKS text for review in the redaction panel. It destroys nothing;',
+  '  the attorney applies the redaction himself.',
+].join('\n');
+
+/** How many tool round trips one ask may take before something is clearly wrong. */
+export const MAX_TOOL_TURNS = 8;
 
 function documentBlock(payload: AiAskRequest): Anthropic.TextBlockParam {
   return {
@@ -177,6 +200,16 @@ export interface CenturionServiceOptions {
   createClient?: (apiKey: string) => CenturionClient;
   /** Injected in tests so attempt ids are predictable. */
   newRequestId?: () => string;
+  /** Omit to offer no tools at all — the answers-only Centurion. */
+  tools?: CenturionToolHooks;
+}
+
+/** The stop reasons that end an ask badly. `max_tokens` is handled by the retry. */
+function assertFinishable(stopReason: string): void {
+  if (stopReason === 'refusal') throw new CenturionError('DECLINED');
+  if (stopReason === 'model_context_window_exceeded') {
+    throw new CenturionError('CONTEXT_TOO_LONG');
+  }
 }
 
 function defaultClient(apiKey: string): CenturionClient {
@@ -193,10 +226,12 @@ function textOf(message: Anthropic.Message): string {
 export class CenturionService {
   private readonly client: CenturionClient;
   private readonly newRequestId: () => string;
+  private readonly hooks: CenturionToolHooks | undefined;
 
   constructor(options: CenturionServiceOptions) {
     this.client = (options.createClient ?? defaultClient)(options.apiKey);
     this.newRequestId = options.newRequestId ?? randomUUID;
+    this.hooks = options.tools;
   }
 
   /**
@@ -241,6 +276,11 @@ export class CenturionService {
     return retry;
   }
 
+  /**
+   * One attempt, which may take several turns: the model answers, proposes a
+   * tool call, waits for the attorney, reads the result, and carries on. Every
+   * turn streams under the SAME requestId, because they are one answer.
+   */
   private async attempt(
     payload: AiAskRequest,
     maxTokens: number,
@@ -251,27 +291,54 @@ export class CenturionService {
     // typing indicator moves before the first token lands.
     onChunk({ requestId, text: '', done: false });
 
+    const messages = buildMessages(payload);
+    const texts: string[] = [];
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    for (let round = 0; round < MAX_TOOL_TURNS; round += 1) {
+      const message = await this.streamTurn(payload, maxTokens, messages, requestId, onChunk);
+      inputTokens += message.usage.input_tokens;
+      outputTokens += message.usage.output_tokens;
+      // Trimmed per turn: the join is what the attorney reads as one answer.
+      const answer = textOf(message).trim();
+      if (answer !== '') texts.push(answer);
+
+      const stopReason = message.stop_reason ?? 'end_turn';
+      if (stopReason !== 'tool_use') {
+        assertFinishable(stopReason);
+        return { requestId, text: texts.join('\n\n'), stopReason, inputTokens, outputTokens };
+      }
+      messages.push({ role: 'assistant', content: message.content });
+      messages.push({
+        role: 'user',
+        content: await answerToolUses(this.hooks, message, requestId, onChunk),
+      });
+    }
+    throw new CenturionError(
+      'UNKNOWN',
+      'Centurion kept proposing actions without finishing. Start a new conversation and ask for one step at a time.'
+    );
+  }
+
+  /** Tools ride on every turn of an ask that has them, so the cache prefix holds. */
+  private streamTurn(
+    payload: AiAskRequest,
+    maxTokens: number,
+    messages: Anthropic.MessageParam[],
+    requestId: string,
+    onChunk: (chunk: AiChunk) => void
+  ): Promise<Anthropic.Message> {
+    const armed = payload.toolsEnabled === true && this.hooks !== undefined;
     const stream = this.client.messages.stream({
       model: CENTURION_MODEL,
       max_tokens: maxTokens,
-      system: SYSTEM_PROMPT,
+      system: armed ? `${SYSTEM_PROMPT}\n${TOOL_PROMPT}` : SYSTEM_PROMPT,
       thinking: { type: 'adaptive' },
-      messages: buildMessages(payload),
+      ...(armed ? { tools: toolParams() } : {}),
+      messages,
     });
     stream.on('text', (delta: string) => onChunk({ requestId, text: delta, done: false }));
-
-    const message = await stream.finalMessage();
-    const stopReason = message.stop_reason ?? 'end_turn';
-    if (stopReason === 'refusal') throw new CenturionError('DECLINED');
-    if (stopReason === 'model_context_window_exceeded') {
-      throw new CenturionError('CONTEXT_TOO_LONG');
-    }
-    return {
-      requestId,
-      text: textOf(message),
-      stopReason,
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-    };
+    return stream.finalMessage();
   }
 }

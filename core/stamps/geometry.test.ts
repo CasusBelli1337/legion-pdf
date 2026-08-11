@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   bandAnchor,
-  centredAnchor,
   cornerAnchor,
   frameOf,
   normalizeRotation,
@@ -123,23 +122,5 @@ describe('bandAnchor', () => {
     expect(bandAnchor('footer', 'left', LETTER, box, 36)).toEqual({ x: 36, y: 36 });
     expect(bandAnchor('footer', 'right', LETTER, box, 36)).toEqual({ x: 476, y: 36 });
     expect(bandAnchor('header', 'center', LETTER, box, 36)).toEqual({ x: 256, y: 746 });
-  });
-});
-
-describe('centredAnchor', () => {
-  it('centres a level box on the page', () => {
-    expect(centredAnchor(LETTER, { width: 200, height: 40 }, 0)).toEqual({ x: 206, y: 376 });
-  });
-
-  it('keeps a spun box centred on the page centre', () => {
-    const box = { width: 200, height: 40 };
-    const anchor = centredAnchor(LETTER, box, 45);
-    const radians = Math.PI / 4;
-    const centre = {
-      x: anchor.x + (box.width / 2) * Math.cos(radians) - (box.height / 2) * Math.sin(radians),
-      y: anchor.y + (box.width / 2) * Math.sin(radians) + (box.height / 2) * Math.cos(radians),
-    };
-    expect(centre.x).toBeCloseTo(306, 6);
-    expect(centre.y).toBeCloseTo(396, 6);
   });
 });

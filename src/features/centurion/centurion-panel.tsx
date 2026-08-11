@@ -7,14 +7,23 @@
 import { useEffect } from 'react';
 import type { DocumentSession } from '@shared/types';
 import { useActiveSession, useAppStore } from '@renderer/app/store';
+import { useViewerApi } from '@renderer/components/viewer';
 import { contextLabel } from './ask-payload';
 import type { ContextMode } from './ask-payload';
-import { askCenturion, clearKey, refreshKeyStatus, subscribeToChunks } from './centurion-actions';
+import {
+  askCenturion,
+  clearKey,
+  decideTool,
+  refreshKeyStatus,
+  subscribeToChunks,
+} from './centurion-actions';
 import { EMPTY_THREAD, useCenturionStore } from './centurion-store';
+import type { CenturionThread } from './centurion-store';
 import { Composer } from './composer';
 import { ContextSelector } from './context-selector';
 import { KeySetup } from './key-setup';
 import { MessageList } from './message-list';
+import { QuickActions, ToolsToggle } from './tools-bar';
 
 /** A first switch to "Pages" opens a usable window at the current page, not 1-1. */
 const DEFAULT_RANGE_SPAN = 20;
@@ -46,12 +55,47 @@ function Waiting(props: { message: string }) {
 
 function ChatSurface(props: { session: DocumentSession; currentPage: number }) {
   const { session, currentPage } = props;
+  const api = useViewerApi();
   const busy = useCenturionStore((state) => state.askingDocId !== null);
   // EMPTY_THREAD, never blankThread(): a fresh object here would make the
   // snapshot unstable and React would re-render this panel forever.
   const thread = useCenturionStore((state) => state.threads[session.id] ?? EMPTY_THREAD);
-  const { setContextMode, setRange, clearThread } = useCenturionStore.getState();
+  const { setToolsEnabled, clearThread } = useCenturionStore.getState();
 
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <ContextRow session={session} thread={thread} currentPage={currentPage} disabled={busy} />
+      <MessageList
+        thread={thread}
+        docId={session.id}
+        onDecide={(card, approved) => void decideTool(card, approved, api)}
+      />
+      <AskRow
+        session={session}
+        currentPage={currentPage}
+        busy={busy}
+        showExamples={thread.toolsEnabled && thread.entries.length === 0}
+        toolsEnabled={thread.toolsEnabled}
+        onToolsChange={(enabled) => setToolsEnabled(session.id, enabled)}
+      />
+      <SettingsRow
+        onClear={() => void clearKey()}
+        onNewConversation={() => clearThread(session.id)}
+      />
+    </div>
+  );
+}
+
+interface ContextRowProps {
+  session: DocumentSession;
+  thread: CenturionThread;
+  currentPage: number;
+  disabled: boolean;
+}
+
+/** How much of the document goes to Claude, and what that reads as in English. */
+function ContextRow({ session, thread, currentPage, disabled }: ContextRowProps) {
+  const { setContextMode, setRange } = useCenturionStore.getState();
   const selection = {
     mode: thread.contextMode,
     from: thread.rangeFrom,
@@ -62,41 +106,53 @@ function ChatSurface(props: { session: DocumentSession; currentPage: number }) {
 
   function chooseMode(mode: ContextMode): void {
     if (mode === 'range' && thread.rangeFrom === 1 && thread.rangeTo === 1) {
-      setRange(
-        session.id,
-        currentPage,
-        Math.min(currentPage + DEFAULT_RANGE_SPAN - 1, session.pageCount)
-      );
+      const to = Math.min(currentPage + DEFAULT_RANGE_SPAN - 1, session.pageCount);
+      setRange(session.id, currentPage, to);
     }
     setContextMode(session.id, mode);
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <ContextSelector
-        mode={thread.contextMode}
-        from={thread.rangeFrom}
-        to={thread.rangeTo}
-        pageCount={session.pageCount}
-        summary={contextLabel(selection)}
-        disabled={busy}
-        onModeChange={chooseMode}
-        onRangeChange={(from, to) => setRange(session.id, from, to)}
-      />
-      <MessageList thread={thread} />
+    <ContextSelector
+      mode={thread.contextMode}
+      from={thread.rangeFrom}
+      to={thread.rangeTo}
+      pageCount={session.pageCount}
+      summary={contextLabel(selection)}
+      disabled={disabled}
+      onModeChange={chooseMode}
+      onRangeChange={(from, to) => setRange(session.id, from, to)}
+    />
+  );
+}
+
+interface AskRowProps {
+  session: DocumentSession;
+  currentPage: number;
+  busy: boolean;
+  showExamples: boolean;
+  toolsEnabled: boolean;
+  onToolsChange(enabled: boolean): void;
+}
+
+/** Everything under the conversation: the examples, the box, and the switch. */
+function AskRow(props: AskRowProps) {
+  const ask = (question: string): void => {
+    void askCenturion(props.session, props.currentPage, question);
+  };
+  return (
+    <>
+      {props.showExamples && <QuickActions disabled={props.busy} onPick={ask} />}
       {/* Keyed by document: a half-typed question belongs to the tab it was
           typed in, and must not follow the attorney to the next document. */}
       <Composer
-        key={session.id}
-        disabled={busy}
-        disabledReason={busy ? 'Waiting for Centurion to finish.' : null}
-        onSend={(question) => void askCenturion(session, currentPage, question)}
+        key={props.session.id}
+        disabled={props.busy}
+        disabledReason={props.busy ? 'Waiting for Centurion to finish.' : null}
+        onSend={ask}
       />
-      <SettingsRow
-        onClear={() => void clearKey()}
-        onNewConversation={() => clearThread(session.id)}
-      />
-    </div>
+      <ToolsToggle enabled={props.toolsEnabled} onChange={props.onToolsChange} />
+    </>
   );
 }
 

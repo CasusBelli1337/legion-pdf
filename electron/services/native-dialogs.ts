@@ -26,6 +26,19 @@ export async function openPdfDialog(window: BrowserWindow | null): Promise<strin
   return result.canceled ? [] : result.filePaths;
 }
 
+/** The folder searchable copies are written into. Null when cancelled. */
+export async function chooseFolderDialog(window: BrowserWindow | null): Promise<string | null> {
+  const options: OpenDialogOptions = {
+    title: 'Choose a folder for the finished files',
+    buttonLabel: 'Use this folder',
+    properties: ['openDirectory', 'createDirectory'],
+  };
+  const result = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}
+
 /** Resolves null when the attorney cancels — a cancel is never a silent save. */
 export async function saveAsWithDialog(
   store: DocStore,

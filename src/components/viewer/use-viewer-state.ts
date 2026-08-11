@@ -24,6 +24,8 @@ export interface ViewerState {
   document: PDFDocumentProxy | null;
   error: string | null;
   isLoading: boolean;
+  /** True only when the page run is mounted — nothing to show while bytes load. */
+  isReady: boolean;
   sizes: PageSizeIndex;
   zoom: number;
   fitMode: FitMode;
@@ -41,6 +43,7 @@ export function useViewerState(
 ): ViewerState {
   const controller = useViewerController();
   const { document, error, isLoading } = usePdfDocument(session.bytes);
+  const isReady = error === null && !isLoading;
   const sizes = usePageSizes(document, controller);
   const zoomControls = useZoomControls(session.id, scrollRef, sizes.sizeOf(1));
   const navigation = usePageNavigation({
@@ -50,6 +53,7 @@ export function useViewerState(
     sizes,
     scrollRef,
     controller,
+    isReady,
   });
   useDocumentSearch(document, controller);
   const currentPage = useAppStore((state) => state.currentPage);
@@ -59,6 +63,7 @@ export function useViewerState(
     document,
     error,
     isLoading,
+    isReady,
     sizes,
     currentPage,
     ...zoomControls,

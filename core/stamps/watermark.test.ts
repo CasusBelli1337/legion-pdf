@@ -3,6 +3,12 @@ import { PDFDict, PDFDocument, PDFName, StandardFonts } from 'pdf-lib';
 import type { PDFFont } from 'pdf-lib';
 import { RangeCollapseError } from '@shared/types';
 import type { WatermarkOptions } from '@shared/types';
+import {
+  stampBaselineLift,
+  stampTextHeight,
+  watermarkBaselineMid,
+  watermarkSpin,
+} from '@shared/watermark-placement';
 import { containsText, makeTestPdf } from '../ops/test-fixtures';
 import { frameOf, toVisualSpace } from './geometry';
 import { applyWatermark } from './watermark';
@@ -100,6 +106,48 @@ describe('applyWatermark', () => {
       expect((start.x + end.x) / 2).toBeCloseTo(frame.visual.width / 2, 6);
       expect(start.y).toBeCloseTo(frame.visual.height / 2 - boxHeight / 2 + lift, 6);
     }
+  });
+
+  // The on-page preview cannot measure a PDF font, so it places the watermark
+  // from @shared/watermark-placement instead. These two lock that module to the
+  // ink this file actually draws: when they part, the preview and the applied
+  // watermark drift apart on screen and read as a double-apply.
+  describe('agrees with the placement the preview draws from', () => {
+    it('measures a line of stamp text exactly as pdf-lib does', async () => {
+      const font = await helveticaBold();
+      for (const size of [10, 14, 40, 60, 144]) {
+        expect(stampTextHeight(size)).toBeCloseTo(font.heightAtSize(size), 6);
+        expect(stampBaselineLift(size)).toBeCloseTo(
+          font.heightAtSize(size) - font.heightAtSize(size, { descender: false }),
+          6
+        );
+      }
+    });
+
+    it('puts the middle of the drawn baseline where the preview puts it', async () => {
+      const font = await helveticaBold();
+      const width = font.widthOfTextAtSize('CONFIDENTIAL', 60);
+
+      for (const rotation of [0, 90, 180, 270]) {
+        for (const orientation of ['diagonal', 'horizontal'] as const) {
+          const bytes = await makeTestPdf({ pages: pages(1, rotation) });
+          const result = await applyWatermark(bytes, options({ orientation }));
+          const mark = (await textMarksOnPage(result.bytes, 1)).find(
+            (found) => found.text === 'CONFIDENTIAL'
+          );
+          const frame = frameOf(PAGE, rotation);
+          // The text matrix's own x axis runs along the baseline.
+          const drawn = toVisualSpace(
+            frame,
+            place(mark?.matrix ?? [1, 0, 0, 1, 0, 0], { x: width / 2, y: 0 })
+          );
+          const expected = watermarkBaselineMid(frame.visual, 60, watermarkSpin(orientation));
+
+          expect(drawn.x).toBeCloseTo(expected.x, 6);
+          expect(drawn.y).toBeCloseTo(expected.y, 6);
+        }
+      }
+    });
   });
 
   it('adds the page rotation on top of the watermark angle', async () => {

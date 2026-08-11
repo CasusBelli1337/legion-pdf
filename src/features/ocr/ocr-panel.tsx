@@ -5,6 +5,7 @@
  */
 
 import { useActiveSession } from '@renderer/app/store';
+import { BulkOcrSection } from './bulk-ocr-section';
 import { detectSummary, runButtonLabel } from './ocr-messages';
 import { useOcr } from './use-ocr';
 import type { OcrController } from './use-ocr';
@@ -105,23 +106,27 @@ const VIEWS = {
   failed: FailedView,
 } as const;
 
+/** The open document's own recognition. Bulk works with no document at all. */
+function ActiveDocumentSection({ controller }: ViewProps) {
+  const View = VIEWS[controller.state.phase];
+  return <View controller={controller} />;
+}
+
 export function OcrPanel() {
   const session = useActiveSession();
   const controller = useOcr(session?.id ?? null);
-  const View = VIEWS[controller.state.phase];
-
-  if (session === null) {
-    return (
-      <div className="flex flex-col gap-4 p-4">
-        <StatusLine label="No document" tone="idle" />
-        <PanelNotice>Open a PDF to check whether its pages carry searchable text.</PanelNotice>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <View controller={controller} />
+      {session === null ? (
+        <>
+          <StatusLine label="No document" tone="idle" />
+          <PanelNotice>Open a PDF to check whether its pages carry searchable text.</PanelNotice>
+        </>
+      ) : (
+        <ActiveDocumentSection controller={controller} />
+      )}
+      <BulkOcrSection />
     </div>
   );
 }

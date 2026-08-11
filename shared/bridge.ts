@@ -73,6 +73,10 @@ export interface FileBridge {
   read(docId: string): Promise<DocumentSession>;
   save(docId: string): Promise<SaveResult>;
   saveAs(docId: string, suggestedName?: string): Promise<SaveResult | null>;
+  /** Save As to a known path — no dialog, same atomic write. */
+  saveTo(docId: string, targetPath: string): Promise<SaveResult>;
+  /** Asks for an output folder; resolves null when the attorney cancels. */
+  chooseFolder(): Promise<string | null>;
   recent(): Promise<RecentFile[]>;
   recentClear(): Promise<RecentFile[]>;
   close(docId: string): Promise<void>;

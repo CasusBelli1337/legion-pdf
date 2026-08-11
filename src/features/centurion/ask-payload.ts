@@ -57,7 +57,8 @@ export function buildAskPayload(
   docId: string,
   messages: AiMessage[],
   selection: ContextSelection,
-  documentText: string
+  documentText: string,
+  toolsEnabled: boolean
 ): AiAskRequest {
   const pages = selectedPages(selection);
   return {
@@ -67,5 +68,6 @@ export function buildAskPayload(
     maxTokens: DEFAULT_MAX_TOKENS,
     documentText,
     contextLabel: contextLabel(selection),
+    toolsEnabled,
   };
 }

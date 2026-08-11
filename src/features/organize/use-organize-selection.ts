@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   extendSelection,
+  initialSelection,
   orderedSelection,
   selectAllPages,
   toggleSelection,
@@ -37,9 +38,12 @@ function applyGesture(
   return toggleSelection(current, page, event.ctrlKey || event.metaKey);
 }
 
-export function useOrganizeSelection(): OrganizeSelection {
-  const [selection, setSelection] = useState<PageSelection>(new Set<number>());
-  const anchor = useRef<number | null>(null);
+/** `openOn` is the page the viewer is showing — selected as the panel opens. */
+export function useOrganizeSelection(openOn: number, pageCount: number): OrganizeSelection {
+  const [selection, setSelection] = useState<PageSelection>(() =>
+    initialSelection(openOn, pageCount)
+  );
+  const anchor = useRef<number | null>(openOn);
   const drag = useRef<PageSelection>(new Set<number>());
 
   const select = useCallback((page: number, event: React.MouseEvent): void => {

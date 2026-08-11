@@ -3,6 +3,15 @@
  */
 
 import { useActiveSession, useAppStore } from '../store';
+import { useLiveSignatureCount } from '../../features/signature/placement-store';
+
+function saveField(dirty: boolean, unplaced: number): string {
+  if (unplaced > 0) {
+    const label = unplaced === 1 ? '1 unplaced signature' : `${unplaced} unplaced signatures`;
+    return `Unsaved changes - ${label}`;
+  }
+  return dirty ? 'Unsaved changes' : 'Saved';
+}
 
 export function StatusFooter() {
   const session = useActiveSession();
@@ -10,6 +19,7 @@ export function StatusFooter() {
   const zoom = useAppStore((state) => state.zoom);
   const error = useAppStore((state) => state.error);
   const notice = useAppStore((state) => state.notice);
+  const unplaced = useLiveSignatureCount(session?.id ?? null);
 
   const fields =
     session === null
@@ -18,7 +28,7 @@ export function StatusFooter() {
           session.fileName,
           `${currentPage} / ${session.pageCount}`,
           `${Math.round(zoom * 100)}%`,
-          session.dirty ? 'Unsaved changes' : 'Saved',
+          saveField(session.dirty, unplaced),
         ];
 
   return (

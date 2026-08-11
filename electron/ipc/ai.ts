@@ -9,11 +9,22 @@
 import { join } from 'node:path';
 import { app, ipcMain, safeStorage } from 'electron';
 import { IPC } from '@shared/ipc';
-import type { AiAskRequest, AiAskResult, AiChunk, AiKeyStatus } from '@shared/types';
+import type {
+  AiAskRequest,
+  AiAskResult,
+  AiChunk,
+  AiKeyStatus,
+  CenturionToolDecision,
+} from '@shared/types';
 import { CenturionError, CenturionService } from '../services/anthropic';
+import type { CenturionToolHooks } from '../services/centurion-tool-protocol';
+import {
+  CenturionToolExecutor,
+  ToolDecisionGate,
+  summarizeToolCall,
+} from '../services/centurion-executor';
 import { Keystore, KeystoreError } from '../services/keystore';
 import type { IpcContext } from './context';
-import { registerNotImplemented } from './not-implemented';
 
 /** Ciphertext only. Named for the panel so it is obvious what it belongs to. */
 const KEY_FILE_NAME = 'centurion-key.dat';
@@ -23,12 +34,45 @@ export function registerAiHandlers(context: IpcContext): void {
     keyFilePath: join(app.getPath('userData'), KEY_FILE_NAME),
     safeStorage,
   });
+  // One gate for the window: the confirm cards on screen, and what they are
+  // still waiting for. Every proposal parks here until an answer arrives.
+  const gate = new ToolDecisionGate();
   registerKeyHandlers(keystore);
-  registerAskHandler(context, keystore);
-  // Tool use is proposed on an `ai:chunk` and waits for this answer. The lane
-  // that runs the approved tool owns the handler; until then, refuse loudly
-  // rather than let a confirm card look answered.
-  registerNotImplemented([IPC.ai.toolDecision]);
+  registerAskHandler(context, keystore, gate);
+  registerDecisionHandler(gate);
+}
+
+function registerDecisionHandler(gate: ToolDecisionGate): void {
+  ipcMain.handle(
+    IPC.ai.toolDecision,
+    (_event, requestId: string, toolUseId: string, decision: CenturionToolDecision): void => {
+      // A false here is a card that already settled — a double click, or an
+      // answer that arrived after the timeout. Both are no-ops, never a rerun.
+      gate.settle(requestId, toolUseId, decision);
+    }
+  );
+}
+
+/**
+ * The card's sentence needs the document's length ("all 450 pages"), which only
+ * the store knows. A document that has gone away reports zero rather than
+ * throwing: the proposal is about to be refused anyway.
+ */
+function pageCountOf(context: IpcContext, docId: string): number {
+  return context.store.has(docId) ? context.store.session(docId).pageCount : 0;
+}
+
+function toolHooks(
+  context: IpcContext,
+  gate: ToolDecisionGate,
+  executor: CenturionToolExecutor,
+  docId: string
+): CenturionToolHooks {
+  return {
+    summarize: (call) => summarizeToolCall(call, pageCountOf(context, docId)),
+    confirm: (requestId, toolUseId) => gate.waitFor(requestId, toolUseId),
+    execute: (call) => executor.run(docId, call),
+  };
 }
 
 function registerKeyHandlers(keystore: Keystore): void {
@@ -49,18 +93,23 @@ function registerKeyHandlers(keystore: Keystore): void {
   });
 }
 
-function registerAskHandler(context: IpcContext, keystore: Keystore): void {
+function registerAskHandler(context: IpcContext, keystore: Keystore, gate: ToolDecisionGate): void {
+  const executor = new CenturionToolExecutor(context);
   ipcMain.handle(IPC.ai.ask, async (_event, request: AiAskRequest): Promise<AiAskResult> => {
     const emit = (chunk: AiChunk): void => {
       context.getWindow()?.webContents.send(IPC.ai.chunk, chunk);
     };
     const apiKey = readKey(keystore, emit);
+    const tools = toolHooks(context, gate, executor, request.docId);
     try {
-      return await new CenturionService({ apiKey }).ask(request, emit);
+      return await new CenturionService({ apiKey, tools }).ask(request, emit);
     } catch (error) {
       // The service already closed the stream with the taxonomy code; only the
       // sentence has to survive the IPC boundary.
       throw plainError(error);
+    } finally {
+      // A card left on screen when the ask dies must never run afterwards.
+      gate.abandonAll();
     }
   });
 }

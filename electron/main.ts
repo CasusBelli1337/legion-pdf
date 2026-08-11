@@ -9,6 +9,7 @@ import { IPC } from '@shared/ipc';
 import type { ProgressChannel } from '@shared/ipc';
 import type { MenuAction, ProgressEvent, RasterRequest } from '@shared/types';
 import { DocStore } from './services/doc-store';
+import { OpenFilesRelay, pdfPathsFromArgv } from './services/open-files';
 import { MainRasterBridge } from './services/raster-bridge';
 import { registerIpcHandlers } from './ipc';
 import { installAppMenu } from './menu';
@@ -18,6 +19,9 @@ const isDevelopment = !app.isPackaged;
 const rendererDevUrl = process.env['ELECTRON_RENDERER_URL'];
 
 let mainWindow: BrowserWindow | null = null;
+
+/** Files Windows hands us — at launch, and from every later double-click. */
+const openFiles = new OpenFilesRelay();
 
 function getWindow(): BrowserWindow | null {
   return mainWindow !== null && !mainWindow.isDestroyed() ? mainWindow : null;
@@ -48,6 +52,14 @@ function createWindow(): BrowserWindow {
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {
     mainWindow = null;
+    openFiles.suspend();
+  });
+
+  // The renderer subscribes while its entry module runs, which is before the
+  // page's load event — so by did-finish-load a queued double-click is safe to
+  // hand over. A reload re-arms the same relay.
+  window.webContents.on('did-finish-load', () => {
+    openFiles.ready((event) => send(IPC.app.openFiles, event));
   });
 
   // Nothing in this app opens a second window; external links go to the browser.
@@ -81,15 +93,45 @@ function bootstrap(): void {
   // Before the window exists: the guard attaches to `browser-window-created`.
   installUnsavedGuard(store, getWindow);
   mainWindow = createWindow();
+  openFiles.offer(pdfPathsFromArgv(process.argv, process.cwd()));
 }
 
-void app.whenReady().then(() => {
-  bootstrap();
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
-  });
-});
+/** A second launch belongs to the window that is already open. */
+function focusMainWindow(): void {
+  const window = getWindow();
+  if (window === null) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+}
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+/**
+ * One instance, always. Double-clicking a second PDF in Explorer must open a
+ * tab in the running app — a second copy of the editor would fight the first
+ * over the same files, and the attorney would lose track of which window holds
+ * the unsaved work.
+ */
+function start(): void {
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+
+  app.on('second-instance', (_event, argv: string[], workingDirectory: string) => {
+    openFiles.offer(pdfPathsFromArgv(argv, workingDirectory));
+    focusMainWindow();
+  });
+
+  void app.whenReady().then(() => {
+    bootstrap();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}
+
+start();

@@ -3,7 +3,9 @@
 ## Zones (hard boundaries — imports are one-way)
 
 ```
-shared/   Types + IPC channel names. Imported by ALL zones. No logic.
+shared/   Types + IPC channel names. Imported by ALL zones. No app logic —
+          only pure rules BOTH src/ and core/ must agree on (tool schemas,
+          watermark placement), which have nowhere else to live.
 core/     Pure PDF engine. Functions (bytes: Uint8Array, opts) → OpResult.
           Node-safe. NO Electron, NO DOM, NO React. 100% Vitest-covered.
 electron/ Main process. File IO, IPC handlers (thin wrappers around core/),
@@ -57,7 +59,8 @@ All channels + payload types live in `shared/ipc.ts` (single source of
 truth; `#seam:ipc-contract` marker on every handler registration site).
 Channel groups:
 
-- `file:*`   open dialog, read, save, saveAs, recent list, undo/redo/undoState
+- `file:*`   open dialog, read, save, saveAs, saveTo (no dialog), chooseFolder,
+             recent list, undo/redo/undoState
 - `ops:*`    merge, split, reorder, rotate, delete, extract, insertBlank,
              insertFrom, bookmarks get/set, scrubMetadata, flatten
 - `stamp:*`  bates, exhibit, watermark, pageNumbers, signature list/add/

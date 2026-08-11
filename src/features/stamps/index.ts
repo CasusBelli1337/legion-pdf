@@ -10,7 +10,14 @@ export { useMarkOverlay } from './use-mark-overlay';
 export { usePlacement, pdfPointOf, rectBetween } from './use-placement';
 export type { Placement, PlacementMode, PlacedPoint, PlacedRect } from './use-placement';
 export { ClickSurface, PlacementSurface } from './placement-surface';
-export { AnchoredMark, BandMark, CentredMark, CornerMark, RectMark } from './mark-preview';
+export {
+  AnchoredMark,
+  BandMark,
+  CentredMark,
+  CornerMark,
+  RectMark,
+  StampMark,
+} from './mark-preview';
 export type { MarkText } from './mark-preview';
 export {
   ActionButton,

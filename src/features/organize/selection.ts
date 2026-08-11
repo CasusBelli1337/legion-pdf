@@ -37,6 +37,33 @@ export function selectAllPages(pageCount: number): Set<number> {
   return new Set(Array.from({ length: pageCount }, (_unused, index) => index + 1));
 }
 
+/**
+ * What is selected when the panel opens: the page on screen. An attorney who
+ * opens Organize while reading page 250 means that page — anything else asks him
+ * to find it again in a grid of five hundred thumbnails.
+ */
+export function initialSelection(currentPage: number, pageCount: number): Set<number> {
+  const page = Math.trunc(currentPage);
+  if (pageCount < 1 || page < 1 || page > pageCount) return new Set();
+  return new Set([page]);
+}
+
+/** The 0-based grid row a 1-based page sits in — what the grid scrolls to. */
+export function rowOfPage(page: number, columns: number): number {
+  return Math.max(0, Math.ceil(Math.max(1, Math.trunc(page)) / columns) - 1);
+}
+
+/** Scroll offset that brings a page's row into the middle of the grid. */
+export function gridScrollTop(
+  page: number,
+  columns: number,
+  rowHeight: number,
+  viewportHeight: number
+): number {
+  const top = rowOfPage(page, columns) * rowHeight;
+  return Math.max(0, top - Math.max(0, (viewportHeight - rowHeight) / 2));
+}
+
 /** Selected pages in document order — the shape every op wants. */
 export function orderedSelection(selection: PageSelection): number[] {
   return [...selection].sort((a, b) => a - b);

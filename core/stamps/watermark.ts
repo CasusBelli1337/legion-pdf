@@ -8,14 +8,12 @@
  */
 
 import type { OpResult, WatermarkOptions } from '@shared/types';
+import { watermarkAnchor, watermarkSpin } from '@shared/watermark-placement';
 import { normalizePages } from '../ops/page-selection';
 import { finish, loadPdf, type ProgressReporter } from '../ops/pdf-io';
 import { parseHexColor } from './color';
-import { centredAnchor } from './geometry';
 import { drawText, embedFont, measureText, pageFrame, STAMP_FONT } from './ink';
 
-/** The angle a diagonal watermark runs at, counter-clockwise from level. */
-const DIAGONAL_DEGREES = 45;
 const MAX_TEXT = 64;
 
 function assertOptions(options: WatermarkOptions): void {
@@ -46,7 +44,7 @@ export async function applyWatermark(
   const pages = normalizePages(options.pages, pagesIn, 'pages to watermark');
   const font = await embedFont(document, STAMP_FONT);
   const color = parseHexColor(options.color, 'watermark colour');
-  const spin = options.orientation === 'diagonal' ? DIAGONAL_DEGREES : 0;
+  const spin = watermarkSpin(options.orientation);
   const text = options.text.trim();
 
   pages.forEach((pageNumber, index) => {
@@ -60,7 +58,7 @@ export async function applyWatermark(
       color,
       spin,
       opacity: options.opacity,
-      at: centredAnchor(frame.visual, box, spin),
+      at: watermarkAnchor(frame.visual, box, spin),
     });
     onProgress?.(index + 1, pages.length);
   });

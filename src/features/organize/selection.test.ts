@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   extendSelection,
+  gridScrollTop,
+  initialSelection,
   isSameOrder,
   moveSelectionBefore,
   orderedSelection,
+  rowOfPage,
   selectAllPages,
   toggleSelection,
 } from './selection';
@@ -65,5 +68,48 @@ describe('isSameOrder', () => {
     expect(isSameOrder([1, 2, 3])).toBe(true);
     expect(isSameOrder(moveSelectionBefore(3, new Set([1]), 2))).toBe(true);
     expect(isSameOrder([2, 1, 3])).toBe(false);
+  });
+});
+
+describe('initialSelection', () => {
+  it('opens the panel on the page the viewer is showing', () => {
+    expect(initialSelection(250, 500)).toEqual(new Set([250]));
+    expect(initialSelection(1, 1)).toEqual(new Set([1]));
+  });
+
+  it('selects nothing when that page is not in this document', () => {
+    expect(initialSelection(9, 4)).toEqual(new Set());
+    expect(initialSelection(0, 4)).toEqual(new Set());
+    expect(initialSelection(1, 0)).toEqual(new Set());
+  });
+});
+
+describe('rowOfPage', () => {
+  it('finds the grid row a page sits in', () => {
+    expect(rowOfPage(1, 2)).toBe(0);
+    expect(rowOfPage(2, 2)).toBe(0);
+    expect(rowOfPage(3, 2)).toBe(1);
+    expect(rowOfPage(250, 2)).toBe(124);
+  });
+
+  it('never asks the grid to scroll above its first row', () => {
+    expect(rowOfPage(0, 2)).toBe(0);
+    expect(rowOfPage(-5, 2)).toBe(0);
+  });
+});
+
+describe('gridScrollTop', () => {
+  it('centres the row the page sits in', () => {
+    // Row 124 (page 250, two per row) starts at 124 * 136 = 16864.
+    expect(gridScrollTop(250, 2, 136, 680)).toBe(16864 - 272);
+  });
+
+  it('never scrolls above the top of the grid', () => {
+    expect(gridScrollTop(1, 2, 136, 680)).toBe(0);
+    expect(gridScrollTop(3, 2, 136, 680)).toBe(0);
+  });
+
+  it('copes with a grid too short to centre anything', () => {
+    expect(gridScrollTop(250, 2, 136, 100)).toBe(16864);
   });
 });

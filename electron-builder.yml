@@ -17,6 +17,16 @@ asarUnpack:
 extraResources:
   - from: resources/tesseract-win
     to: tesseract-win
+# Puts Librarius in Explorer's "Open with" list for PDFs, so it can be set as
+# the default PDF app. The NSIS macro writes to SHELL_CONTEXT, which follows the
+# install mode — a per-user install (perMachine: false, no UAC) registers under
+# HKCU\Software\Classes, the per-user association hive. Windows passes the
+# double-clicked path as argv[1]; electron/services/open-files.ts reads it.
+# No `icon:` — documents show the app's own icon rather than a missing file.
+fileAssociations:
+  - ext: pdf
+    name: PDF Document
+    description: PDF Document
 win:
   target:
     - target: nsis

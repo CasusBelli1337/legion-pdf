@@ -22,6 +22,13 @@ export interface BatesForm {
   range: string;
 }
 
+/**
+ * The example shown in the empty prefix box. It is a placeholder, so it must
+ * never be a real case name — an attorney reading someone else's matter name in
+ * his own production is a confidentiality problem, not a typo.
+ */
+export const BATES_PREFIX_PLACEHOLDER = 'PLAINTIFF';
+
 export const DEFAULT_BATES_FORM: BatesForm = {
   prefix: '',
   startNumber: 1,

@@ -27,7 +27,6 @@ export { formatDateStamp, DATE_FORMATS, DEFAULT_DATE_FORMAT } from './date-stamp
 export type { DateFormat } from './date-stamp';
 export {
   bandAnchor,
-  centredAnchor,
   cornerAnchor,
   frameOf,
   normalizeRotation,
