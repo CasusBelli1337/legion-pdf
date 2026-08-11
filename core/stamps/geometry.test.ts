@@ -5,6 +5,7 @@ import {
   cornerAnchor,
   frameOf,
   normalizeRotation,
+  stampAnchor,
   toUserSpace,
   toVisualSpace,
   uprightDegrees,
@@ -84,6 +85,34 @@ describe('cornerAnchor', () => {
   it('measures a rotated page by what the reader sees', () => {
     const visual = frameOf(LETTER, 90).visual;
     expect(cornerAnchor('bottom-right', visual, box, 36)).toEqual({ x: 656, y: 36 });
+  });
+});
+
+describe('stampAnchor', () => {
+  const box = { width: 100, height: 10 };
+  const corners = ['bottom-left', 'bottom-right', 'top-left', 'top-right'] as const;
+
+  it('leaves every corner exactly where cornerAnchor puts it', () => {
+    for (const corner of corners) {
+      expect(stampAnchor(corner, LETTER, box, 36)).toEqual(cornerAnchor(corner, LETTER, box, 36));
+    }
+  });
+
+  it('centres bottom-center on the bottom edge at the corner margin', () => {
+    expect(stampAnchor('bottom-center', LETTER, box, 36)).toEqual({ x: 256, y: 36 });
+  });
+
+  it('sits midway between the two bottom corners', () => {
+    const left = cornerAnchor('bottom-left', LETTER, box, 36);
+    const right = cornerAnchor('bottom-right', LETTER, box, 36);
+    const centre = stampAnchor('bottom-center', LETTER, box, 36);
+    expect(centre.x).toBeCloseTo((left.x + right.x) / 2, 6);
+    expect(centre.y).toBe(left.y);
+  });
+
+  it('centres by what the reader sees on a rotated page', () => {
+    const visual = frameOf(LETTER, 90).visual;
+    expect(stampAnchor('bottom-center', visual, box, 36)).toEqual({ x: 346, y: 36 });
   });
 });
 

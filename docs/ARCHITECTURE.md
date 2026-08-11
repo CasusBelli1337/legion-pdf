@@ -57,15 +57,19 @@ All channels + payload types live in `shared/ipc.ts` (single source of
 truth; `#seam:ipc-contract` marker on every handler registration site).
 Channel groups:
 
-- `file:*`   open dialog, read, save, saveAs, recent list
+- `file:*`   open dialog, read, save, saveAs, recent list, undo/redo/undoState
 - `ops:*`    merge, split, reorder, rotate, delete, extract, insertBlank,
              insertFrom, bookmarks get/set, scrubMetadata, flatten
 - `stamp:*`  bates, exhibit, watermark, pageNumbers, signature list/add/
-             place, textBox, whiteout
-- `ocr:*`    detect, run (streams `ocr:progress`), cancel
+             addBytes/place, textBox, whiteout
+- `ocr:*`    detect, run (streams `ocr:progress`), cancel, bulk, bulkCancel
 - `redact:*` apply (streams progress), verify
-- `ai:*`     hasKey, setKey, clearKey, ask (streams `ai:chunk`)
-- `app:*`    print, openPath, version
+- `ai:*`     hasKey, setKey, clearKey, ask (streams `ai:chunk`), toolDecision
+- `app:*`    print, openPath, version, `app:openFiles` push (OS file opens)
+
+Channels whose lane has not landed yet are declared here in full and
+registered by `electron/ipc/not-implemented.ts`, so they reject with
+`NotImplemented: <channel>` rather than look wired.
 
 Preload exposes these as `window.librarius.<group>.<method>` with full types
 (`shared/bridge.ts` defines the `LibrariusBridge` interface).

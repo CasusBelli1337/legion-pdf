@@ -11,11 +11,21 @@ import { IPC } from '@shared/ipc';
 import type { DocumentSession, SaveResult } from '@shared/types';
 import { openPdfDialog, saveAsWithDialog } from '../services/native-dialogs';
 import type { IpcContext } from './context';
+import { registerNotImplemented } from './not-implemented';
 
 export function registerFileHandlers(context: IpcContext): void {
   registerOpenHandlers(context);
   registerSaveHandlers(context);
   registerRecentHandlers(context);
+  registerHistoryHandlers();
+}
+
+/**
+ * The undo lane owns the history itself (it wraps the doc store's bytes); the
+ * contract and these loud stubs land ahead of it so nothing half-wires.
+ */
+function registerHistoryHandlers(): void {
+  registerNotImplemented([IPC.file.undo, IPC.file.redo, IPC.file.undoState]);
 }
 
 function registerOpenHandlers({ store, getWindow }: IpcContext): void {

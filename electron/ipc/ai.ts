@@ -13,6 +13,7 @@ import type { AiAskRequest, AiAskResult, AiChunk, AiKeyStatus } from '@shared/ty
 import { CenturionError, CenturionService } from '../services/anthropic';
 import { Keystore, KeystoreError } from '../services/keystore';
 import type { IpcContext } from './context';
+import { registerNotImplemented } from './not-implemented';
 
 /** Ciphertext only. Named for the panel so it is obvious what it belongs to. */
 const KEY_FILE_NAME = 'centurion-key.dat';
@@ -24,6 +25,10 @@ export function registerAiHandlers(context: IpcContext): void {
   });
   registerKeyHandlers(keystore);
   registerAskHandler(context, keystore);
+  // Tool use is proposed on an `ai:chunk` and waits for this answer. The lane
+  // that runs the approved tool owns the handler; until then, refuse loudly
+  // rather than let a confirm card look answered.
+  registerNotImplemented([IPC.ai.toolDecision]);
 }
 
 function registerKeyHandlers(keystore: Keystore): void {

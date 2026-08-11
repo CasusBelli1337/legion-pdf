@@ -17,6 +17,7 @@ import type { OcrDetectResult, OcrOptions, OcrRunDetail, OpResult } from '@share
 import { OcrService, resolveTesseract } from '../services/ocr';
 import type { TesseractLocation } from '../services/ocr';
 import type { IpcContext } from './context';
+import { registerNotImplemented } from './not-implemented';
 
 function locateTesseract(): TesseractLocation {
   return resolveTesseract({
@@ -58,4 +59,8 @@ export function registerOcrHandlers(context: IpcContext): void {
   ipcMain.handle(IPC.ocr.cancel, (_event, docId: string): void => {
     service.cancel(docId);
   });
+
+  // Bulk OCR runs over files on disk rather than open documents, so it needs its
+  // own worker-pool driver; the lane building it fills these in.
+  registerNotImplemented([IPC.ocr.bulk, IPC.ocr.bulkCancel]);
 }

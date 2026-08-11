@@ -4,6 +4,7 @@
  * Types only — re-exported type-only from @shared/types.
  */
 
+import type { CenturionToolProposal } from './centurion-tools';
 import type { PdfRect, TextMatch } from './types';
 
 /* ── ocr: local Tesseract (lane D) ────────────────────────────────────── */
@@ -31,6 +32,43 @@ export interface OcrRunDetail {
   charsPerPage: number[];
   /** Words recognized per page, in pagesOcred order. */
   wordsPerPage: number[];
+}
+
+/**
+ * One file's outcome in a bulk run. `outputPath` is null on anything but a
+ * clean 'done' — a failed or cancelled file writes nothing, and reporting a
+ * path for it would invite the caller to open a document that is not there.
+ */
+export interface BulkOcrFileResult {
+  /** Absolute path of the input file. */
+  path: string;
+  /** Absolute path of the searchable output, or null when nothing was written. */
+  outputPath: string | null;
+  /** Pages OCR'd in this file. */
+  pages: number;
+  /** Words recognized across those pages — the count that proves real output. */
+  words: number;
+  status: 'done' | 'failed' | 'cancelled';
+  /** Plain-English reason, present only on 'failed'. */
+  error?: string;
+}
+
+/**
+ * The receipt for a whole bulk run. `files` carries one entry per INPUT path,
+ * in request order, so a caller can prove nothing was silently skipped;
+ * succeeded + failed count only what finished either way.
+ */
+export interface BulkOcrResult {
+  files: BulkOcrFileResult[];
+  succeeded: number;
+  failed: number;
+}
+
+export interface BulkOcrOptions {
+  /** Where the searchable copies land; omit to write beside each input. */
+  outputDir?: string;
+  /** Overwrite an existing output file rather than refusing that file. */
+  overwrite: boolean;
 }
 
 /* ── redact: true destruction (lane E) ────────────────────────────────── */
@@ -98,6 +136,8 @@ export interface AiAskRequest {
   documentText: string;
   /** Plain English for the prompt, e.g. "pages 1-20 of 312". */
   contextLabel: string;
+  /** Offer Centurion the document tools; omit or false for answers only. */
+  toolsEnabled?: boolean;
 }
 
 /**
@@ -124,6 +164,11 @@ export interface AiChunk {
   done: boolean;
   /** Set only on the terminal chunk of a FAILED ask; absent on every success. */
   code?: CenturionErrorCode;
+  /**
+   * A tool call awaiting the attorney's answer. The panel shows the confirm card
+   * and replies on `ai:toolDecision`; nothing runs until it does.
+   */
+  proposal?: CenturionToolProposal;
 }
 
 export interface AiAskResult {

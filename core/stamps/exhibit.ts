@@ -12,7 +12,7 @@ import type { ExhibitDetail, ExhibitOptions, OpResult } from '@shared/types';
 import { normalizePages } from '../ops/page-selection';
 import { finish, loadPdf, type ProgressReporter } from '../ops/pdf-io';
 import { BLACK, WHITE } from './color';
-import { cornerAnchor, type BoxSize } from './geometry';
+import { stampAnchor, type BoxSize } from './geometry';
 import { drawRect, drawText, embedFont, measureText, pageFrame, STAMP_FONT } from './ink';
 
 /** Breathing room between the label and its border, in points. */
@@ -57,7 +57,7 @@ export async function applyExhibitStamp(
     const frame = pageFrame(page);
     const text = measureText(font, label, options.fontSize);
     const box = stampSize(text, options.bordered);
-    const at = cornerAnchor(options.position, frame.visual, box, options.margin);
+    const at = stampAnchor(options.position, frame.visual, box, options.margin);
 
     if (options.bordered) {
       drawRect(page, frame, {

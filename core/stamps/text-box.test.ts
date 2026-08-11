@@ -4,6 +4,7 @@ import type { PDFFont } from 'pdf-lib';
 import type { TextBoxOptions } from '@shared/types';
 import { containsText, makeTestPdf } from '../ops/test-fixtures';
 import { frameOf, toUserSpace } from './geometry';
+import { standardFontFor } from './ink';
 import { addTextBox, layoutLines } from './text-box';
 import { angleOf, place, textMarksOnPage } from './stamp-testkit';
 
@@ -28,9 +29,13 @@ function options(overrides: Partial<TextBoxOptions> = {}): TextBoxOptions {
   };
 }
 
-async function helvetica(): Promise<PDFFont> {
+async function standardFont(name: StandardFonts): Promise<PDFFont> {
   const document = await PDFDocument.create({ updateMetadata: false });
-  return document.embedFont(StandardFonts.Helvetica);
+  return document.embedFont(name);
+}
+
+async function helvetica(): Promise<PDFFont> {
+  return standardFont(StandardFonts.Helvetica);
 }
 
 describe('layoutLines', () => {
@@ -52,6 +57,25 @@ describe('layoutLines', () => {
   it('never drops a word too long to fit', async () => {
     const font = await helvetica();
     expect(layoutLines('supercalifragilistic', font, 12, 10)).toEqual(['supercalifragilistic']);
+  });
+});
+
+describe('standardFontFor', () => {
+  it('falls back to the body font when no font is chosen', () => {
+    expect(standardFontFor()).toBe(StandardFonts.Helvetica);
+    expect(standardFontFor({ family: 'helvetica' })).toBe(StandardFonts.Helvetica);
+  });
+
+  it('maps each family and its weight and slant onto a built-in face', () => {
+    expect(standardFontFor({ family: 'times' })).toBe(StandardFonts.TimesRoman);
+    expect(standardFontFor({ family: 'times', bold: true })).toBe(StandardFonts.TimesRomanBold);
+    expect(standardFontFor({ family: 'times', italic: true })).toBe(StandardFonts.TimesRomanItalic);
+    expect(standardFontFor({ family: 'courier', bold: true, italic: true })).toBe(
+      StandardFonts.CourierBoldOblique
+    );
+    expect(standardFontFor({ family: 'helvetica', italic: true })).toBe(
+      StandardFonts.HelveticaOblique
+    );
   });
 });
 
@@ -91,6 +115,22 @@ describe('addTextBox', () => {
       );
       expect(angleOf(mark?.matrix ?? [1, 0, 0, 1, 0, 0])).toBe(rotation);
     }
+  });
+
+  it('lays the text out in the chosen font rather than the default', async () => {
+    const text = 'the quick brown fox jumps over the lazy dog';
+    const wide = layoutLines(text, await standardFont(StandardFonts.Courier), 12, 100).length;
+    const narrow = layoutLines(text, await helvetica(), 12, 100).length;
+    // The check below only means something if the two faces disagree at all.
+    expect(wide).toBeGreaterThan(narrow);
+
+    const bytes = await makeTestPdf({ pages: pages(1) });
+    const result = await addTextBox(
+      bytes,
+      options({ text, maxWidthPt: 100, font: { family: 'courier' } })
+    );
+    const drawn = (await textMarksOnPage(result.bytes, 1)).filter((m) => m.text !== 'PAGE-1');
+    expect(drawn).toHaveLength(wide);
   });
 
   it('honours the requested colour', async () => {

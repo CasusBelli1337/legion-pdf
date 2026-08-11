@@ -27,11 +27,17 @@ export interface BatesDetail {
   batesApplied: string[];
 }
 
+/**
+ * Where an exhibit stamp lands: the four corners, plus the bottom edge centred
+ * — the placement courts that want the label under the text block ask for.
+ */
+export type ExhibitPosition = Corner | 'bottom-center';
+
 export interface ExhibitOptions {
   /** Rendered label, e.g. "EXHIBIT A". */
   label: string;
   pages: number[];
-  position: Corner;
+  position: ExhibitPosition;
   fontSize: number;
   margin: number;
   /** Classic bordered exhibit-stamp box around the label. */
@@ -107,6 +113,16 @@ export interface SignaturePlacement {
   dateFormat?: string;
 }
 
+/**
+ * A face from the fourteen fonts every PDF reader has built in — no embedding,
+ * no licence question. Omit `font` entirely for Helvetica regular.
+ */
+export interface TextFontChoice {
+  family: 'helvetica' | 'times' | 'courier';
+  bold?: boolean;
+  italic?: boolean;
+}
+
 export interface TextBoxOptions {
   page: number;
   at: PdfPoint;
@@ -116,6 +132,8 @@ export interface TextBoxOptions {
   color: string;
   /** Wrap width in points; omit for single-line. */
   maxWidthPt?: number;
+  /** Omit for Helvetica regular, which is what every text box drew before. */
+  font?: TextFontChoice;
 }
 
 export interface WhiteoutOptions {
