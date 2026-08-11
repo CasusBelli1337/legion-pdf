@@ -3,7 +3,19 @@
  * presets, and the find toggle. It sits above the pages and never covers them.
  */
 
-import { ChevronDown, ChevronUp, Crosshair, Maximize, Search, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Crosshair,
+  Maximize,
+  Redo2,
+  Search,
+  Undo2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import { redoActive, undoActive } from '../../app/undo-actions';
+import { useUndoState } from '../../features/undo';
 import { NumberField, TOOLBAR_BUTTON, TOOLBAR_PRESET } from './toolbar-controls';
 import type { FitMode } from './tab-view-state';
 
@@ -20,6 +32,40 @@ export interface ViewerToolbarProps {
   onFit(mode: FitMode): void;
   onToggleFind(): void;
   onToggleHarness(): void;
+}
+
+/**
+ * Undo/Redo for the document itself — a way back from any change to the PDF.
+ * The enabled state comes from the main-process history, refreshed whenever an
+ * operation swaps the session in, so the buttons never claim a step that is
+ * not there.
+ */
+function HistoryGroup() {
+  const { canUndo, canRedo } = useUndoState();
+  return (
+    <>
+      <button
+        type="button"
+        className={TOOLBAR_BUTTON}
+        onClick={() => void undoActive()}
+        disabled={!canUndo}
+        aria-label="Undo the last change"
+        title="Undo the last change (Ctrl+Z)"
+      >
+        <Undo2 size={14} aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={TOOLBAR_BUTTON}
+        onClick={() => void redoActive()}
+        disabled={!canRedo}
+        aria-label="Redo the change"
+        title="Redo the change (Ctrl+Y)"
+      >
+        <Redo2 size={14} aria-hidden />
+      </button>
+    </>
+  );
 }
 
 function PageJump({
@@ -124,6 +170,8 @@ function FitPresets({ fitMode, onFit }: Pick<ViewerToolbarProps, 'fitMode' | 'on
 export function ViewerToolbar(props: ViewerToolbarProps) {
   return (
     <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-armory-border bg-armory-surface px-3">
+      <HistoryGroup />
+      <span className="mx-1 h-4 w-px bg-armory-border" />
       <PageJump
         currentPage={props.currentPage}
         pageCount={props.pageCount}

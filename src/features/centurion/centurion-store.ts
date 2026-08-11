@@ -3,6 +3,11 @@
  * the session only - nothing here is written to disk, and closing the tab
  * forgets it.
  *
+ * A thread is a list of ENTRIES, not just messages: the attorney's questions,
+ * Centurion's answers, and the confirm cards for anything it proposed to DO,
+ * in the order they happened. A card is the only place an action is approved,
+ * so it stays in the thread afterwards as the record of what was done.
+ *
  * Streaming is keyed by attempt: main gives every attempt its own requestId, so
  * a retry after a clipped answer arrives under a NEW id and the panel throws the
  * partial text away instead of appending to it. That is how engineering rule 3
@@ -10,19 +15,52 @@
  */
 
 import { create } from 'zustand';
-import type { AiChunk, CenturionErrorCode } from '@shared/types';
+import type {
+  AiChunk,
+  CenturionErrorCode,
+  CenturionToolName,
+  CenturionToolProposal,
+} from '@shared/types';
 import type { ContextMode } from './ask-payload';
 
 export type CenturionStatus = 'idle' | 'working' | 'streaming';
 
+/** Where a confirm card is up to. 'skipped' is a normal end, never a failure. */
+export type CenturionCardStatus = 'pending' | 'running' | 'done' | 'skipped' | 'failed';
+
 export interface CenturionTurn {
+  kind: 'turn';
   id: string;
   role: 'user' | 'assistant';
   content: string;
 }
 
+/** One proposed action, awaiting the attorney or settled. Keyed by tool_use id. */
+export interface CenturionCard {
+  kind: 'card';
+  id: string;
+  /** The attempt that proposed it — half of what `ai:toolDecision` answers. */
+  requestId: string;
+  name: CenturionToolName;
+  summary: string;
+  input: unknown;
+  status: CenturionCardStatus;
+  /** The line under the card once it settles: the receipt, or why it did not run. */
+  result: string | null;
+}
+
+export type CenturionEntry = CenturionTurn | CenturionCard;
+
+export function isCard(entry: CenturionEntry): entry is CenturionCard {
+  return entry.kind === 'card';
+}
+
+export function isTurn(entry: CenturionEntry): entry is CenturionTurn {
+  return entry.kind === 'turn';
+}
+
 export interface CenturionThread {
-  turns: CenturionTurn[];
+  entries: CenturionEntry[];
   /** The attempt whose deltas are on screen; null when nothing is streaming. */
   streamingRequestId: string | null;
   streamingText: string;
@@ -33,6 +71,8 @@ export interface CenturionThread {
   contextMode: ContextMode;
   rangeFrom: number;
   rangeTo: number;
+  /** Offer Centurion the document tools. On by default whenever a PDF is open. */
+  toolsEnabled: boolean;
 }
 
 export interface CenturionState {
@@ -50,8 +90,12 @@ export interface CenturionState {
   setHasKey(hasKey: boolean): void;
   setContextMode(docId: string, mode: ContextMode): void;
   setRange(docId: string, from: number, to: number): void;
+  setToolsEnabled(docId: string, enabled: boolean): void;
   startAsk(docId: string, question: string): void;
   applyChunk(chunk: AiChunk): void;
+  /** Local, optimistic: the attorney pressed Approve and the work has begun. */
+  markCardRunning(cardId: string): void;
+  settleCard(cardId: string, status: CenturionCardStatus, result: string): void;
   finishAsk(text: string): void;
   failAsk(message: string): void;
   clearThread(docId: string): void;
@@ -61,7 +105,7 @@ type Setter = (updater: (state: CenturionState) => Partial<CenturionState>) => v
 
 export function blankThread(): CenturionThread {
   return {
-    turns: [],
+    entries: [],
     streamingRequestId: null,
     streamingText: '',
     attempt: 0,
@@ -70,6 +114,7 @@ export function blankThread(): CenturionThread {
     contextMode: 'whole',
     rangeFrom: 1,
     rangeTo: 1,
+    toolsEnabled: true,
   };
 }
 
@@ -84,6 +129,10 @@ function newTurnId(): string {
   return globalThis.crypto.randomUUID();
 }
 
+function turn(role: 'user' | 'assistant', content: string): CenturionTurn {
+  return { kind: 'turn', id: newTurnId(), role, content };
+}
+
 function withThread(
   state: CenturionState,
   docId: string,
@@ -93,7 +142,7 @@ function withThread(
   return { threads: { ...state.threads, [docId]: update(current) } };
 }
 
-/** Clears the streaming scratch buffer; the turn list is left alone. */
+/** Clears the streaming scratch buffer; the entry list is left alone. */
 function settled(thread: CenturionThread): CenturionThread {
   return { ...thread, streamingRequestId: null, streamingText: '', attempt: 0, status: 'idle' };
 }
@@ -123,15 +172,80 @@ function applyDelta(thread: CenturionThread, chunk: AiChunk): CenturionThread {
   };
 }
 
+const OUTCOME_STATUS: Record<'done' | 'skipped' | 'failed', CenturionCardStatus> = {
+  done: 'done',
+  skipped: 'skipped',
+  failed: 'failed',
+};
+
+/** Cards arrive twice: once awaiting an answer, once settled. Match on tool_use id. */
+function applyProposal(
+  thread: CenturionThread,
+  requestId: string,
+  proposal: CenturionToolProposal
+): CenturionThread {
+  const known = thread.entries.some((entry) => isCard(entry) && entry.id === proposal.toolUseId);
+  const result = proposal.result;
+  if (result !== undefined) {
+    return updateCard(thread, proposal.toolUseId, {
+      status: OUTCOME_STATUS[result.outcome],
+      result: result.message,
+    });
+  }
+  if (known) return thread;
+  const card: CenturionCard = {
+    kind: 'card',
+    id: proposal.toolUseId,
+    requestId,
+    name: proposal.name,
+    summary: proposal.summary,
+    input: proposal.input,
+    status: 'pending',
+    result: null,
+  };
+  return { ...thread, entries: [...thread.entries, card] };
+}
+
+function updateCard(
+  thread: CenturionThread,
+  cardId: string,
+  patch: Partial<CenturionCard>
+): CenturionThread {
+  return {
+    ...thread,
+    entries: thread.entries.map((entry) =>
+      isCard(entry) && entry.id === cardId ? { ...entry, ...patch } : entry
+    ),
+  };
+}
+
+/** Card edits can land after the ask ended, so they search every thread. */
+function patchCardEverywhere(
+  state: CenturionState,
+  cardId: string,
+  patch: Partial<CenturionCard>
+): Partial<CenturionState> {
+  const threads = Object.fromEntries(
+    Object.entries(state.threads).map(([docId, thread]) => [
+      docId,
+      updateCard(thread, cardId, patch),
+    ])
+  );
+  return { threads };
+}
+
 function threadActions(
   set: Setter
-): Pick<CenturionState, 'setContextMode' | 'setRange' | 'clearThread'> {
+): Pick<CenturionState, 'setContextMode' | 'setRange' | 'setToolsEnabled' | 'clearThread'> {
   return {
     setContextMode: (docId, contextMode) =>
       set((state) => withThread(state, docId, (thread) => ({ ...thread, contextMode }))),
 
     setRange: (docId, rangeFrom, rangeTo) =>
       set((state) => withThread(state, docId, (thread) => ({ ...thread, rangeFrom, rangeTo }))),
+
+    setToolsEnabled: (docId, toolsEnabled) =>
+      set((state) => withThread(state, docId, (thread) => ({ ...thread, toolsEnabled }))),
 
     clearThread: (docId) =>
       set((state) => ({
@@ -141,14 +255,18 @@ function threadActions(
           contextMode: thread.contextMode,
           rangeFrom: thread.rangeFrom,
           rangeTo: thread.rangeTo,
+          toolsEnabled: thread.toolsEnabled,
         })),
       })),
   };
 }
 
-function askActions(
-  set: Setter
-): Pick<CenturionState, 'startAsk' | 'applyChunk' | 'finishAsk' | 'failAsk'> {
+type AskActions = Pick<
+  CenturionState,
+  'startAsk' | 'applyChunk' | 'finishAsk' | 'failAsk' | 'markCardRunning' | 'settleCard'
+>;
+
+function askActions(set: Setter): AskActions {
   return {
     startAsk: (docId, question) =>
       set((state) => ({
@@ -156,7 +274,7 @@ function askActions(
         failureCode: null,
         ...withThread(state, docId, (thread) => ({
           ...settled(thread),
-          turns: [...thread.turns, { id: newTurnId(), role: 'user', content: question }],
+          entries: [...thread.entries, turn('user', question)],
           status: 'working',
           error: null,
         })),
@@ -169,14 +287,25 @@ function askActions(
       set((state) => {
         if (chunk.done) return chunk.code === undefined ? {} : { failureCode: chunk.code };
         if (state.askingDocId === null) return {};
-        return withThread(state, state.askingDocId, (thread) => applyDelta(thread, chunk));
+        const proposal = chunk.proposal;
+        return withThread(state, state.askingDocId, (thread) =>
+          proposal === undefined
+            ? applyDelta(thread, chunk)
+            : applyProposal(thread, chunk.requestId, proposal)
+        );
       }),
+
+    markCardRunning: (cardId) =>
+      set((state) => patchCardEverywhere(state, cardId, { status: 'running', result: null })),
+
+    settleCard: (cardId, status, result) =>
+      set((state) => patchCardEverywhere(state, cardId, { status, result })),
 
     finishAsk: (text) =>
       set((state) =>
         settleThread(state, (thread) => ({
           ...thread,
-          turns: [...thread.turns, { id: newTurnId(), role: 'assistant', content: text }],
+          entries: [...thread.entries, turn('assistant', text)],
           error: null,
         }))
       ),

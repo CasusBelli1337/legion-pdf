@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BATES_PREFIX_PLACEHOLDER,
   batesLabelAt,
   batesProblem,
   batesReceipt,
@@ -12,6 +13,16 @@ import {
 function form(overrides: Partial<BatesForm> = {}): BatesForm {
   return { ...DEFAULT_BATES_FORM, prefix: 'ASHFORD', startNumber: 123, ...overrides };
 }
+
+describe('the prefix box', () => {
+  it('starts empty, so nothing is stamped that was not typed', () => {
+    expect(DEFAULT_BATES_FORM.prefix).toBe('');
+  });
+
+  it('shows a neutral example, never a real case name', () => {
+    expect(BATES_PREFIX_PLACEHOLDER).toBe('PLAINTIFF');
+  });
+});
 
 describe('batesLabelAt', () => {
   it('produces the exact production string', () => {

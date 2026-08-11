@@ -70,6 +70,8 @@ export const IPC = {
     read: 'file:read',
     save: 'file:save',
     saveAs: 'file:saveAs',
+    saveTo: 'file:saveTo',
+    chooseFolder: 'file:chooseFolder',
     recent: 'file:recent',
     recentClear: 'file:recentClear',
     close: 'file:close',
@@ -156,6 +158,14 @@ export interface IpcInvokeContract {
     request: [docId: string, suggestedName?: string];
     response: SaveResult | null;
   };
+  /**
+   * Save As without the dialog: the caller already knows the target path.
+   * Same atomic write as `file:saveAs` — what scripts, QA automation, and any
+   * flow that computes its own output name use.
+   */
+  'file:saveTo': { request: [docId: string, targetPath: string]; response: SaveResult };
+  /** Folder picker for "where do the output files go". Null when cancelled. */
+  'file:chooseFolder': { request: []; response: string | null };
   'file:recent': { request: []; response: RecentFile[] };
   'file:recentClear': { request: []; response: RecentFile[] };
   'file:close': { request: [docId: string]; response: void };

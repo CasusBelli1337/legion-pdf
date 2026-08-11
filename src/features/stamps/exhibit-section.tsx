@@ -3,14 +3,27 @@
  *
  * The label advances itself after every stamp (A, B, ... Z, AA), so a stack of
  * exhibits can be worked through without retyping — and the same label can be
- * dropped on a divider page ahead of the exhibit in one more click.
+ * dropped on a divider page around the page on screen in one more click.
+ *
+ * What stamps is what the box says: the preview stands down the moment a stamp
+ * lands, so the advanced label is never painted back over the ink just applied
+ * (see ./exhibit-form, which owns that rule and is tested on it).
  */
 
 import { useMemo, useState } from 'react';
-import type { Corner, DocumentSession } from '@shared/types';
+import type { DocumentSession, ExhibitPosition } from '@shared/types';
 import { useViewerApi, type PageOverlayRenderer } from '@renderer/components/viewer';
-import { nextExhibitLabel } from './exhibit-label';
-import { CornerMark } from './mark-preview';
+import {
+  EXHIBIT_START,
+  afterExhibitStamp,
+  editExhibit,
+  slipSheetIndex,
+  slipSheetReceipt,
+  type ExhibitForm,
+  type ExhibitPanelState,
+  type SlipSheetPlacement,
+} from './exhibit-form';
+import { StampMark } from './mark-preview';
 import { describePageCount, parsePageRange } from './page-range';
 import {
   ActionButton,
@@ -26,42 +39,65 @@ import type { StampRunner } from './use-stamp-runner';
 
 const OVERLAY_ID = 'exhibit-preview';
 
-const CORNERS: readonly { value: Corner; label: string }[] = [
-  { value: 'top-left', label: 'Top left' },
-  { value: 'top-right', label: 'Top right' },
-  { value: 'bottom-left', label: 'Bottom left' },
-  { value: 'bottom-right', label: 'Bottom right' },
-];
-
-interface ExhibitState {
-  label: string;
-  position: Corner;
-  fontSize: number;
-  margin: number;
-  bordered: boolean;
-  range: string;
-  slipSheetAt: number;
-}
-
-const DEFAULTS: ExhibitState = {
-  label: 'EXHIBIT A',
-  position: 'bottom-right',
-  fontSize: 14,
-  margin: 24,
-  bordered: true,
-  range: '1',
-  slipSheetAt: 1,
+/** Every placement core can stamp, each with the words an attorney would use. */
+const POSITION_LABELS: Record<ExhibitPosition, string> = {
+  'top-left': 'Top left',
+  'top-right': 'Top right',
+  'bottom-left': 'Bottom left',
+  'bottom-right': 'Bottom right',
+  'bottom-center': 'Bottom center',
 };
 
-type Change = (patch: Partial<ExhibitState>) => void;
+const POSITIONS = Object.entries(POSITION_LABELS).map(([value, label]) => ({
+  value: value as ExhibitPosition,
+  label,
+}));
 
-function PlacementFields({ form, onChange }: { form: ExhibitState; onChange: Change }) {
+const SLIP_SHEET_PLACEMENTS: readonly { value: SlipSheetPlacement; label: string }[] = [
+  { value: 'before', label: 'Before this page' },
+  { value: 'after', label: 'After this page' },
+  { value: 'at', label: 'At a page number' },
+];
+
+type Change = (patch: Partial<ExhibitForm>) => void;
+
+function LabelFields({
+  form,
+  pageCount,
+  range,
+  onChange,
+}: {
+  form: ExhibitForm;
+  pageCount: number;
+  range: { pages: number[]; error: string | null };
+  onChange: Change;
+}) {
+  return (
+    <>
+      <TextField
+        label="Exhibit label"
+        value={form.label}
+        placeholder="EXHIBIT A"
+        onChange={(label) => onChange({ label })}
+      />
+      <RangeField
+        pageCount={pageCount}
+        value={form.range}
+        error={range.error}
+        note={`${describePageCount(range.pages.length)} will carry the stamp.`}
+        onChange={(next) => onChange({ range: next })}
+      />
+    </>
+  );
+}
+
+function PlacementFields({ form, onChange }: { form: ExhibitForm; onChange: Change }) {
   return (
     <>
       <ChoiceField
-        label="Corner"
+        label="Position"
         value={form.position}
-        options={CORNERS}
+        options={POSITIONS}
         onChange={(position) => onChange({ position })}
       />
       <div className="grid grid-cols-2 gap-2">
@@ -91,28 +127,39 @@ function PlacementFields({ form, onChange }: { form: ExhibitState; onChange: Cha
 
 function SlipSheetFields({
   form,
+  currentPage,
   pageCount,
   busy,
   onChange,
   onInsert,
 }: {
-  form: ExhibitState;
+  form: ExhibitForm;
+  currentPage: number;
   pageCount: number;
   busy: boolean;
   onChange: Change;
   onInsert(): void;
 }) {
+  const index = slipSheetIndex(form, currentPage, pageCount);
   return (
     <div className="mt-2 flex flex-col gap-2 border-t border-armory-border pt-3">
-      <NumberField
-        label="Slip sheet goes in front of page"
-        value={form.slipSheetAt}
-        min={1}
-        max={pageCount + 1}
-        onChange={(slipSheetAt) => onChange({ slipSheetAt })}
+      <ChoiceField
+        label="Slip sheet placement"
+        value={form.slipSheetPlacement}
+        options={SLIP_SHEET_PLACEMENTS}
+        onChange={(slipSheetPlacement) => onChange({ slipSheetPlacement })}
       />
+      {form.slipSheetPlacement === 'at' && (
+        <NumberField
+          label="Slip sheet goes in front of page"
+          value={form.slipSheetAt}
+          min={1}
+          max={pageCount + 1}
+          onChange={(slipSheetAt) => onChange({ slipSheetAt })}
+        />
+      )}
       <ActionButton label="Insert slip sheet" variant="quiet" disabled={busy} onClick={onInsert} />
-      <Hint>A divider page carrying the label above, added to this document.</Hint>
+      <Hint>A divider page carrying the label above, added to this document as page {index}.</Hint>
     </div>
   );
 }
@@ -122,55 +169,63 @@ interface ExhibitActions {
   slipSheet(): void;
 }
 
-function useExhibitActions(
-  session: DocumentSession,
-  runner: StampRunner,
-  form: ExhibitState,
-  pages: readonly number[],
-  onStamped: (nextLabel: string) => void
-): ExhibitActions {
+interface ActionInputs {
+  session: DocumentSession;
+  runner: StampRunner;
+  form: ExhibitForm;
+  pages: readonly number[];
+  slipSheetAt: number;
+  onStamped(appliedLabel: string): void;
+}
+
+function exhibitActions({
+  session,
+  runner,
+  form,
+  pages,
+  slipSheetAt,
+  onStamped,
+}: ActionInputs): ExhibitActions {
   const stamp = (): void => {
-    void runner
-      .run('Stamping the exhibit', async () => {
-        const result = await window.librarius.stamp.exhibit(session.id, {
-          label: form.label,
-          pages: [...pages],
-          position: form.position,
-          fontSize: form.fontSize,
-          margin: form.margin,
-          bordered: form.bordered,
-        });
-        const label = result.detail.labelsApplied[0] ?? form.label;
-        return `Stamped "${label}" on ${describePageCount(pages.length)}. Save the document to keep it.`;
-      })
-      .then(() => {
-        const next = nextExhibitLabel(form.label);
-        if (next !== null) onStamped(next);
+    void runner.run('Stamping the exhibit', async () => {
+      const result = await window.librarius.stamp.exhibit(session.id, {
+        label: form.label,
+        pages: [...pages],
+        position: form.position,
+        fontSize: form.fontSize,
+        margin: form.margin,
+        bordered: form.bordered,
       });
+      // Count on from what landed on the page, and only once it has landed: a
+      // stamp that failed leaves the label where the attorney left it.
+      const label = result.detail.labelsApplied[0] ?? form.label;
+      onStamped(label);
+      return `Stamped "${label}" on ${describePageCount(pages.length)}. Save the document to keep it.`;
+    });
   };
 
   const slipSheet = (): void => {
     void runner.run('Inserting the slip sheet', async () => {
       await window.librarius.stamp.slipSheet(session.id, {
         label: form.label,
-        atPage: form.slipSheetAt,
+        atPage: slipSheetAt,
       });
-      return `Added a "${form.label}" sheet before page ${form.slipSheetAt}. Save the document to keep it.`;
+      return slipSheetReceipt(form.label, slipSheetAt);
     });
   };
 
   return { stamp, slipSheet };
 }
 
-function useExhibitOverlay(form: ExhibitState, pages: readonly number[], blocked: boolean) {
+function useExhibitOverlay(form: ExhibitForm, pages: readonly number[], blocked: boolean) {
   return useMemo<PageOverlayRenderer | null>(() => {
     if (blocked || pages.length === 0) return null;
     const marked = new Set(pages);
     return (context) =>
       marked.has(context.page) ? (
-        <CornerMark
+        <StampMark
           context={context}
-          corner={form.position}
+          position={form.position}
           margin={form.margin}
           mark={{ text: form.label, fontSize: form.fontSize, bordered: form.bordered }}
         />
@@ -185,30 +240,30 @@ interface ExhibitSectionProps {
 
 export function ExhibitSection({ session, runner }: ExhibitSectionProps) {
   const api = useViewerApi();
-  const [form, setForm] = useState<ExhibitState>(DEFAULTS);
+  const [state, setState] = useState<ExhibitPanelState>(EXHIBIT_START);
+  const { form } = state;
   const range = parsePageRange(form.range, session.pageCount);
-  const change: Change = (patch) => setForm((current) => ({ ...current, ...patch }));
+  const currentPage = api?.currentPage ?? 1;
+  const change: Change = (patch) => setState((current) => editExhibit(current, patch));
 
-  useMarkOverlay(api, OVERLAY_ID, useExhibitOverlay(form, range.pages, range.error !== null));
-  const actions = useExhibitActions(session, runner, form, range.pages, (label) =>
-    change({ label })
+  useMarkOverlay(
+    api,
+    OVERLAY_ID,
+    useExhibitOverlay(form, range.pages, !state.showPreview || range.error !== null)
   );
+
+  const actions = exhibitActions({
+    session,
+    runner,
+    form,
+    pages: range.pages,
+    slipSheetAt: slipSheetIndex(form, currentPage, session.pageCount),
+    onStamped: (label) => setState((current) => afterExhibitStamp(current, label)),
+  });
 
   return (
     <div className="flex flex-col gap-2">
-      <TextField
-        label="Exhibit label"
-        value={form.label}
-        placeholder="EXHIBIT A"
-        onChange={(label) => change({ label })}
-      />
-      <RangeField
-        pageCount={session.pageCount}
-        value={form.range}
-        error={range.error}
-        note={`${describePageCount(range.pages.length)} will carry the stamp.`}
-        onChange={(next) => change({ range: next })}
-      />
+      <LabelFields form={form} pageCount={session.pageCount} range={range} onChange={change} />
       <PlacementFields form={form} onChange={change} />
       <ActionButton
         label="Stamp the exhibit"
@@ -218,6 +273,7 @@ export function ExhibitSection({ session, runner }: ExhibitSectionProps) {
       <Hint>The label moves on to the next letter after each stamp.</Hint>
       <SlipSheetFields
         form={form}
+        currentPage={currentPage}
         pageCount={session.pageCount}
         busy={runner.busy !== null}
         onChange={change}

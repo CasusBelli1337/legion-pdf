@@ -85,7 +85,24 @@ export class SignatureLibrary {
     if (sourcePath.trim().length === 0) {
       throw new Error('No image was chosen — pick a PNG of your signature to import.');
     }
-    const bytes = new Uint8Array(await readFile(sourcePath));
+    return this.store(new Uint8Array(await readFile(sourcePath)), label);
+  }
+
+  /**
+   * The same library entry from bytes already in hand — the cleaned-up scan the
+   * import dialog produces on a canvas, which never existed as a file. The bytes
+   * pass exactly the same PNG-magic and size gate as an imported file: a caller
+   * handing over a JPEG or a truncated buffer is refused, never stored.
+   */
+  async addBytes(data: Uint8Array, label: string): Promise<SignatureAsset> {
+    if (data.byteLength === 0) {
+      throw new Error('That signature image came through empty — nothing was imported.');
+    }
+    return this.store(data, label);
+  }
+
+  /** The one write path: validate, copy to userData, index it, hand it back. */
+  private async store(bytes: Uint8Array, label: string): Promise<SignatureAsset> {
     const info = readPngInfo(bytes);
 
     await mkdir(this.root, { recursive: true });

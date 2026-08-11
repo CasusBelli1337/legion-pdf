@@ -72,6 +72,75 @@ describe('SignatureLibrary', () => {
     expect(Buffer.from(stored).equals(await readFile(source))).toBe(true);
   });
 
+  /**
+   * The cleaned-up scan the import dialog draws on a canvas never existed as a
+   * file, so it arrives as bytes. It passes exactly the same gate.
+   */
+  describe('adding from bytes', () => {
+    const png = (width = 240, height = 80): Uint8Array =>
+      makePng({ width, height, channels: 4, paint: () => [0, 0, 0, 255] });
+
+    it('stores the bytes with their real dimensions', async () => {
+      const library = new SignatureLibrary(root);
+      const asset = await library.addBytes(png(300, 100), 'Cleaned signature');
+
+      expect(asset.label).toBe('Cleaned signature');
+      expect(asset.widthPx).toBe(300);
+      expect(asset.heightPx).toBe(100);
+      expect(asset.filePath.startsWith(root)).toBe(true);
+    });
+
+    it('writes the exact bytes it was handed', async () => {
+      const library = new SignatureLibrary(root);
+      const bytes = png();
+      const asset = await library.addBytes(bytes, 'Cleaned signature');
+      expect(Buffer.from(await library.bytesOf(asset.id)).equals(Buffer.from(bytes))).toBe(true);
+    });
+
+    it('carries the thumbnail back, like a file import does', async () => {
+      const library = new SignatureLibrary(root);
+      const asset = await library.addBytes(png(), 'Cleaned signature');
+      expect(asset.dataUrl?.startsWith('data:image/png;base64,')).toBe(true);
+    });
+
+    it('lands in the same list as a file import, in order', async () => {
+      const library = new SignatureLibrary(root);
+      await library.add(await writePng('one.png'), 'From a file');
+      await library.addBytes(png(), 'From the canvas');
+      expect((await library.list()).map((asset) => asset.label)).toEqual([
+        'From a file',
+        'From the canvas',
+      ]);
+    });
+
+    it('names an unlabelled import rather than storing a blank', async () => {
+      const asset = await new SignatureLibrary(root).addBytes(png(), '  ');
+      expect(asset.label).toBe('Signature');
+    });
+
+    it('refuses bytes that are not a PNG, and stores nothing', async () => {
+      const library = new SignatureLibrary(root);
+      await expect(library.addBytes(new Uint8Array(200).fill(1), 'Bad')).rejects.toThrow(
+        /not a PNG/
+      );
+      expect(await library.list()).toEqual([]);
+    });
+
+    it('refuses an empty buffer loudly rather than storing a zero-byte image', async () => {
+      const library = new SignatureLibrary(root);
+      await expect(library.addBytes(new Uint8Array(0), 'Empty')).rejects.toThrow(
+        /came through empty/
+      );
+      expect(await library.list()).toEqual([]);
+    });
+
+    it('refuses bytes larger than the library allows', async () => {
+      const huge = new Uint8Array(5 * 1024 * 1024 + 1);
+      huge.set(png(4, 4));
+      await expect(new SignatureLibrary(root).addBytes(huge, 'Huge')).rejects.toThrow(/under 5 MB/);
+    });
+  });
+
   describe('thumbnails', () => {
     it('carries the image inline so the renderer can show a real thumbnail', async () => {
       const library = new SignatureLibrary(root);

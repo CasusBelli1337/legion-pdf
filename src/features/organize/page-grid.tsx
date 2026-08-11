@@ -4,10 +4,10 @@
  * Shift-click extends, and dragging drops the selection in front of a page.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DocumentSession } from '@shared/types';
-import type { PageSelection } from './selection';
+import { gridScrollTop, type PageSelection } from './selection';
 import type { PageThumbnails } from './use-page-thumbnails';
 
 const COLUMNS = 2;
@@ -133,13 +133,15 @@ interface PageGridProps {
   session: DocumentSession;
   selection: PageSelection;
   thumbnails: PageThumbnails;
+  /** The page the viewer is on: brought into view when the panel opens. */
+  openOn: number;
   onSelect(page: number, event: React.MouseEvent): void;
   onDragPage(page: number): void;
   /** Drop the dragged selection immediately before this page (pageCount + 1 = end). */
   onDropBefore(page: number): void;
 }
 
-export function PageGrid({ session, selection, thumbnails, ...handlers }: PageGridProps) {
+export function PageGrid({ session, selection, thumbnails, openOn, ...handlers }: PageGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- library-managed subscription: TanStack Virtual owns the store this reads, and its unmemoized getters are read during render only.
@@ -149,6 +151,16 @@ export function PageGrid({ session, selection, thumbnails, ...handlers }: PageGr
     estimateSize: () => ROW_HEIGHT,
     overscan: 4,
   });
+
+  // As the panel opens: the selected page is no use out of sight. The offset is
+  // set on the element itself — every row is ROW_HEIGHT tall, so it is exact,
+  // and writing the same number twice (React's double-invoked effects) is a
+  // no-op, where a scroll animation would fight itself.
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (element === null || session.pageCount === 0) return;
+    element.scrollTop = gridScrollTop(openOn, COLUMNS, ROW_HEIGHT, element.clientHeight);
+  }, [openOn, session.pageCount]);
 
   const drop = (page: number): void => {
     setDropTarget(null);

@@ -33,7 +33,6 @@ export function PdfViewer({ session }: PdfViewerProps) {
   const [isHarnessOpen, setHarnessOpen] = useState(false);
 
   useFindShortcut(useCallback(() => setFindOpen(true), []));
-  const isReady = view.error === null && !view.isLoading;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-armory-base">
@@ -60,7 +59,7 @@ export function PdfViewer({ session }: PdfViewerProps) {
         {view.error === null && view.isLoading && (
           <ViewerNotice message="Opening document" isError={false} />
         )}
-        {isReady && (
+        {view.isReady && (
           <PageList
             document={view.document}
             virtualizer={view.virtualizer}

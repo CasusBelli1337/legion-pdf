@@ -1,249 +1,148 @@
 /**
  * F-6 signatures — the section inside Stamps & Marks.
  *
- * Pick a signature, click the page, nudge it into place, then Apply. Applying
- * flattens the image into the page content: reopened anywhere else there is no
- * annotation to select, move, or delete, which is the whole reason a signed PDF
- * is worth anything.
+ * Drag a signature out of the library onto the page (or click it, then click
+ * the page). It lands as a LIVE object: select it, drag it, resize it by the
+ * corner, delete it, put another one three pages later. None of it has touched
+ * the PDF — the document only gets signed when the attorney saves, and saving
+ * asks first, because after that the signature is page content like any other.
  */
 
-import { useMemo, useState } from 'react';
-import type { DocumentSession, SignatureAsset } from '@shared/types';
+import { useCallback, useMemo, useState } from 'react';
+import type { PdfPoint, SignatureAsset } from '@shared/types';
 import { useViewerApi, type PageOverlayRenderer } from '@renderer/components/viewer';
 import {
-  ActionButton,
-  Caution,
-  ChoiceField,
   ClickSurface,
   Hint,
-  NumberField,
   Problem,
-  Toggle,
   useMarkOverlay,
-  type StampRunner,
+  type StampSectionProps,
 } from '@renderer/features/stamps';
-import { fileUrl } from './file-url';
-import { SignatureLibraryView } from './signature-library-view';
-import { SignatureOverlay } from './signature-overlay';
+import { PlacementPanel } from './placement-controls';
+import { anchorFromCentre, sizeFor, DEFAULT_SIGNATURE_HEIGHT } from './placement-geometry';
+import { useLivePlacements, usePlacementStore, type LivePlacement } from './placement-store';
+import { pageAtClientPoint, useSignatureDrag, type SignatureDrag } from './signature-drag';
+import { SignatureImportDialog } from './signature-import-dialog';
+import { DragGhostLayer, SignatureLibraryView } from './signature-library-view';
+import { SignatureOverlay, SIGNATURE_OVERLAY_ID } from './signature-overlay';
+import { useDeleteSelectedPlacement } from './use-placement-keys';
 import { useSignatureLibrary } from './use-signature-library';
-import { useSignatureDraft } from './use-signature-placement';
 
-const OVERLAY_ID = 'signature-placement';
-
-const DATE_FORMATS = [
-  { value: 'MM/DD/YYYY', label: '08/10/2026' },
-  { value: 'MMMM D, YYYY', label: 'August 10, 2026' },
-] as const;
-
-type DateFormatValue = (typeof DATE_FORMATS)[number]['value'];
-
-interface DateStamp {
-  withDate: boolean;
-  dateFormat: DateFormatValue;
+/** Placing a signature drops its CENTRE where the attorney pointed. */
+function centredAnchor(signature: SignatureAsset, at: PdfPoint): PdfPoint {
+  return anchorFromCentre(at, sizeFor(signature, DEFAULT_SIGNATURE_HEIGHT));
 }
 
-interface DraftControlsProps {
-  page: number;
-  heightPt: number;
-  busy: boolean;
-  date: DateStamp;
-  onHeight(height: number): void;
-  onDate(patch: Partial<DateStamp>): void;
-  onApply(): void;
-  onCancel(): void;
-}
+type DropAt = (signature: SignatureAsset, page: number, at: PdfPoint) => void;
 
-function DraftControls(props: DraftControlsProps) {
-  return (
-    <>
-      <NumberField
-        label="Height (points)"
-        value={Math.round(props.heightPt)}
-        min={8}
-        max={400}
-        onChange={props.onHeight}
-      />
-      <Toggle
-        label="Stamp the date beside it"
-        checked={props.date.withDate}
-        onChange={(withDate) => props.onDate({ withDate })}
-      />
-      {props.date.withDate && (
-        <ChoiceField
-          label="Date format"
-          value={props.date.dateFormat}
-          options={DATE_FORMATS}
-          onChange={(dateFormat) => props.onDate({ dateFormat })}
-        />
-      )}
-      <ActionButton
-        label={`Apply to page ${props.page}`}
-        disabled={props.busy}
-        onClick={props.onApply}
-      />
-      <ActionButton label="Cancel" variant="quiet" onClick={props.onCancel} />
-    </>
-  );
-}
-
-function Library({
-  library,
-  selectedId,
-  onSelect,
-  onRemove,
-}: {
-  library: ReturnType<typeof useSignatureLibrary>;
-  selectedId: string | null;
-  onSelect(signature: SignatureAsset): void;
-  onRemove(signature: SignatureAsset): void;
-}) {
-  return (
-    <>
-      <SignatureLibraryView
-        signatures={library.signatures}
-        selectedId={selectedId}
-        busy={library.busy}
-        onSelect={onSelect}
-        onRemove={onRemove}
-        onImport={(file) => void library.importFile(file)}
-      />
-      {library.error !== null && <Problem message={library.error} />}
-    </>
-  );
-}
-
-/** The click-catcher while a signature is armed, plus the draft once it lands. */
+/** The click-catcher while a signature is armed, plus every live placement. */
 function useSignatureOverlay(
   api: ReturnType<typeof useViewerApi>,
-  selected: SignatureAsset | null,
-  draftState: ReturnType<typeof useSignatureDraft>
-): PageOverlayRenderer | null {
-  const draft = draftState.draft;
-  const arming = selected !== null && draft === null;
-  return useMemo<PageOverlayRenderer | null>(() => {
-    if (!arming && draft === null) return null;
+  armed: SignatureAsset | null,
+  placements: readonly LivePlacement[],
+  selectedId: string | null,
+  drop: DropAt
+): void {
+  const overlay = useMemo<PageOverlayRenderer | null>(() => {
+    if (armed === null && placements.length === 0) return null;
     return (context) => (
       <>
-        {arming && selected !== null && (
-          <ClickSurface
-            api={api}
-            context={context}
-            onPoint={(page, at) => draftState.place(selected, page, at)}
-          />
+        {armed !== null && (
+          <ClickSurface api={api} context={context} onPoint={(page, at) => drop(armed, page, at)} />
         )}
-        {draft !== null && draft.page === context.page && (
-          <SignatureOverlay
-            api={api}
-            context={context}
-            draft={draft}
-            placement={draftState}
-            source={draft.signature.dataUrl ?? fileUrl(draft.signature.filePath)}
-          />
-        )}
+        <SignatureOverlay
+          api={api}
+          context={context}
+          placements={placements}
+          selectedId={selectedId}
+        />
       </>
     );
-  }, [api, arming, draft, draftState, selected]);
+  }, [api, armed, drop, placements, selectedId]);
+  useMarkOverlay(api, SIGNATURE_OVERLAY_ID, overlay);
 }
 
-function useApplySignature(
-  session: DocumentSession,
-  runner: StampRunner,
-  draftState: ReturnType<typeof useSignatureDraft>,
-  date: DateStamp
-): () => void {
-  return () => {
-    const draft = draftState.draft;
-    if (draft === null) return;
-    void runner
-      .run('Placing the signature', async () => {
-        await window.librarius.stamp.signaturePlace(session.id, {
-          signatureId: draft.signature.id,
-          page: draft.page,
-          at: draft.at,
-          widthPt: draft.widthPt,
-          heightPt: draft.heightPt,
-          withDate: date.withDate,
-          dateFormat: date.dateFormat,
-        });
-        return `Signed page ${draft.page}. The signature is part of the page now. Save the document to keep it.`;
-      })
-      .then(() => draftState.clear());
-  };
+interface LibrarySlotProps {
+  library: ReturnType<typeof useSignatureLibrary>;
+  drag: SignatureDrag;
+  armed: SignatureAsset | null;
+  onArm(signature: SignatureAsset | null): void;
 }
 
-interface SignatureSelection {
-  selected: SignatureAsset | null;
-  pick(signature: SignatureAsset): void;
-  drop(signature: SignatureAsset): void;
+/** The grid, or the import dialog once a file has been chosen. Never both. */
+function LibrarySlot({ library, drag, armed, onArm }: LibrarySlotProps) {
+  const [picked, setPicked] = useState<File | null>(null);
+  if (picked !== null) {
+    return (
+      <SignatureImportDialog
+        file={picked}
+        busy={library.busy}
+        onCancel={() => setPicked(null)}
+        onImport={(cleaned) => {
+          void library.importFile(picked, cleaned).then(() => setPicked(null));
+        }}
+      />
+    );
+  }
+  return (
+    <SignatureLibraryView
+      signatures={library.signatures}
+      selectedId={armed?.id ?? null}
+      busy={library.busy}
+      drag={drag}
+      onSelect={onArm}
+      onRemove={(signature) => {
+        // Removing the armed signature disarms it; it never places itself.
+        if (armed?.id === signature.id) onArm(null);
+        void library.remove(signature.id);
+      }}
+      onPick={setPicked}
+    />
+  );
 }
 
-/** Which signature is armed. Removing the armed one disarms it, never places it. */
-function useSignatureSelection(
-  library: ReturnType<typeof useSignatureLibrary>,
-  draftState: ReturnType<typeof useSignatureDraft>
-): SignatureSelection {
-  const [selected, setSelected] = useState<SignatureAsset | null>(null);
-  return {
-    selected,
-    pick: (signature) => {
-      setSelected(signature);
-      draftState.clear();
-    },
-    drop: (signature) => {
-      if (selected?.id === signature.id) {
-        setSelected(null);
-        draftState.clear();
-      }
-      void library.remove(signature.id);
-    },
-  };
-}
-
-export function SignatureSection({
-  session,
-  runner,
-}: {
-  session: DocumentSession;
-  runner: StampRunner;
-}) {
+export function SignatureSection({ session }: StampSectionProps) {
   const api = useViewerApi();
   const library = useSignatureLibrary();
-  const draftState = useSignatureDraft();
-  const { selected, pick, drop } = useSignatureSelection(library, draftState);
-  const [date, setDate] = useState<DateStamp>({ withDate: false, dateFormat: 'MM/DD/YYYY' });
+  const placements = useLivePlacements(session.id);
+  const selectedId = usePlacementStore((state) => state.selectedId);
+  const place = usePlacementStore((state) => state.place);
+  const remove = usePlacementStore((state) => state.remove);
+  const [armed, setArmed] = useState<SignatureAsset | null>(null);
 
-  const draft = draftState.draft;
-  useMarkOverlay(api, OVERLAY_ID, useSignatureOverlay(api, selected, draftState));
-  const apply = useApplySignature(session, runner, draftState, date);
+  useDeleteSelectedPlacement(selectedId, remove);
+
+  const drop = useCallback<DropAt>(
+    (signature, page, at) => {
+      place(session.id, signature, page, centredAnchor(signature, at));
+      setArmed(null);
+    },
+    [place, session.id]
+  );
+
+  // A drop that missed every page is simply not a placement: the ghost goes
+  // away and nothing lands, rather than a signature appearing somewhere the
+  // attorney was not pointing.
+  const drag = useSignatureDrag((signature, point) => {
+    const target = pageAtClientPoint(api, point);
+    if (target !== null) drop(signature, target.page, target.at);
+  }, setArmed);
+
+  useSignatureOverlay(api, armed, placements, selectedId, drop);
 
   return (
     <div className="flex flex-col gap-2">
-      <Library
-        library={library}
-        selectedId={selected?.id ?? null}
-        onSelect={pick}
-        onRemove={drop}
-      />
-      {selected !== null && draft === null && (
+      <LibrarySlot library={library} drag={drag} armed={armed} onArm={setArmed} />
+      {library.error !== null && <Problem message={library.error} />}
+
+      {armed !== null && (
         <Hint>
-          Click the page where the signature should sit. You can move and resize it after.
+          Now click the page where it should sit — or drag the tile straight onto the page.
         </Hint>
       )}
-      {draft !== null && (
-        <DraftControls
-          page={draft.page}
-          heightPt={draft.heightPt}
-          busy={runner.busy !== null}
-          date={date}
-          onHeight={(height) => draftState.resizeTo(height)}
-          onDate={(patch) => setDate((current) => ({ ...current, ...patch }))}
-          onApply={apply}
-          onCancel={() => draftState.clear()}
-        />
-      )}
-      <Caution>
-        Applying flattens the signature into the page. It cannot be moved or removed afterwards.
-      </Caution>
+
+      <PlacementPanel placements={placements} selectedId={selectedId} />
+      <DragGhostLayer drag={drag} />
     </div>
   );
 }

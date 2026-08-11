@@ -40,7 +40,6 @@ import {
   placeSignature,
 } from '@core/stamps';
 import type { IpcContext } from './context';
-import { registerNotImplemented } from './not-implemented';
 import { SignatureLibrary } from './stamp-signatures';
 
 /** Where the attorney's scanned signatures live. */
@@ -174,10 +173,14 @@ function registerSignatureHandlers(context: IpcContext, library: SignatureLibrar
       library.add(sourcePath, label)
   );
 
-  // Bytes in hand rather than a path — a pasted or drawn signature. A Uint8Array
-  // survives structured clone intact (the raster channels already carry PNGs
-  // both ways); the library write itself belongs to the lane building it.
-  registerNotImplemented([IPC.stamp.signatureAddBytes]);
+  // Bytes in hand rather than a path — the cleaned-up scan the import dialog
+  // draws on a canvas, which never existed as a file. A Uint8Array survives
+  // structured clone intact (the raster channels already carry PNGs both ways).
+  ipcMain.handle(
+    IPC.stamp.signatureAddBytes,
+    (_event, data: Uint8Array, label: string): Promise<SignatureAsset> =>
+      library.addBytes(data, label)
+  );
 
   ipcMain.handle(
     IPC.stamp.signatureRemove,

@@ -9,8 +9,10 @@
  * dashed outline is the tell that nothing has been written to the file yet.
  */
 
-import type { CSSProperties, ReactNode } from 'react';
-import type { Alignment, Corner, PdfPoint, PdfRect } from '@shared/types';
+import { useLayoutEffect, useRef } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
+import type { Alignment, Corner, ExhibitPosition, PdfPoint, PdfRect } from '@shared/types';
+import { watermarkBaselineMid } from '@shared/watermark-placement';
 import type { PageOverlayContext } from '@renderer/components/viewer';
 
 /** The screen stand-in for the PDF base fonts the stamps are drawn in. */
@@ -73,6 +75,37 @@ export function CornerMark({ context, corner, margin, mark }: CornerMarkProps) {
   return <Ink mark={mark} scale={context.scale} style={style} />;
 }
 
+/**
+ * An exhibit stamp at any of its positions — the four corners, or centred on the
+ * bottom edge at the same margin (core/stamps/geometry `stampAnchor`).
+ */
+export function StampMark({
+  context,
+  position,
+  margin,
+  mark,
+}: {
+  context: PageOverlayContext;
+  position: ExhibitPosition;
+  margin: number;
+  mark: MarkText;
+}) {
+  if (position !== 'bottom-center') {
+    return <CornerMark context={context} corner={position} margin={margin} mark={mark} />;
+  }
+  return (
+    <Ink
+      mark={mark}
+      scale={context.scale}
+      style={{
+        bottom: `${margin * context.scale}px`,
+        left: '50%',
+        transform: 'translateX(-50%)',
+      }}
+    />
+  );
+}
+
 interface BandMarkProps {
   context: PageOverlayContext;
   placement: 'header' | 'footer';
@@ -97,7 +130,37 @@ export function BandMark({ context, placement, alignment, margin, mark }: BandMa
   return <Ink mark={mark} scale={context.scale} style={style} />;
 }
 
-/** A mark across the middle of the page — watermarks. `spin` is anticlockwise. */
+/**
+ * Fits the dashed "nothing is in the file yet" outline around the glyphs the
+ * browser actually drew. Measuring is the only way to learn how wide they came
+ * out, and the answer is written straight to the rect: it is a DOM detail, not
+ * app state, and a render pass per keystroke of watermark text is not worth it.
+ */
+function usePendingOutline(
+  text: RefObject<SVGTextElement | null>,
+  outline: RefObject<SVGRectElement | null>,
+  follows: unknown[]
+): void {
+  useLayoutEffect(() => {
+    if (text.current === null || outline.current === null) return;
+    // getBBox answers a legacy SVGRect: four numbers, no DOMRect conveniences.
+    const box = text.current.getBBox();
+    outline.current.setAttribute('x', String(box.x));
+    outline.current.setAttribute('y', String(box.y));
+    outline.current.setAttribute('width', String(box.width));
+    outline.current.setAttribute('height', String(box.height));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the glyph box follows these
+  }, [outline, text, ...follows]);
+}
+
+/**
+ * A mark across the middle of the page — watermarks. `spin` is anticlockwise.
+ *
+ * Drawn as SVG in the page's own point space, anchored on the MIDDLE OF THE
+ * BASELINE that `@shared/watermark-placement` hands core/stamps/watermark.ts:
+ * SVG puts text on a baseline the way a PDF does, so the preview and the applied
+ * ink land on the same pixel instead of a CSS line box's guess at one.
+ */
 export function CentredMark({
   context,
   spin,
@@ -107,17 +170,47 @@ export function CentredMark({
   spin: number;
   mark: MarkText;
 }) {
+  const text = useRef<SVGTextElement>(null);
+  const outline = useRef<SVGRectElement>(null);
+  const at = watermarkBaselineMid(context.size, mark.fontSize, spin);
+  const x = at.x;
+  // SVG's y runs down the page; PDF's runs up.
+  const y = context.size.height - at.y;
+  usePendingOutline(text, outline, [mark.text, mark.fontSize, spin]);
+
   return (
-    <Ink
-      mark={mark}
-      scale={context.scale}
-      style={{
-        left: '50%',
-        top: '50%',
-        transform: `translate(-50%, -50%) rotate(${-spin}deg)`,
-        transformOrigin: 'center',
-      }}
-    />
+    <svg
+      className="absolute inset-0 h-full w-full"
+      viewBox={`0 0 ${context.size.width} ${context.size.height}`}
+      aria-hidden
+    >
+      <g transform={`rotate(${-spin} ${x} ${y})`}>
+        <rect
+          ref={outline}
+          width={0}
+          height={0}
+          fill="none"
+          stroke="currentColor"
+          className="text-purple-400/70"
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          vectorEffect="non-scaling-stroke"
+        />
+        <text
+          ref={text}
+          x={x}
+          y={y}
+          textAnchor="middle"
+          fontFamily={PREVIEW_FONT}
+          fontWeight={700}
+          fontSize={mark.fontSize}
+          fill={mark.color ?? '#111114'}
+          opacity={mark.opacity ?? 1}
+        >
+          {mark.text}
+        </text>
+      </g>
+    </svg>
   );
 }
 

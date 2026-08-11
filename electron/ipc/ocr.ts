@@ -11,13 +11,21 @@
 
 import { cpus } from 'node:os';
 import { existsSync } from 'node:fs';
+import { access, readFile } from 'node:fs/promises';
 import { app, ipcMain } from 'electron';
 import { IPC } from '@shared/ipc';
-import type { OcrDetectResult, OcrOptions, OcrRunDetail, OpResult } from '@shared/types';
-import { OcrService, resolveTesseract } from '../services/ocr';
-import type { TesseractLocation } from '../services/ocr';
+import type {
+  BulkOcrOptions,
+  BulkOcrResult,
+  OcrDetectResult,
+  OcrOptions,
+  OcrRunDetail,
+  OpResult,
+} from '@shared/types';
+import { BulkOcrRunner, OcrService, resolveTesseract } from '../services/ocr';
+import type { OcrProgress, OcrServiceDeps, TesseractLocation } from '../services/ocr';
+import { writeFileAtomic } from '../services/atomic-write';
 import type { IpcContext } from './context';
-import { registerNotImplemented } from './not-implemented';
 
 function locateTesseract(): TesseractLocation {
   return resolveTesseract({
@@ -30,13 +38,56 @@ function locateTesseract(): TesseractLocation {
   });
 }
 
-function createService(context: IpcContext): OcrService {
-  return new OcrService({
+/** Everything but the progress sink, which differs for a tab and for a bulk run. */
+function serviceDeps(context: IpcContext): Omit<OcrServiceDeps, 'emitProgress'> {
+  return {
     requestRaster: (request) => context.requestRaster(request),
-    emitProgress: (progress) => context.emitProgress(IPC.ocr.progress, progress),
     locate: locateTesseract,
     cpuCount: () => cpus().length,
     tempRoot: app.getPath('temp'),
+  };
+}
+
+function createService(context: IpcContext): OcrService {
+  return new OcrService({
+    ...serviceDeps(context),
+    emitProgress: (progress) => context.emitProgress(IPC.ocr.progress, progress),
+  });
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  return access(path).then(
+    () => true,
+    () => false
+  );
+}
+
+/**
+ * The bulk lane, wired to the same store, pool, and binary as a tab run — with
+ * two deliberate differences: documents are ADOPTED rather than opened (a bulk
+ * file is not a "recent file", and the attorney's recent list stays theirs), and
+ * output is written straight to disk rather than through the store, for the same
+ * reason. Page progress is re-labelled by the runner as "<file> — page N of M".
+ */
+function createBulkRunner(context: IpcContext, service: OcrService): BulkOcrRunner {
+  return new BulkOcrRunner({
+    readFile: async (path) => new Uint8Array(await readFile(path)),
+    adopt: async (bytes, fileName) => (await context.store.adopt(bytes, fileName)).id,
+    closeDoc: (docId) => context.store.close(docId),
+    detect: (bytes) => service.detect(bytes),
+    // One service per file: its progress sink is that file's progress sink.
+    runOcr: (docId, bytes, options, onProgress) => {
+      const perFile = new OcrService({
+        ...serviceDeps(context),
+        emitProgress: (progress: OcrProgress) => onProgress(progress),
+      });
+      return perFile.run(docId, bytes, options);
+    },
+    writeOutput: async (path, bytes) => {
+      await writeFileAtomic(path, bytes);
+    },
+    exists: fileExists,
+    emitProgress: (event) => context.emitProgress(IPC.ocr.progress, event),
   });
 }
 
@@ -60,7 +111,16 @@ export function registerOcrHandlers(context: IpcContext): void {
     service.cancel(docId);
   });
 
-  // Bulk OCR runs over files on disk rather than open documents, so it needs its
-  // own worker-pool driver; the lane building it fills these in.
-  registerNotImplemented([IPC.ocr.bulk, IPC.ocr.bulkCancel]);
+  const bulk = createBulkRunner(context, service);
+
+  ipcMain.handle(
+    IPC.ocr.bulk,
+    (_event, paths: string[], options: BulkOcrOptions): Promise<BulkOcrResult> => {
+      return bulk.run(paths, options);
+    }
+  );
+
+  ipcMain.handle(IPC.ocr.bulkCancel, (): void => {
+    bulk.cancel();
+  });
 }

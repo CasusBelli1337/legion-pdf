@@ -3,6 +3,8 @@
  * main-process half of text recognition stays a single greppable list.
  */
 
+export { BulkOcrRunner, bulkOutputPath } from './bulk-ocr';
+export type { BulkOcrDeps } from './bulk-ocr';
 export { OcrService } from './ocr-service';
 export type { OcrProgress, OcrServiceDeps } from './ocr-service';
 export { MAX_OCR_WORKERS, poolSize, runPool, throwIfCancelled } from './pool';

@@ -6,7 +6,9 @@
 
 import type { RasterRequest, RasterResponse } from '@shared/types';
 import type { Unsubscribe } from '@shared/bridge';
+import { DetachedDocuments } from './detached-raster';
 import { loadDocument } from './pdfjs';
+import type { PDFDocumentProxy } from './pdfjs';
 import { assertRasterPage, canvasSizeFor, dpiToScale } from './raster-geometry';
 
 export interface PageRaster {
@@ -23,58 +25,66 @@ export async function rasterizePage(
 ): Promise<PageRaster> {
   const document = await loadDocument(bytes);
   try {
-    assertRasterPage(page, document.numPages);
-    const pdfPage = await document.getPage(page);
-    const viewport = pdfPage.getViewport({ scale: dpiToScale(dpi) });
-    const { widthPx, heightPx } = canvasSizeFor(viewport.width, viewport.height);
-    const canvas = new OffscreenCanvas(widthPx, heightPx);
-    const context = canvas.getContext('2d');
-    if (context === null) throw new Error('The browser refused a 2D canvas context.');
-
-    // pdfjs renders into the context when `canvas` is explicitly null.
-    await pdfPage.render({
-      canvas: null,
-      canvasContext: context as unknown as CanvasRenderingContext2D,
-      viewport,
-    }).promise;
-
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
-    const png = new Uint8Array(await blob.arrayBuffer());
-    if (png.byteLength === 0) throw new Error(`Rasterizing page ${page} produced no image data.`);
-    return { png, widthPx, heightPx };
+    return await renderPage(document, page, dpi);
   } finally {
     // pdfjs 6 tears the worker down through the loading task, not the proxy.
     await document.loadingTask.destroy();
   }
 }
 
+async function renderPage(
+  document: PDFDocumentProxy,
+  page: number,
+  dpi: number
+): Promise<PageRaster> {
+  assertRasterPage(page, document.numPages);
+  const pdfPage = await document.getPage(page);
+  const viewport = pdfPage.getViewport({ scale: dpiToScale(dpi) });
+  const { widthPx, heightPx } = canvasSizeFor(viewport.width, viewport.height);
+  const canvas = new OffscreenCanvas(widthPx, heightPx);
+  const context = canvas.getContext('2d');
+  if (context === null) throw new Error('The browser refused a 2D canvas context.');
+
+  // pdfjs renders into the context when `canvas` is explicitly null.
+  await pdfPage.render({
+    canvas: null,
+    canvasContext: context as unknown as CanvasRenderingContext2D,
+    viewport,
+  }).promise;
+
+  const blob = await canvas.convertToBlob({ type: 'image/png' });
+  const png = new Uint8Array(await blob.arrayBuffer());
+  if (png.byteLength === 0) throw new Error(`Rasterizing page ${page} produced no image data.`);
+  return { png, widthPx, heightPx };
+}
+
+/**
+ * A tab's bytes are already here; anything else is a document main opened
+ * without a tab (bulk OCR), whose bytes are fetched back over `file:read`.
+ */
 async function answer(
   request: RasterRequest,
-  getBytes: (docId: string) => Uint8Array | undefined
+  getBytes: (docId: string) => Uint8Array | undefined,
+  detached: DetachedDocuments
 ): Promise<RasterResponse> {
   const bytes = getBytes(request.docId);
-  if (bytes === undefined) {
-    return {
-      requestId: request.requestId,
-      png: null,
-      widthPx: 0,
-      heightPx: 0,
-      error: `Document ${request.docId} is not open in the renderer.`,
-    };
-  }
-  const raster = await rasterizePage(bytes, request.page, request.dpi);
+  const raster =
+    bytes === undefined
+      ? await renderPage(await detached.open(request.docId), request.page, request.dpi)
+      : await rasterizePage(bytes, request.page, request.dpi);
   return { requestId: request.requestId, ...raster };
 }
 
 /**
  * Wire the renderer half of the raster round-trip. Call once at app start;
- * the returned function unsubscribes.
+ * the returned function unsubscribes and drops any detached document.
  */
 export function registerRasterResponder(
   getBytes: (docId: string) => Uint8Array | undefined
 ): Unsubscribe {
-  return window.librarius.raster.onRequest((request) => {
-    void answer(request, getBytes)
+  const detached = new DetachedDocuments();
+  const unsubscribe = window.librarius.raster.onRequest((request) => {
+    void answer(request, getBytes, detached)
       .catch((error: unknown) => ({
         requestId: request.requestId,
         png: null,
@@ -84,4 +94,8 @@ export function registerRasterResponder(
       }))
       .then((response) => window.librarius.raster.respond(response));
   });
+  return () => {
+    unsubscribe();
+    void detached.dispose();
+  };
 }

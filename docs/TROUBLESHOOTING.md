@@ -39,6 +39,26 @@ Wine and no passwordless sudo, and this is the more faithful environment anyway.
    `/S` silent-installs per-user (no UAC) to
    `%LOCALAPPDATA%\Programs\Legion Armory - Librarius\`.
 
+### PDF file association (only provable from the installed app)
+
+`fileAssociations` in `electron-builder.yml` puts Librarius in Explorer's
+"Open with" list. The NSIS macro writes to `SHELL_CONTEXT`, which follows the
+install mode, so a per-user install (`nsis.perMachine: false`) registers under
+`HKCU\Software\Classes\.pdf` + `...\PDF Document\shell\open\command`. The
+electron-builder docs say associations need `perMachine: true`; the shipped
+macro (`app-builder-lib/templates/nsis/include/FileAssociation.nsh`) is
+context-aware and documents the per-user layout, so per-user is expected to
+work — if a packaged QA pass finds it missing, the fallback is `perMachine:
+true` (which costs a UAC prompt at install).
+
+After installing, verify from PowerShell:
+`reg query "HKCU\Software\Classes\.pdf"` and
+`reg query "HKCU\Software\Classes\PDF Document\shell\open\command"`
+(the command must be `"...\Librarius.exe" "%1"`), then right-click a PDF →
+Open with → Librarius, and double-click one with the app already running (the
+second launch must focus the open window and add a tab, never start a
+second app).
+
 ## Packaged-app QA from WSL
 
 - Launch with `--remote-debugging-port=9450`; WSL reaches it at
@@ -62,6 +82,5 @@ Wine and no passwordless sudo, and this is the more faithful environment anyway.
   needs a ViewerApi change).
 - Cosmetic: one leaked blob URL in `print-controller.ts` when `image.decode()`
   rejects on an already-failing path.
-- No path-taking Save As in the bridge (dialog only) — matters for scripting.
 - **Stretch goal (next session): true text editing with reflow** — whiteout
   and retype shipped instead; see the handoff doc.

@@ -6,6 +6,7 @@
 import type { Corner } from '@shared/types';
 import { describePageCount } from './page-range';
 import { ChoiceField, NumberField, RangeField, TextField, Toggle } from './stamp-views';
+import { BATES_PREFIX_PLACEHOLDER } from './bates-preview';
 import type { BatesForm } from './bates-preview';
 
 const CORNERS: readonly { value: Corner; label: string }[] = [
@@ -23,7 +24,7 @@ function NumberingFields({ form, onChange }: { form: BatesForm; onChange: Change
       <TextField
         label="Prefix"
         value={form.prefix}
-        placeholder="ASHFORD"
+        placeholder={BATES_PREFIX_PLACEHOLDER}
         mono
         onChange={(prefix) => onChange({ prefix })}
       />

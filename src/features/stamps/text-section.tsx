@@ -2,144 +2,96 @@
  * F-10 add text and whiteout — "whiteout and retype", the pragmatic ninety
  * percent of editing a PDF.
  *
- * The two tools share a placement overlay: text is a click, cover is a drag.
- * Cover-then-retype runs as two verified operations rather than one clever one,
- * so each proves its own page count before the next begins.
- *
- * The panel says plainly that covering is not redaction. That distinction is
- * the difference between a production and a malpractice claim.
+ * The panel arms a tool and gets out of the way. Typing happens ON the page, in
+ * the box the attorney drew, in the font it will be stamped in — not in a form
+ * over here that fires text over there. So this section is two buttons, a line
+ * of instructions, and the standing warning that covering is not redaction.
+ * That last one is the difference between a production and a malpractice claim.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import {
+  useViewerApi,
+  type PageOverlayRenderer,
+  type ViewerApi,
+} from '@renderer/components/viewer';
 import type { DocumentSession } from '@shared/types';
-import { useViewerApi, type PageOverlayRenderer } from '@renderer/components/viewer';
-import { ActionButton, Caution, Field, Hint, NumberField, TextField } from './stamp-views';
-import { useTextActions } from './text-actions';
-import { TextOverlay, type TextPreview } from './text-overlay';
+import { ActionButton, Caution, Hint } from './stamp-views';
+import { useTextEditing, type TextEditing, type TextTool } from './text-actions';
+import { TextOverlay } from './text-overlay';
 import { useMarkOverlay } from './use-mark-overlay';
-import { usePlacement, type Placement, type PlacementMode } from './use-placement';
 import type { StampRunner } from './use-stamp-runner';
 
 const OVERLAY_ID = 'text-whiteout-placement';
 
-function ToolButtons({ mode, onArm }: { mode: PlacementMode; onArm(next: PlacementMode): void }) {
+const ARMED_LABEL: Record<TextTool, string> = {
+  off: '',
+  text: 'Drawing a box...',
+  cover: 'Drag a box...',
+};
+
+function ToolButtons({ tool, onArm }: { tool: TextTool; onArm(next: TextTool): void }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       <ActionButton
-        label={mode === 'point' ? 'Click the page...' : 'Add text'}
-        variant={mode === 'point' ? 'primary' : 'quiet'}
-        onClick={() => onArm('point')}
+        label={tool === 'text' ? ARMED_LABEL.text : 'Add text'}
+        variant={tool === 'text' ? 'primary' : 'quiet'}
+        onClick={() => onArm('text')}
       />
       <ActionButton
-        label={mode === 'rect' ? 'Drag a box...' : 'Cover an area'}
-        variant={mode === 'rect' ? 'primary' : 'quiet'}
-        onClick={() => onArm('rect')}
+        label={tool === 'cover' ? ARMED_LABEL.cover : 'Cover an area'}
+        variant={tool === 'cover' ? 'primary' : 'quiet'}
+        onClick={() => onArm('cover')}
       />
     </div>
   );
 }
 
-function InkFields({
-  preview,
-  onChange,
-}: {
-  preview: TextPreview;
-  onChange(patch: Partial<TextPreview>): void;
-}) {
+function CoverActions({ editing, busy }: { editing: TextEditing; busy: boolean }) {
+  const area = editing.placement.rect;
+  if (editing.tool !== 'cover' || area === null) return null;
   return (
     <>
-      <TextField
-        label="Text"
-        value={preview.text}
-        placeholder="Type what to add"
-        onChange={(text) => onChange({ text })}
+      <ActionButton
+        label={`Cover this area on page ${area.page}`}
+        disabled={busy}
+        onClick={() => editing.cover(false)}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField
-          label="Text size"
-          value={preview.fontSize}
-          min={4}
-          max={96}
-          onChange={(fontSize) => onChange({ fontSize })}
-        />
-        <Field label="Colour">
-          <input
-            type="color"
-            value={preview.color}
-            onChange={(event) => onChange({ color: event.target.value })}
-            className="h-8 w-full rounded-md border border-armory-border bg-armory-base"
-          />
-        </Field>
-      </div>
+      <ActionButton
+        label="Cover it and type over it"
+        variant="quiet"
+        disabled={busy}
+        onClick={() => editing.cover(true)}
+      />
     </>
   );
 }
 
-function Actions({
-  placement,
-  hasText,
-  busy,
-  onAddText,
-  onCover,
-}: {
-  placement: Placement;
-  hasText: boolean;
-  busy: boolean;
-  onAddText(): void;
-  onCover(retype: boolean): void;
-}) {
-  return (
-    <>
-      {placement.point !== null && (
-        <ActionButton
-          label={`Add this text to page ${placement.point.page}`}
-          disabled={!hasText || busy}
-          onClick={onAddText}
-        />
-      )}
-      {placement.rect !== null && (
-        <>
-          <ActionButton
-            label={`Cover this area on page ${placement.rect.page}`}
-            disabled={busy}
-            onClick={() => onCover(false)}
-          />
-          <ActionButton
-            label="Cover it and type over it"
-            variant="quiet"
-            disabled={!hasText || busy}
-            onClick={() => onCover(true)}
-          />
-        </>
-      )}
-    </>
-  );
+function Instructions({ editing }: { editing: TextEditing }) {
+  if (editing.editing !== null) {
+    return (
+      <Hint>
+        Type in the box on the page. Ctrl+Enter places it, Esc throws it away, and the little
+        toolbar beside it sets the font.
+      </Hint>
+    );
+  }
+  if (editing.tool === 'text') {
+    return <Hint>Draw a box on the page and type. The text is set in the box you draw.</Hint>;
+  }
+  if (editing.tool === 'cover' && editing.placement.rect === null) {
+    return <Hint>Drag a box over what to cover.</Hint>;
+  }
+  return null;
 }
-
-const DEFAULT_INK: TextPreview = { text: '', fontSize: 12, color: '#000000' };
 
 /** Rebuilt on every change, because registering an overlay does not re-render. */
-function useTextOverlay(
-  api: ReturnType<typeof useViewerApi>,
-  mode: PlacementMode,
-  placement: Placement,
-  ink: TextPreview
-): PageOverlayRenderer | null {
-  const idle = mode === 'off' && placement.point === null && placement.rect === null;
+function useTextOverlay(api: ViewerApi | null, editing: TextEditing): PageOverlayRenderer | null {
+  const idle = editing.tool === 'off' && editing.editing === null;
   return useMemo<PageOverlayRenderer | null>(
     () =>
-      idle
-        ? null
-        : (context) => (
-            <TextOverlay
-              api={api}
-              context={context}
-              mode={mode}
-              placement={placement}
-              preview={ink}
-            />
-          ),
-    [api, idle, ink, mode, placement]
+      idle ? null : (context) => <TextOverlay api={api} context={context} editing={editing} />,
+    [api, editing, idle]
   );
 }
 
@@ -151,44 +103,15 @@ export function TextSection({
   runner: StampRunner;
 }) {
   const api = useViewerApi();
-  const [mode, setMode] = useState<PlacementMode>('off');
-  const [ink, setInk] = useState<TextPreview>(DEFAULT_INK);
-  const placement = usePlacement(mode);
+  const editing = useTextEditing(session, runner);
 
-  useMarkOverlay(api, OVERLAY_ID, useTextOverlay(api, mode, placement, ink));
-
-  const actions = useTextActions(session, runner, placement, ink, () => {
-    placement.clear();
-    setMode('off');
-  });
+  useMarkOverlay(api, OVERLAY_ID, useTextOverlay(api, editing));
 
   return (
     <div className="flex flex-col gap-2">
-      <ToolButtons
-        mode={mode}
-        onArm={(next) => {
-          placement.clear();
-          setMode((current) => (current === next ? 'off' : next));
-        }}
-      />
-      <InkFields
-        preview={ink}
-        onChange={(patch) => setInk((current) => ({ ...current, ...patch }))}
-      />
-      <Actions
-        placement={placement}
-        hasText={ink.text.trim().length > 0}
-        busy={runner.busy !== null}
-        onAddText={actions.addText}
-        onCover={actions.cover}
-      />
-      {mode !== 'off' && placement.point === null && placement.rect === null && (
-        <Hint>
-          {mode === 'point'
-            ? 'Click where the text should start. The click is the bottom-left of the first line.'
-            : 'Drag a box over what to cover.'}
-        </Hint>
-      )}
+      <ToolButtons tool={editing.tool} onArm={editing.arm} />
+      <Instructions editing={editing} />
+      <CoverActions editing={editing} busy={runner.busy !== null} />
       <Caution>
         Covering hides content, it does not destroy it. Use Redaction for anything that must be gone
         from the file.

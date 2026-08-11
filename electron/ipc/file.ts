@@ -1,31 +1,42 @@
 // #seam:ipc-contract
 /**
- * file:* handlers — open dialog, read, save, save as, recent list, close.
- * Fully implemented; the viewer lane consumes these, it does not replace them.
- * The dialogs themselves live in services/native-dialogs so the unsaved-work
- * guard raises the very same Save As.
+ * file:* handlers — open dialog, read, save, save as, recent list, close,
+ * undo/redo. Fully implemented; the viewer lane consumes these, it does not
+ * replace them. The dialogs themselves live in services/native-dialogs so the
+ * unsaved-work guard raises the very same Save As.
  */
 
 import { ipcMain } from 'electron';
 import { IPC } from '@shared/ipc';
-import type { DocumentSession, SaveResult } from '@shared/types';
-import { openPdfDialog, saveAsWithDialog } from '../services/native-dialogs';
+import type { DocumentSession, SaveResult, UndoResult, UndoState } from '@shared/types';
+import { chooseFolderDialog, openPdfDialog, saveAsWithDialog } from '../services/native-dialogs';
 import type { IpcContext } from './context';
-import { registerNotImplemented } from './not-implemented';
 
 export function registerFileHandlers(context: IpcContext): void {
   registerOpenHandlers(context);
   registerSaveHandlers(context);
   registerRecentHandlers(context);
-  registerHistoryHandlers();
+  registerHistoryHandlers(context);
 }
 
 /**
- * The undo lane owns the history itself (it wraps the doc store's bytes); the
- * contract and these loud stubs land ahead of it so nothing half-wires.
+ * The history lives in the doc store, alongside the bytes it steps between, so
+ * these three are pass-throughs. `applied: false` is an honest no-op answer —
+ * the end of the history is not a failure — and the state fields always
+ * describe the document as it stands AFTER the call.
  */
-function registerHistoryHandlers(): void {
-  registerNotImplemented([IPC.file.undo, IPC.file.redo, IPC.file.undoState]);
+function registerHistoryHandlers({ store }: IpcContext): void {
+  ipcMain.handle(IPC.file.undo, (_event, docId: string): Promise<UndoResult> => {
+    return store.undo(docId);
+  });
+
+  ipcMain.handle(IPC.file.redo, (_event, docId: string): Promise<UndoResult> => {
+    return store.redo(docId);
+  });
+
+  ipcMain.handle(IPC.file.undoState, (_event, docId: string): UndoState => {
+    return store.undoState(docId);
+  });
 }
 
 function registerOpenHandlers({ store, getWindow }: IpcContext): void {
@@ -55,6 +66,22 @@ function registerSaveHandlers({ store, getWindow }: IpcContext): void {
       return saveAsWithDialog(store, getWindow(), docId, suggestedName);
     }
   );
+
+  // Save As with the path already decided. The store does the same atomic write
+  // the dialog path does, so a scripted save is never the weaker one.
+  ipcMain.handle(
+    IPC.file.saveTo,
+    (_event, docId: string, targetPath: string): Promise<SaveResult> => {
+      if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
+        throw new Error('Cannot save: no file name was given.');
+      }
+      return store.saveTo(docId, targetPath);
+    }
+  );
+
+  ipcMain.handle(IPC.file.chooseFolder, (): Promise<string | null> => {
+    return chooseFolderDialog(getWindow());
+  });
 }
 
 function registerRecentHandlers({ store }: IpcContext): void {

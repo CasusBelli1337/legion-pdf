@@ -185,7 +185,16 @@ export interface AppVersionInfo {
 
 /** Menu actions the main process forwards to the renderer over `app:menu`. */
 export type MenuAction =
-  'open' | 'save' | 'saveAs' | 'print' | 'zoomIn' | 'zoomOut' | 'zoomReset' | 'about';
+  | 'open'
+  | 'save'
+  | 'saveAs'
+  | 'print'
+  | 'undo'
+  | 'redo'
+  | 'zoomIn'
+  | 'zoomOut'
+  | 'zoomReset'
+  | 'about';
 
 /**
  * What the attorney chose when asked about unsaved work. Raised as a NATIVE

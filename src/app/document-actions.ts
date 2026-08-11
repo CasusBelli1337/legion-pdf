@@ -6,6 +6,10 @@
 
 import type { CloseChoice, DocumentSession } from '@shared/types';
 import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
+// F-6: signatures dropped on a page are live objects, not page content, until a
+// save writes them in. Imported from the module rather than the feature barrel
+// so a save never pulls the signature panel's React tree in behind it.
+import { flattenSignaturesFor, hasLiveSignatures } from '../features/signature/save-flattening';
 import { useAppStore } from './store';
 
 /** Plain English for the attorney, never a stack trace. */
@@ -59,6 +63,7 @@ function activeId(): string | null {
 export async function saveActive(): Promise<void> {
   const docId = activeId();
   if (docId === null) return;
+  if (!(await flattenSignaturesFor(docId))) return;
   const store = useAppStore.getState();
   store.setBusy('Saving');
   try {
@@ -75,6 +80,7 @@ export async function saveActive(): Promise<void> {
 export async function saveActiveAs(): Promise<void> {
   const docId = activeId();
   if (docId === null) return;
+  if (!(await flattenSignaturesFor(docId))) return;
   const store = useAppStore.getState();
   store.setBusy('Saving a copy');
   try {
@@ -127,6 +133,7 @@ async function releaseSession(docId: string): Promise<void> {
 
 /** True once the work is on disk. False means the attorney backed out of Save As. */
 async function saveBeforeClosing(session: DocumentSession): Promise<boolean> {
+  if (!(await flattenSignaturesFor(session.id))) return false;
   const store = useAppStore.getState();
   store.setBusy('Saving');
   try {
@@ -165,7 +172,11 @@ async function clearedToClose(session: DocumentSession): Promise<boolean> {
 export async function closeDocument(docId: string): Promise<void> {
   const session = useAppStore.getState().sessions.find((item) => item.id === docId);
   if (session === undefined) return;
-  if (session.dirty && !(await clearedToClose(session))) return;
+  // Live signatures are unsaved work the dirty flag cannot see: they live in the
+  // renderer, so the main-process byte store is still clean. Without them in the
+  // guard a signed-but-unsaved tab would close silently.
+  const unsaved = session.dirty || hasLiveSignatures(docId);
+  if (unsaved && !(await clearedToClose(session))) return;
   await releaseSession(docId);
 }
 

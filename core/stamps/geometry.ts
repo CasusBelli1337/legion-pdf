@@ -153,17 +153,7 @@ export function bandAnchor(
 }
 
 /**
- * Visual bottom-left of a box centred on the page and spun by `spin` degrees
- * about its own centre — how a diagonal watermark finds its anchor.
+ * Centring a spun box on the page (what a watermark needs) lives in
+ * `@shared/watermark-placement` instead: the preview overlay has to place the
+ * very same box, and the renderer cannot import core.
  */
-export function centredAnchor(visual: PageSize, box: BoxSize, spin: number): PdfPoint {
-  const radians = (spin * Math.PI) / 180;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  const halfWidth = box.width / 2;
-  const halfHeight = box.height / 2;
-  return {
-    x: visual.width / 2 - (halfWidth * cos - halfHeight * sin),
-    y: visual.height / 2 - (halfWidth * sin + halfHeight * cos),
-  };
-}
