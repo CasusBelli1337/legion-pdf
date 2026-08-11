@@ -58,8 +58,9 @@ function createWindow(): BrowserWindow {
     // The menu itself stays installed — every accelerator (Ctrl+O/S/P/Z/Y/F)
     // fires from it. Only the BAR is hidden: its File/Edit/View items are on
     // the app's own toolbar now, and two rows of the same commands is exactly
-    // the double chrome this window is meant to be rid of.
-    autoHideMenuBar: true,
+    // the double chrome this window is meant to be rid of. Deliberately NOT
+    // autoHideMenuBar — that mode re-reveals the bar on every Alt press
+    // (QA finding F-01); setMenuBarVisibility(false) below hides it for good.
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -69,7 +70,6 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  // autoHideMenuBar alone still shows the bar until the first Alt press.
   window.setMenuBarVisibility(false);
 
   window.once('ready-to-show', () => window.show());

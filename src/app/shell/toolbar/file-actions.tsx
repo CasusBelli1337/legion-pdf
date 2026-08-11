@@ -1,5 +1,5 @@
 /**
- * Open, Save, Save a copy, Print — the File menu, on the toolbar.
+ * Open, Save, Save As, Print — the File menu, on the toolbar.
  *
  * The native menu BAR is hidden (electron/main.ts), so these buttons are the
  * only place an attorney can see these actions. The accelerators still fire
@@ -38,7 +38,9 @@ const ACTIONS: readonly FileAction[] = [
     needsDocument: true,
   },
   {
-    label: 'Save a copy',
+    // "Save As" is honest: like Acrobat, it switches the tab to the new file.
+    // (QA finding F-02 — the old "Save a copy" label promised staying put.)
+    label: 'Save As',
     shortcut: 'Ctrl+Shift+S',
     icon: SaveAll,
     run: () => void saveActiveAs(),
