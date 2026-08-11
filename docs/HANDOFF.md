@@ -1,0 +1,97 @@
+# Handoff — Librarius text-editing stretch goal (2026-08-10)
+
+## Mission & current state
+
+Legion Armory — Librarius (lightweight litigation PDF editor, Acrobat
+replacement) is BUILT, packaged, installed, and live-QA'd on the Windows host.
+Everything in the PRD except one deliberately deferred feature shipped. This
+handoff exists for the next session's stretch goal: **true editing of existing
+PDF text (with reflow)** — plus a short punch list of small deferred items.
+
+## Done (VERIFIED)
+
+- All PRD features F-1 through F-12 except true text editing. Verification:
+  794 Vitest tests green; 21-check live QA against the PACKAGED installed app
+  on Windows, outputs verified with poppler against recorded ground truth —
+  see `qa/reports/2026-08-10-live-qa.md` (19 pass / bookmarks partial → since
+  fixed / Centurion live-ask deferred, no key in QA env).
+- Post-QA fix wave (commit `5c0df59`): dirty-close/quit native guards, recent
+  files UI, bookmark authoring UI, redaction searchable-by-default. Verified
+  by 45 new tests + live dev-app demo, then re-verified on the packaged
+  installed build (QA report addendum).
+- Installer: `LegionArmory-Librarius-0.1.0-Setup.exe` (~165 MB, bundled
+  Tesseract), silent per-user install, no admin. Build recipe:
+  `docs/TROUBLESHOOTING.md` § "Windows packaging".
+- Redaction destruction, source-file immutability, 100% OCR recall, exact
+  500-page Bates — all proven with independent tools (poppler) on saved bytes.
+
+## Open issues (with repro)
+
+Low-priority QA findings, all documented in `qa/reports/2026-08-10-live-qa.md`:
+
+- No path-taking Save As in the bridge (dialog only) — blocks scripting.
+- Watermark glyphs not text-searchable (rotated text extracts as fragments).
+  Repro: watermark DRAFT, pdftotext, search "DRAFT".
+- Combine dialog can't source from already-open tabs (file picker only).
+- Footer notice sticks across document switches.
+- Print dialog is app-modal; force-closing it can wedge the app.
+- One-off unreproduced: text-placement click ignored right after a page jump.
+- Cosmetic: leaked blob URL in `print-controller.ts` when image.decode fails.
+- Deferred refactors: `core/image/` PNG-primitive consolidation (duplicated in
+  core/ocr/png-blank.ts + core/redact/png-decode.ts); shared UI atoms
+  (StatusLine/ActionButton duplicated in features/ocr + features/redact);
+  custom app icon (default Electron icon ships today);
+  `RedactSearchRequest` type declared but unwired (regex search).
+
+## Next steps (prioritized)
+
+1. **Stretch goal — true text editing.** Recommended attack order:
+   a. Read `core/stamps/stamp-testkit.ts` — it already PARSES content streams
+      and walks Tj/TJ/Tm/cm operators (built for tests, reusable as the seed
+      of an editor). `core/ops/pdf-io.ts` handles load/save correctly.
+   b. Phase 1 (span edit, no reflow): map a ViewerApi text quad → the exact
+      Tj/TJ span in the content stream; replace the shown text; re-encode
+      with the SAME font if every new glyph exists in the (possibly subset)
+      embedded font, else fall back to whiteout+retype with a matched
+      standard font. This covers "fix a date/typo" — most litigation edits.
+   c. Phase 2 (paragraph reflow): extract the paragraph's runs into a text
+      box model, delete the originals (true removal — rebuild lesson below),
+      re-lay-out with measured line breaks. Substantially harder; scope it
+      only after Phase 1 lands.
+   d. Font reality check FIRST: subset fonts (e.g. `ABCDEF+TimesNewRoman`)
+      often lack glyphs for replacement characters — detect and degrade with
+      a plain-English explanation, never silently swap fonts.
+2. Punch-list items above as appetite allows (path-taking Save As first — it
+   also unblocks QA automation).
+
+## Key files, branches & commands
+
+- Repo: `~/projects/legion-librarius`, branch `main`, 8 commits, NO REMOTE
+  yet — Arthur will provide the GitHub repo; push only when he does.
+- Architecture contracts: `docs/ARCHITECTURE.md` (zones, IPC, ViewerApi).
+  Feature specs: `docs/PRD.md`. Gotchas: `docs/TROUBLESHOOTING.md`.
+- Gates: `npm run typecheck && npm run lint && npm test` (794 green),
+  `npm run build`. Dev boot on WSL:
+  `npm run dev -- -- --disable-gpu --remote-debugging-port=94xx --no-sandbox --user-data-dir=<tmp>`.
+- Windows build env (already set up): portable Node at
+  `C:\Users\rothr\AppData\Local\librarius-build\node-v24.19.0-win-x64`, repo
+  copy at `...\librarius-build\repo`, QA fixtures at `...\librarius-build\qa-fixtures`.
+  Full recipe in TROUBLESHOOTING.
+- QA plan + ground-truth fixtures: `qa/LIVE-QA-PLAN.md`, `node qa/make-fixtures.mjs`.
+
+## Verification state
+
+- Installed app on Windows host = commit `5c0df59` build (fix wave included).
+- All suites green at `5c0df59`; live QA ran against the pre-fix build; the
+  fix wave was verified in dev + unit tests AND re-verified on the packaged
+  installed build (all four fixes — see the QA report addendum).
+- Working tree clean except generated/ignored dirs. Nothing pushed anywhere.
+- Centurion live-ask still needs Arthur's key (first run on his spin).
+
+## Gotchas discovered this session
+
+All recorded in `docs/TROUBLESHOOTING.md` — read it before touching dev or
+packaging. Highlights: WSLg needs `--disable-gpu`; npm here needs
+`--include=dev` and a manual `node node_modules/electron/install.js`; NEVER
+CDP port 9222 (Arthur's own Chrome); pdf-lib `removePage` leaves content
+readable (rebuild, don't detach) — the same trap awaits the text editor.
