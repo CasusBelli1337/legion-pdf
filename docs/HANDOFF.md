@@ -1,4 +1,25 @@
-# Handoff — Librarius text-editing stretch goal (2026-08-10)
+# Handoff — Legion PDF text-editing stretch goal (updated 2026-08-11)
+
+## v0.2 update (2026-08-11) — read this first, then the v0.1 record below
+
+Arthur user-tested v0.1 and filed ~15 items; ALL are shipped and verified:
+undo/redo (byte-exact, 10-deep), Windows "Open with" + single-instance +
+argv opens, bulk OCR, drag-drop live signatures (flatten on save w/ consent,
+scan cleanup), draw-and-type text w/ font matching, Centurion tool-use with
+confirm cards (redaction = suggest-only), 7 UX fixes, product renamed
+**Legion PDF** (L icon, one toolbar, tools LEFT / rail RIGHT, Legion light
+theme default + Armory dark toggle, legion.law footer credit).
+
+State: 1,187 tests green; click-through QA (human-style, real mouse) —
+34 PASS / 0 blockers / 0 data loss, report `qa/reports/2026-08-11-clickthrough-qa.md`
++ its two Medium findings fixed after (commit 1a2360e: Alt menu-bar reveal,
+"Save As" relabel). 12 low findings remain open in that report — punch list.
+Installed build = commit `1a2360e`. Linear ticket: **LGN-1826**.
+NOT verified by a human yet: keyboard accelerators in the packaged build
+(automation couldn't reach the native menu; Arthur pressing Ctrl+Z once
+settles it) and Centurion live asks (needs his key).
+
+The text-editing stretch plan below is unchanged and still the next mission.
 
 ## Mission & current state
 
