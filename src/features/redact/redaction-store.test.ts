@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RedactionBox, TextMatch } from '@shared/types';
-import { pagesOf, useRedactionStore, verifyStringsOf } from './redaction-store';
+import {
+  SEARCHABLE_BY_DEFAULT,
+  pagesOf,
+  useRedactionStore,
+  verifyStringsOf,
+} from './redaction-store';
 
 const RECT = { x: 10, y: 10, width: 40, height: 12 };
 
@@ -14,7 +19,7 @@ beforeEach(() => {
     marks: [],
     selectedId: null,
     drawing: false,
-    reOcr: false,
+    reOcr: SEARCHABLE_BY_DEFAULT,
     run: {
       phase: 'idle',
       sourceDocId: null,
@@ -97,9 +102,9 @@ describe('switching documents', () => {
   });
 
   it('remembers the searchable-output preference across documents', () => {
-    state().setReOcr(true);
+    state().setReOcr(false);
     state().forDocument('doc-2');
-    expect(state().reOcr).toBe(true);
+    expect(state().reOcr).toBe(false);
   });
 });
 
@@ -184,5 +189,18 @@ describe('what the run is told', () => {
 
   it('contributes nothing from hand-drawn boxes — those are proved page by page', () => {
     expect(verifyStringsOf([{ id: 'a', page: 1, rect: RECT }])).toEqual([]);
+  });
+});
+
+/**
+ * F-7. With the box unticked a redacted production comes back as a pure raster:
+ * every page extracts to an empty string and the attorney only finds out when
+ * someone downstream cannot search the set. The destruction is identical on
+ * both paths, so searchable is the default and the panel says so both ways.
+ */
+describe('the searchable-output default', () => {
+  it('starts ticked, so a redacted production is searchable unless it is turned off', () => {
+    expect(SEARCHABLE_BY_DEFAULT).toBe(true);
+    expect(useRedactionStore.getInitialState().reOcr).toBe(true);
   });
 });

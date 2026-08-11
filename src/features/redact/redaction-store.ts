@@ -76,6 +76,14 @@ export interface RedactionState {
   setReOcr(reOcr: boolean): void;
 }
 
+/**
+ * On by default (F-7). Off, a redacted production comes back as a pure 300 DPI
+ * picture that extracts to nothing, and an attorney only finds out downstream.
+ * The destruction is identical either way — the re-OCR path is verified after
+ * the new text layer is written — so the searchable output is the safe default.
+ */
+export const SEARCHABLE_BY_DEFAULT = true;
+
 let counter = 0;
 
 function nextId(): string {
@@ -159,7 +167,7 @@ export const useRedactionStore = create<RedactionState>((set) => ({
   marks: [],
   selectedId: null,
   drawing: false,
-  reOcr: false,
+  reOcr: SEARCHABLE_BY_DEFAULT,
   run: IDLE_RUN,
   ...runActions(set),
 

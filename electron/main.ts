@@ -12,6 +12,7 @@ import { DocStore } from './services/doc-store';
 import { MainRasterBridge } from './services/raster-bridge';
 import { registerIpcHandlers } from './ipc';
 import { installAppMenu } from './menu';
+import { installUnsavedGuard } from './unsaved-guard';
 
 const isDevelopment = !app.isPackaged;
 const rendererDevUrl = process.env['ELECTRON_RENDERER_URL'];
@@ -77,6 +78,8 @@ function bootstrap(): void {
   });
 
   installAppMenu((action: MenuAction) => send(IPC.app.menu, action), isDevelopment);
+  // Before the window exists: the guard attaches to `browser-window-created`.
+  installUnsavedGuard(store, getWindow);
   mainWindow = createWindow();
 }
 

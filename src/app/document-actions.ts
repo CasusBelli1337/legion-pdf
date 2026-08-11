@@ -4,6 +4,7 @@
  * shortcuts, and buttons all share exactly one implementation.
  */
 
+import type { CloseChoice, DocumentSession } from '@shared/types';
 import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
 import { useAppStore } from './store';
 
@@ -33,7 +34,8 @@ export async function openDialog(): Promise<void> {
   }
 }
 
-export async function openPaths(paths: string[]): Promise<void> {
+/** False when a path could not be opened — the recent list uses that to react. */
+export async function openPaths(paths: string[]): Promise<boolean> {
   const store = useAppStore.getState();
   store.setError(null);
   try {
@@ -41,8 +43,10 @@ export async function openPaths(paths: string[]): Promise<void> {
       store.setBusy(`Opening ${index + 1} of ${paths.length}`);
       store.openSession(await window.librarius.file.open(path));
     }
+    return true;
   } catch (error) {
     report('Could not open that PDF:', error);
+    return false;
   } finally {
     store.setBusy(null);
   }
@@ -110,7 +114,7 @@ export async function printActive(): Promise<void> {
   }
 }
 
-export async function closeDocument(docId: string): Promise<void> {
+async function releaseSession(docId: string): Promise<void> {
   try {
     await window.librarius.file.close(docId);
   } catch (error) {
@@ -119,6 +123,50 @@ export async function closeDocument(docId: string): Promise<void> {
     forgetTabView(docId);
     useAppStore.getState().closeSession(docId);
   }
+}
+
+/** True once the work is on disk. False means the attorney backed out of Save As. */
+async function saveBeforeClosing(session: DocumentSession): Promise<boolean> {
+  const store = useAppStore.getState();
+  store.setBusy('Saving');
+  try {
+    if (session.filePath === null) {
+      return (await window.librarius.file.saveAs(session.id)) !== null;
+    }
+    await window.librarius.file.save(session.id);
+    return true;
+  } catch (error) {
+    report('Could not save:', error);
+    return false;
+  } finally {
+    store.setBusy(null);
+  }
+}
+
+async function clearedToClose(session: DocumentSession): Promise<boolean> {
+  let choice: CloseChoice;
+  try {
+    choice = await window.librarius.app.confirmClose(session.fileName);
+  } catch (error) {
+    // A prompt that could not be raised is never taken as permission to discard.
+    report('Could not ask about the unsaved changes:', error);
+    return false;
+  }
+  if (choice === 'cancel') return false;
+  if (choice === 'discard') return true;
+  return saveBeforeClosing(session);
+}
+
+/**
+ * F-4: a tab with unsaved work never disappears on a mis-click. The choice is
+ * raised natively by the main process, and cancelling the Save As dialog that
+ * "Save and close" opens cancels the close with it.
+ */
+export async function closeDocument(docId: string): Promise<void> {
+  const session = useAppStore.getState().sessions.find((item) => item.id === docId);
+  if (session === undefined) return;
+  if (session.dirty && !(await clearedToClose(session))) return;
+  await releaseSession(docId);
 }
 
 export async function showVersion(): Promise<void> {

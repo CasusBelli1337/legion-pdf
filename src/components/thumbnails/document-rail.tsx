@@ -9,6 +9,7 @@ import { useActiveSession, useAppStore } from '../../app/store';
 import { usePdfDocument, useViewerApi } from '../viewer';
 import { BookmarkTree } from './bookmark-tree';
 import { ThumbnailList } from './thumbnail-list';
+import { useBookmarkEditor } from './use-bookmark-editing';
 import { useBookmarks } from './use-bookmarks';
 
 type RailTab = 'pages' | 'bookmarks';
@@ -16,36 +17,46 @@ type RailTab = 'pages' | 'bookmarks';
 const TAB =
   'flex h-full flex-1 items-center justify-center border-b-2 transition-colors duration-150';
 
+function RailTabs({ tab, onTab }: { tab: RailTab; onTab(tab: RailTab): void }) {
+  return (
+    <div className="flex h-9 shrink-0 items-stretch border-b border-armory-border">
+      {(['pages', 'bookmarks'] as const).map((name) => (
+        <button
+          key={name}
+          type="button"
+          onClick={() => onTab(name)}
+          aria-pressed={tab === name}
+          className={`${TAB} ${
+            tab === name
+              ? 'border-b-purple-700 text-purple-400'
+              : 'border-b-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <span className="readout">{name === 'pages' ? 'Pages' : 'Bookmarks'}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DocumentRail() {
   const session = useActiveSession();
   const currentPage = useAppStore((state) => state.currentPage);
   const api = useViewerApi();
   const [tab, setTab] = useState<RailTab>('pages');
   const { document } = usePdfDocument(session?.bytes ?? null);
-  const { bookmarks, isLoading } = useBookmarks(session?.id ?? null, document);
+  const { bookmarks, isLoading, reload } = useBookmarks(session?.id ?? null, document);
+  const editor = useBookmarkEditor(session?.id ?? null, reload);
 
   const goToPage = (page: number): void => api?.goToPage(page);
+  // Wider on the bookmarks tab: rename and remove need room next to the title.
+  const width = tab === 'bookmarks' ? 'w-56' : 'w-40';
 
   return (
-    <aside className="flex w-40 shrink-0 flex-col border-r border-armory-border bg-armory-surface">
-      <div className="flex h-9 shrink-0 items-stretch border-b border-armory-border">
-        {(['pages', 'bookmarks'] as const).map((name) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => setTab(name)}
-            aria-pressed={tab === name}
-            className={`${TAB} ${
-              tab === name
-                ? 'border-b-purple-700 text-purple-400'
-                : 'border-b-transparent text-text-muted hover:text-text-primary'
-            }`}
-          >
-            <span className="readout">{name === 'pages' ? 'Pages' : 'Bookmarks'}</span>
-          </button>
-        ))}
-      </div>
-
+    <aside
+      className={`flex ${width} shrink-0 flex-col border-r border-armory-border bg-armory-surface`}
+    >
+      <RailTabs tab={tab} onTab={setTab} />
       {session === null ? (
         <p className="p-3 text-xs text-text-muted">No document open.</p>
       ) : tab === 'pages' ? (
@@ -56,7 +67,15 @@ export function DocumentRail() {
           onSelect={goToPage}
         />
       ) : (
-        <BookmarkTree bookmarks={bookmarks} isLoading={isLoading} onSelect={goToPage} />
+        <BookmarkTree
+          bookmarks={bookmarks}
+          isLoading={isLoading}
+          currentPage={currentPage}
+          busy={editor.busy}
+          error={editor.error}
+          onSelect={goToPage}
+          onCommit={(tree, receipt) => void editor.save(tree, receipt)}
+        />
       )}
     </aside>
   );

@@ -10,6 +10,14 @@ import type { ProgressEvent, RedactVerifyResult, TextMatch } from '@shared/types
 export const DESTRUCTION_WARNING =
   'This permanently destroys the marked content. It cannot be undone.';
 
+/** The searchable-output choice, stated in both directions so neither is a surprise. */
+export const SEARCHABLE_LABEL = 'Keep the redacted pages searchable';
+
+export const SEARCHABLE_HINT =
+  'On: Librarius reads the blacked-out pages back with text recognition, so the rest of each ' +
+  'page can still be searched and copied. Off: those pages become a picture, and nothing on ' +
+  'them can be searched or copied. Either way the marked text is destroyed and cannot come back.';
+
 /** What happens to the file on disk — the other half of the promise. */
 export const SAVE_AS_NOTICE =
   'The redacted document opens in a new tab. Your original file is left exactly as it is until ' +

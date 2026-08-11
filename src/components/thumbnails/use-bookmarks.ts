@@ -5,7 +5,7 @@
  * outline-less document says so in plain English instead of looking broken.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { BookmarkNode } from '@shared/types';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
 
@@ -46,6 +46,8 @@ async function toBookmarks(
 export interface BookmarksState {
   bookmarks: BookmarkNode[];
   isLoading: boolean;
+  /** Re-reads the outline after a write, so the rail never shows its own guess. */
+  reload(): void;
 }
 
 interface LoadedFor {
@@ -58,6 +60,8 @@ export function useBookmarks(
   document: PDFDocumentProxy | null
 ): BookmarksState {
   const [loaded, setLoaded] = useState<LoadedFor>({ docId: null, bookmarks: [] });
+  const [revision, setRevision] = useState(0);
+  const reload = useCallback(() => setRevision((current) => current + 1), []);
 
   useEffect(() => {
     if (docId === null) return;
@@ -87,8 +91,12 @@ export function useBookmarks(
     return () => {
       cancelled = true;
     };
-  }, [docId, document]);
+  }, [docId, document, revision]);
 
   const isCurrent = loaded.docId === docId;
-  return { bookmarks: isCurrent ? loaded.bookmarks : [], isLoading: docId !== null && !isCurrent };
+  return {
+    bookmarks: isCurrent ? loaded.bookmarks : [],
+    isLoading: docId !== null && !isCurrent,
+    reload,
+  };
 }

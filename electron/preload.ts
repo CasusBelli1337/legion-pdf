@@ -107,6 +107,7 @@ const bridge: LibrariusBridge = {
     print: (docId) => invoke(IPC.app.print, docId),
     openPath: (target) => invoke(IPC.app.openPath, target),
     version: () => invoke(IPC.app.version),
+    confirmClose: (fileName) => invoke(IPC.app.confirmClose, fileName),
     onMenuAction: (callback: (action: MenuAction) => void) => subscribe(IPC.app.menu, callback),
   },
   raster: {
