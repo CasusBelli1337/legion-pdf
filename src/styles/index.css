@@ -51,6 +51,16 @@
 }
 
 @layer utilities {
+  /* A strip that scrolls when it has to without spending 10px of a 36px
+     toolbar on a scrollbar. Shift+wheel and trackpads still scroll it. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Status/readout label: mono, uppercase, tracked — badges and footers only. */
   .readout {
     font-family: var(--font-mono);

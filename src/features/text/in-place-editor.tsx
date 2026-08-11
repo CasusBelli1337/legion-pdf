@@ -39,7 +39,7 @@ function BoxFrame({ box, frameRef }: { box: Box; frameRef: RefObject<HTMLDivElem
   return (
     <div
       ref={frameRef}
-      className="absolute rounded-xs outline outline-1 outline-dashed outline-purple-400/80"
+      className="absolute rounded-xs outline outline-1 outline-dashed outline-brand-400/80"
       style={styleOf(box)}
     />
   );

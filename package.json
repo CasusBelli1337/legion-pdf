@@ -1,14 +1,16 @@
 {
   "name": "legion-librarius",
+  "productName": "Legion PDF",
   "version": "0.1.0",
   "private": true,
-  "description": "Legion Armory - Librarius: a lightweight PDF editor for litigation attorneys",
-  "author": "Legion Armory",
+  "description": "Legion PDF: a lightweight PDF editor for litigation attorneys",
+  "author": "Legion",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "build:icon": "electron scripts/make-icon.mjs --no-sandbox --disable-gpu",
     "build:win": "electron-vite build && electron-builder --win nsis",
     "test": "vitest run",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

@@ -1,19 +1,23 @@
 /**
- * The shell: top bar, tabs, thumbnail rail, viewer, tool dock, status footer.
- * Feature lanes fill the slots; the shell itself owns only wiring.
+ * The shell: tabs, tool dock, viewer, thumbnail rail, status footer.
+ *
+ * Acrobat's arrangement, because that is the muscle memory an attorney brings:
+ * tools on the LEFT, the document in the middle, pages and bookmarks on the
+ * RIGHT. The native menu bar is hidden (electron/main.ts) and its actions live
+ * on the viewer's toolbar, so there is exactly one chrome row above the
+ * document and the status footer below it.
  */
 
 import { useEffect } from 'react';
+import { DocumentRail } from '../components/thumbnails';
 import { ViewerApiProvider } from '../components/viewer';
 import { registerRasterResponder } from '../lib/rasterize';
-import { closeDocument, openDialog, openPaths, printActive, saveActive } from './document-actions';
+import { closeDocument, openDialog, openPaths } from './document-actions';
 import { runMenuAction } from './menu-actions';
 import { getSessionBytes } from './store';
-import { RightDock } from './shell/right-dock';
 import { StatusFooter } from './shell/status-footer';
 import { TabBar } from './shell/tab-bar';
-import { ThumbnailRail } from './shell/thumbnail-rail';
-import { TopBar } from './shell/top-bar';
+import { ToolDock } from './shell/tool-dock';
 import { ViewerSlot } from './shell/viewer-slot';
 
 function useShellWiring(): void {
@@ -36,17 +40,12 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col bg-armory-base text-text-primary">
-      <TopBar
-        onOpen={() => void openDialog()}
-        onSave={() => void saveActive()}
-        onPrint={() => void printActive()}
-      />
       <TabBar onClose={(docId) => void closeDocument(docId)} />
       <ViewerApiProvider>
         <div className="flex min-h-0 flex-1">
-          <ThumbnailRail />
+          <ToolDock />
           <ViewerSlot onOpenPaths={(paths) => void openPaths(paths)} />
-          <RightDock />
+          <DocumentRail />
         </div>
       </ViewerApiProvider>
       <StatusFooter />

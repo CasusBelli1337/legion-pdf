@@ -50,9 +50,9 @@ function PageCell({ page, selected, dropTarget, thumbnails, ...handlers }: PageC
       }}
       className={`flex h-[124px] flex-col items-center justify-between rounded-md border p-1 transition-colors duration-150 ${
         selected
-          ? 'border-purple-700 bg-armory-interactive'
+          ? 'border-brand-700 bg-armory-interactive'
           : 'border-armory-border bg-armory-elevated hover:border-armory-border-strong'
-      } ${dropTarget ? 'border-l-2 border-l-purple-400' : ''}`}
+      } ${dropTarget ? 'border-l-2 border-l-brand-400' : ''}`}
     >
       <span className="flex flex-1 items-center justify-center overflow-hidden">
         {url === undefined ? (
@@ -61,7 +61,7 @@ function PageCell({ page, selected, dropTarget, thumbnails, ...handlers }: PageC
           <img src={url} alt="" className="max-h-[92px] max-w-full object-contain" />
         )}
       </span>
-      <span className={`readout ${selected ? 'text-purple-400' : 'text-text-muted'}`}>{page}</span>
+      <span className={`readout ${selected ? 'text-brand-400' : 'text-text-muted'}`}>{page}</span>
     </button>
   );
 }
@@ -121,7 +121,7 @@ function EndDropZone({ active, onDragOver, onDrop }: EndZoneProps) {
         onDrop();
       }}
       className={`mt-2 rounded-md border border-dashed py-3 text-center text-xs ${
-        active ? 'border-purple-400 text-purple-400' : 'border-armory-border text-text-muted'
+        active ? 'border-brand-400 text-brand-400' : 'border-armory-border text-text-muted'
       }`}
     >
       Drop here to move to the end

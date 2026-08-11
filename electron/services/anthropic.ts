@@ -27,6 +27,7 @@ import type {
 } from '@shared/types';
 import { answerToolUses, toolParams } from './centurion-tool-protocol';
 import type { CenturionToolHooks } from './centurion-tool-protocol';
+import { PRODUCT_NAME } from '@shared/product';
 
 /** Verified against the claude-api skill: the current Opus, no date suffix. */
 export const CENTURION_MODEL = 'claude-opus-5';
@@ -54,7 +55,7 @@ export const CENTURION_MESSAGES: Record<CenturionErrorCode, string> = {
     'The answer was cut off twice, even with extra room. Nothing is shown because a half answer is worse than none - ask a narrower question, or narrow the context to a page range.',
   DECLINED: 'Claude declined to answer this one. Rephrase the question and try again.',
   BAD_REQUEST: 'Centurion could not send that request. Start a new conversation and try again.',
-  UNKNOWN: 'Centurion hit an unexpected problem. Try again; if it repeats, restart Librarius.',
+  UNKNOWN: `Centurion hit an unexpected problem. Try again; if it repeats, restart ${PRODUCT_NAME}.`,
 };
 
 export class CenturionError extends Error {
@@ -83,7 +84,7 @@ function assertAskable(request: AiAskRequest): void {
 }
 
 const SYSTEM_PROMPT = [
-  'You are Centurion, the document assistant inside Legion Armory - Librarius, a PDF workbench',
+  `You are Centurion, the document assistant inside ${PRODUCT_NAME}, a PDF workbench`,
   'used by a litigation attorney.',
   '',
   'You are given the text of the PDF the attorney has open, inside <document> tags. Each page',

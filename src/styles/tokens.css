@@ -1,74 +1,136 @@
 /*
- * Armory design tokens — copied from legion-armory docs/DESIGN_SYSTEM.md.
- * Dark-first. Purple means interactive, red means danger, green means go,
- * everything else is grayscale. No gradients, no bounce, no emojis.
+ * Legion PDF design tokens.
  *
- * Tailwind 4 reads @theme and emits both the utilities (bg-armory-surface,
- * text-purple-400, font-mono, shadow-glow) and the CSS variables. The :root
- * block below re-exports them under the design doc's own names so hand-written
- * CSS can use --bg-base and friends verbatim.
+ * Every colour in the app is a CSS variable, so the whole product re-skins from
+ * one attribute on <html>: data-theme="light" (the default — this is what an
+ * attorney a firm sends the app to sees) or data-theme="dark" (the Armory look).
+ * Tailwind 4 reads @theme and emits BOTH the utilities (bg-armory-surface,
+ * text-brand-400, shadow-glow) and the variables those utilities resolve
+ * through, so re-pointing a --color-* below re-paints every component built on
+ * it without touching a single class name.
+ *
+ * Naming:
+ *   armory-*  structural surface ramp — base → surface → elevated →
+ *             interactive, plus canvas (behind the document) and the borders.
+ *   brand-*   the one interactive colour: Legion maroon in light, Armory purple
+ *             in dark. 50–200 are tints, 300–500 read as accent text/marks on
+ *             their own background, 600–700 are the solid button fills.
+ *   text-on-brand  the ONLY text colour allowed on a brand fill. Near-black
+ *             text-primary vanishes on maroon, so buttons must not use it.
+ *
+ * @theme carries the LIGHT values because light is the default. The
+ * :root[data-theme='dark'] block below is unlayered, so it outranks Tailwind's
+ * @layer theme and swaps in the Armory values wholesale.
  */
 
 @theme {
-  /* Backgrounds */
-  --color-armory-base: #09090b;
-  --color-armory-surface: #111114;
-  --color-armory-elevated: #1a1a1f;
-  --color-armory-interactive: #232329;
+  /* Backgrounds — Legion light */
+  --color-armory-base: #ffffff;
+  --color-armory-surface: #fafafa;
+  --color-armory-elevated: #ffffff;
+  --color-armory-interactive: #efeff1;
+  /* Behind the document itself: a shade off the page so white paper reads as
+     paper rather than dissolving into the window. */
+  --color-armory-canvas: #f4f4f5;
 
   /* Borders */
-  --color-armory-border: #27272a;
-  --color-armory-border-strong: #3f3f46;
-  --color-armory-focus: #8b5cf6;
+  --color-armory-border: #e5e5e5;
+  --color-armory-border-strong: #cccccc;
+  --color-armory-focus: #940556;
 
   /* Text */
-  --color-text-primary: #fafafa;
-  --color-text-secondary: #a1a1aa;
+  --color-text-primary: #18181b;
+  --color-text-secondary: #52525b;
   --color-text-muted: #71717a;
-  --color-text-inverse: #09090b;
+  --color-text-inverse: #ffffff;
+  --color-text-on-brand: #fafafa;
 
-  /* Brand — Armory purple */
-  --color-purple-50: #faf5ff;
-  --color-purple-100: #f3e8ff;
-  --color-purple-200: #e9d5ff;
-  --color-purple-300: #d8b4fe;
-  --color-purple-400: #c084fc;
-  --color-purple-500: #a855f7;
-  --color-purple-600: #9333ea;
-  --color-purple-700: #7c3aed;
-  --color-purple-800: #6d28d9;
-  --color-purple-900: #5b21b6;
+  /* Brand ramp — Legion deep maroon-purple, hsl(326 94% 19.6%) at 700 */
+  --color-brand-50: #fdf1f7;
+  --color-brand-100: #fbe1ee;
+  --color-brand-200: #f0c2dc;
+  --color-brand-300: #c3227d;
+  --color-brand-400: #ac156b;
+  --color-brand-500: #970c5b;
+  --color-brand-600: #81044b;
+  --color-brand-700: #610338;
+  --color-brand-800: #4b022c;
+  --color-brand-900: #37021f;
 
-  /* Legacy bridge — Legion maroon, used only for the "Powered by Legion" mark */
-  --color-legion-primary: #610338;
-
-  /* Status */
+  /* Status — identical in both themes: green/amber/red/blue mean one thing. */
   --color-status-operational: #22c55e;
   --color-status-maintenance: #f59e0b;
   --color-status-offline: #ef4444;
   --color-status-info: #3b82f6;
 
   /* Semantic */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-info: #3b82f6;
+  --color-success: #16a34a;
+  --color-warning: #b45309;
+  --color-danger: #dc2626;
+  --color-info: #2563eb;
 
-  /* Purple glow */
-  --shadow-glow-sm: 0 0 10px rgba(139, 92, 246, 0.1);
-  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15);
-  --shadow-glow-lg: 0 0 40px rgba(139, 92, 246, 0.2);
+  /* Lift. Dark uses a purple glow; light uses an honest drop shadow, because a
+     glow on white paper reads as a rendering artefact. Same token either way —
+     the thing it expresses is "this sits above the surface". */
+  --shadow-glow-sm: 0 1px 2px rgb(24 24 27 / 0.06), 0 2px 8px rgb(24 24 27 / 0.06);
+  --shadow-glow: 0 2px 6px rgb(24 24 27 / 0.08), 0 12px 32px rgb(24 24 27 / 0.1);
+  --shadow-glow-lg: 0 4px 12px rgb(24 24 27 / 0.1), 0 24px 60px rgb(24 24 27 / 0.12);
 
   /* Typography — bundled locally, never a CDN: the app must work offline */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
+/* Armory dark — the original values, verbatim. */
+:root[data-theme='dark'] {
+  --color-armory-base: #09090b;
+  --color-armory-surface: #111114;
+  --color-armory-elevated: #1a1a1f;
+  --color-armory-interactive: #232329;
+  --color-armory-canvas: #09090b;
+
+  --color-armory-border: #27272a;
+  --color-armory-border-strong: #3f3f46;
+  --color-armory-focus: #8b5cf6;
+
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-text-inverse: #09090b;
+  --color-text-on-brand: #fafafa;
+
+  --color-brand-50: #faf5ff;
+  --color-brand-100: #f3e8ff;
+  --color-brand-200: #e9d5ff;
+  --color-brand-300: #d8b4fe;
+  --color-brand-400: #c084fc;
+  --color-brand-500: #a855f7;
+  --color-brand-600: #9333ea;
+  --color-brand-700: #7c3aed;
+  --color-brand-800: #6d28d9;
+  --color-brand-900: #5b21b6;
+
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+
+  --shadow-glow-sm: 0 0 10px rgb(139 92 246 / 0.1);
+  --shadow-glow: 0 0 20px rgb(139 92 246 / 0.15);
+  --shadow-glow-lg: 0 0 40px rgb(139 92 246 / 0.2);
+}
+
+/*
+ * The design doc's own names, for hand-written CSS (scrollbars, the text layer)
+ * that has no Tailwind class to hang off. They resolve through the same
+ * variables, so they follow the theme without being restated per theme.
+ */
 :root {
   --bg-base: var(--color-armory-base);
   --bg-surface: var(--color-armory-surface);
   --bg-elevated: var(--color-armory-elevated);
   --bg-interactive: var(--color-armory-interactive);
+  --bg-canvas: var(--color-armory-canvas);
 
   --border-default: var(--color-armory-border);
   --border-strong: var(--color-armory-border-strong);
@@ -79,11 +141,14 @@
   --text-muted: var(--color-text-muted);
   --text-inverse: var(--color-text-inverse);
 
-  --purple-glow: rgba(139, 92, 246, 0.15);
-  --legion-primary: var(--color-legion-primary);
-
   --status-operational: var(--color-status-operational);
   --status-maintenance: var(--color-status-maintenance);
   --status-offline: var(--color-status-offline);
   --status-info: var(--color-status-info);
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }

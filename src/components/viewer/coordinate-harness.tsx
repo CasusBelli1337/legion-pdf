@@ -100,7 +100,7 @@ export function CoordinateHarness({ onClose }: { onClose(): void }) {
         >
           {isRunning ? 'Checking...' : 'Run at 50%, 100%, 275%'}
         </button>
-        {isRunning && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500" />}
+        {isRunning && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />}
         <button
           type="button"
           className="ml-auto text-text-muted hover:text-text-primary"

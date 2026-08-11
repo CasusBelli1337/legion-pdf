@@ -1,7 +1,7 @@
 /**
  * TEST SUPPORT ONLY — never imported by shipping code.
  *
- * Reads text back out of a PDF with pdfjs, the same engine the Librarius viewer
+ * Reads text back out of a PDF with pdfjs, the same engine the Legion PDF viewer
  * renders with, so a text-layer assertion means "the attorney can select and
  * search this", not "we emitted the operators we meant to". pdfjs is loaded
  * dynamically through a hand-written minimal interface so this Node-side helper

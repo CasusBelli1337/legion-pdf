@@ -43,7 +43,7 @@ export function PlacementList({ placements, selectedId, onSelect, onRemove }: Pl
               aria-pressed={placement.id === selectedId}
               className={`flex-1 truncate rounded-md px-2 py-1 text-left text-xs transition-colors duration-150 ${
                 placement.id === selectedId
-                  ? 'bg-armory-interactive text-purple-300'
+                  ? 'bg-armory-interactive text-brand-300'
                   : 'text-text-secondary hover:bg-armory-interactive hover:text-text-primary'
               }`}
             >

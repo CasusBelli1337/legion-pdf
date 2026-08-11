@@ -14,7 +14,7 @@ export function ToolsToggle(props: { enabled: boolean; onChange(enabled: boolean
         type="checkbox"
         checked={props.enabled}
         onChange={(event) => props.onChange(event.target.checked)}
-        className="h-3.5 w-3.5 accent-purple-600"
+        className="h-3.5 w-3.5 accent-brand-600"
       />
       <Wrench size={12} className="text-text-muted" aria-hidden />
       <span className="text-xs text-text-secondary">

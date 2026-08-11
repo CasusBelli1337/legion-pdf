@@ -52,7 +52,7 @@ function ThumbnailItemComponent({ document, page, isCurrent, onSelect }: Thumbna
     >
       <span
         className={`relative block overflow-hidden rounded-sm border ${
-          isCurrent ? 'border-purple-500 shadow-glow-sm' : 'border-armory-border'
+          isCurrent ? 'border-brand-500 shadow-glow-sm' : 'border-armory-border'
         }`}
         style={{ width: `${THUMB_WIDTH}px` }}
       >
@@ -60,7 +60,7 @@ function ThumbnailItemComponent({ document, page, isCurrent, onSelect }: Thumbna
         <canvas ref={canvasRef} className="block w-full bg-white" />
         {!isDrawn && <span className="absolute inset-0 animate-pulse bg-armory-elevated" />}
       </span>
-      <span className={`readout ${isCurrent ? 'text-purple-400' : 'text-text-muted'}`}>{page}</span>
+      <span className={`readout ${isCurrent ? 'text-brand-400' : 'text-text-muted'}`}>{page}</span>
     </button>
   );
 }

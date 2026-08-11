@@ -153,6 +153,11 @@ export interface AiBridge {
 
 export interface AppBridge {
   print(docId: string): Promise<void>;
+  /**
+   * A file or folder, opened by the OS. An `https://` URL is the one exception
+   * and goes to the default browser instead — no other scheme is allowed out
+   * (electron/services/external-link.ts).
+   */
   openPath(target: string): Promise<void>;
   version(): Promise<AppVersionInfo>;
   /**

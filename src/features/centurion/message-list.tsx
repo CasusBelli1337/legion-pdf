@@ -33,7 +33,7 @@ function Working(props: { attempt: number; awaitingAnswer: boolean }) {
   if (props.awaitingAnswer) {
     return (
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500" />
+        <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />
         <span className="text-xs text-text-muted">Waiting for your answer above.</span>
       </div>
     );
@@ -44,7 +44,7 @@ function Working(props: { attempt: number; awaitingAnswer: boolean }) {
       : 'Centurion is reading the document...';
   return (
     <div className="flex items-center gap-2">
-      <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />
       <span className="text-xs text-text-muted">{label}</span>
     </div>
   );

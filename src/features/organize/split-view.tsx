@@ -58,7 +58,7 @@ export function SplitView({ session, busy, onCancel, onSplit }: SplitViewProps) 
           type="button"
           disabled={busy || parsed.error !== null}
           onClick={() => onSplit(parsed.parts.map((part) => part.spec))}
-          className="flex-1 rounded-md bg-purple-700 px-3 py-1.5 text-xs font-medium text-text-primary transition-colors duration-150 hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-medium text-text-on-brand transition-colors duration-150 hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Split into {parsed.parts.length} documents
         </button>

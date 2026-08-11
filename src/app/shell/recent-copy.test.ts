@@ -21,7 +21,7 @@ describe('recent timestamps', () => {
 describe('the missing-file notice', () => {
   it('names the file and says it has left the list', () => {
     expect(missingFileNotice('Exhibit A.pdf')).toBe(
-      'Librarius could not open Exhibit A.pdf. It may have been moved, renamed, or deleted, ' +
+      'Legion PDF could not open Exhibit A.pdf. It may have been moved, renamed, or deleted, ' +
         'so it has been taken off this list.'
     );
   });

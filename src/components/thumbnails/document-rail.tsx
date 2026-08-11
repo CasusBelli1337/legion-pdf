@@ -1,5 +1,5 @@
 /**
- * The left rail: page thumbnails and document bookmarks, one tab each. It
+ * The right rail: page thumbnails and document bookmarks, one tab each. It
  * shares the viewer's pdfjs document, so opening the rail costs nothing beyond
  * drawing the thumbnails that are actually on screen.
  */
@@ -28,7 +28,7 @@ function RailTabs({ tab, onTab }: { tab: RailTab; onTab(tab: RailTab): void }) {
           aria-pressed={tab === name}
           className={`${TAB} ${
             tab === name
-              ? 'border-b-purple-700 text-purple-400'
+              ? 'border-b-brand-700 text-brand-400'
               : 'border-b-transparent text-text-muted hover:text-text-primary'
           }`}
         >
@@ -54,7 +54,7 @@ export function DocumentRail() {
 
   return (
     <aside
-      className={`flex ${width} shrink-0 flex-col border-r border-armory-border bg-armory-surface`}
+      className={`flex ${width} shrink-0 flex-col border-l border-armory-border bg-armory-surface`}
     >
       <RailTabs tab={tab} onTab={setTab} />
       {session === null ? (

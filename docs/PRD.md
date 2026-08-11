@@ -1,4 +1,4 @@
-# Librarius — Product Requirements
+# Legion PDF — Product Requirements
 
 **One-liner:** The anti-Acrobat. A fast, lightweight Windows desktop PDF
 editor with exactly the toolset a litigation attorney uses daily, plus an
@@ -6,7 +6,8 @@ embedded Claude panel. No popups, no subscriptions, no cloud dependency
 (except Centurion).
 
 **User:** Arthur — litigation attorney, power user, not a developer. All UI
-copy in plain English. Armory design system (dark, purple, dense, tactical).
+copy in plain English. Legion light theme by default (the app is
+client-distributable), Armory dark theme behind the toolbar toggle.
 
 **Out of scope (deferred stretch goal, separate session):** editing existing
 PDF text with reflow. "Whiteout and retype" ships instead (F-10).
@@ -44,7 +45,7 @@ PDF text with reflow. "Whiteout and retype" ships instead (F-10).
 
 ### F-3 Bates numbering
 
-- Prefix + start number + zero-pad width (e.g. ASHFORD000123), page range,
+- Prefix + start number + zero-pad width (e.g. PLAINTIFF000123), page range,
   corner position (4 choices), font size, optional white backing box
 - Preview on current page before applying; applied stamps are flattened
 - **Acceptance:** every page in range carries the exact expected string
@@ -132,8 +133,8 @@ PDF text with reflow. "Whiteout and retype" ships instead (F-10).
 
 - `npm run build:win` → NSIS installer .exe in `release/`, installable on
   any Windows PC without admin-ordeal; bundles Tesseract + eng traineddata;
-  app icon + "Legion Armory — Librarius" branding; file association for .pdf
-  optional (off by default)
+  Legion "L" app icon + "Legion PDF" branding; .pdf file association
+  registered per-user (Open With + default-app capable)
 - **Acceptance:** installer runs on the Windows host, app launches, OCR
   works offline on a machine with no dev tools.
 

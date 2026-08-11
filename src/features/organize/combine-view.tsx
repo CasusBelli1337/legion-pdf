@@ -146,7 +146,7 @@ function CombineControls({ count, busy, onAdd, onCombine, onCancel }: CombineCon
           type="button"
           disabled={busy || count < 2}
           onClick={onCombine}
-          className="flex-1 rounded-md bg-purple-700 px-3 py-1.5 text-xs font-medium text-text-primary transition-colors duration-150 hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-medium text-text-on-brand transition-colors duration-150 hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Combine {count} files
         </button>

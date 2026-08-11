@@ -63,7 +63,7 @@ function CardActions({ onDecide }: { onDecide(approved: boolean): void }) {
       <button
         type="button"
         onClick={() => onDecide(true)}
-        className="rounded-md bg-purple-700 px-3 py-1.5 text-xs font-medium text-text-primary transition-colors duration-150 hover:bg-purple-600"
+        className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-medium text-text-on-brand transition-colors duration-150 hover:bg-brand-600"
       >
         Approve
       </button>
@@ -82,7 +82,7 @@ function RunningLine({ progress }: { progress: ProgressEvent | null }) {
   return (
     <div className="flex items-center justify-between gap-2" aria-live="polite">
       <span className="flex items-center gap-2 text-xs text-text-primary">
-        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-purple-500" />
+        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-500" />
         {progress?.phase ?? RUNNING_LABEL}
       </span>
       {progress !== null && (
@@ -129,7 +129,7 @@ export function ToolCard({ card, docId, onDecide }: ToolCardProps) {
   return (
     <section className="flex flex-col gap-2 rounded-md border border-armory-border-strong bg-armory-elevated p-3">
       <header className="flex items-center gap-2">
-        <Icon size={14} className="text-purple-400" aria-hidden />
+        <Icon size={14} className="text-brand-400" aria-hidden />
         <span className="readout text-text-muted">{TOOL_TITLES[card.name]}</span>
       </header>
 

@@ -1,6 +1,6 @@
 /**
  * `ViewerApi` as a React context. The provider wraps the whole workspace row —
- * the viewer AND the right dock — so a tool panel can place a mark on the page
+ * the viewer AND the tool dock — so a tool panel can place a mark on the page
  * it can see. It holds no page state itself: the numbers come from the app
  * store, the geometry from the controller the viewer registers into.
  */

@@ -25,7 +25,7 @@ function highlightsFor(
       const isActive = matches[active] === match;
       return createElement('span', {
         key: `${match.index}-${quadIndex}`,
-        className: `absolute rounded-xs ${isActive ? 'bg-purple-500/55' : 'bg-purple-400/30'}`,
+        className: `absolute rounded-xs ${isActive ? 'bg-brand-500/55' : 'bg-brand-400/30'}`,
         style: {
           left: `${box.left}px`,
           top: `${box.top}px`,

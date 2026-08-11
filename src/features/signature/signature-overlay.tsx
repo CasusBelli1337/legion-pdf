@@ -1,7 +1,7 @@
 /**
  * Live signatures, drawn on the page they were dropped on.
  *
- * They are deliberately NOT drawn as finished page content: a dashed purple
+ * They are deliberately NOT drawn as finished page content: a dashed brand
  * outline says, at a glance, that this is still something the attorney owns and
  * can move. The outline and the handles disappear the moment the signature is
  * flattened into the file at save time — at which point the page IS the
@@ -51,7 +51,7 @@ function Handles({ placement, drag, onRemove }: HandlesProps) {
         aria-valuenow={Math.round(placement.heightPt)}
         aria-valuemin={MIN_SIGNATURE_HEIGHT}
         aria-valuemax={MAX_SIGNATURE_HEIGHT}
-        className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-purple-200 bg-purple-500"
+        className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-brand-200 bg-brand-500"
         onPointerDown={drag.start(placement, 'resize')}
         onPointerMove={drag.move}
         onPointerUp={drag.end}
@@ -70,7 +70,7 @@ function PlacedSignature({ placement, context, selected, drag, onRemove }: Place
   const box = context.toLocalBox({ x: placement.at.x, y: placement.at.y, width: 0, height: 0 });
   const width = placement.widthPt * context.scale;
   const height = placement.heightPt * context.scale;
-  const outline = selected ? 'outline-purple-300' : 'outline-purple-500/70';
+  const outline = selected ? 'outline-brand-300' : 'outline-brand-500/70';
 
   return (
     <div

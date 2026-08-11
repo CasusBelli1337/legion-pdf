@@ -28,12 +28,12 @@ export function OrganizeStatus({ busy, progress, notice, error, onDismiss }: Org
     return (
       <section className="flex flex-col gap-1.5 border-t border-armory-border p-3">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-purple-500" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />
           <span className="text-xs text-text-secondary">{progressLine(busy, progress)}</span>
         </div>
         <div className="h-1 w-full overflow-hidden rounded-full bg-armory-interactive">
           <div
-            className="h-full bg-purple-600 transition-all duration-150"
+            className="h-full bg-brand-600 transition-all duration-150"
             style={{ width: `${percent ?? 15}%` }}
           />
         </div>

@@ -1,10 +1,11 @@
-# Legion Armory — Librarius
+# Legion PDF
 
 A fast, lightweight desktop PDF editor built for litigation attorneys. The
 anti-Acrobat: opens instantly, scrolls a 2,000-page transcript smoothly, no
 popups, no subscription nags — just the tools a litigator actually uses.
 
-Named for the *librarius*, the Roman legion's records clerk.
+Ships as **Legion PDF**; the repo keeps its build name, `legion-librarius`,
+after the *librarius* — the Roman legion's records clerk.
 
 ## What it does
 
@@ -21,8 +22,9 @@ Named for the *librarius*, the Roman legion's records clerk.
 ## Stack
 
 Electron + React 19 + TypeScript (strict) + Tailwind 4, PDF rendering via
-PDF.js, PDF writing via pdf-lib, OCR via bundled Tesseract. Armory design
-system (dark/purple). See `docs/ARCHITECTURE.md`.
+PDF.js, PDF writing via pdf-lib, OCR via bundled Tesseract. Legion light
+theme by default, Armory dark theme on the toolbar toggle — every colour is a
+variable in `src/styles/tokens.css`. See `docs/ARCHITECTURE.md`.
 
 ## Development
 
@@ -32,6 +34,7 @@ npm run dev          # electron-vite dev mode
 npm test             # Vitest (core PDF engine tests, no Electron needed)
 npm run typecheck    # tsc --noEmit across all tsconfigs
 npm run lint
+npm run build:icon   # resources/brand/fav.svg -> build/icon.png (app icon)
 npm run build:win    # package Windows NSIS installer into release/
 ```
 

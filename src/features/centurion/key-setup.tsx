@@ -11,7 +11,7 @@ const INPUT_CLASS =
   'rounded-md border border-armory-border bg-armory-base px-2 py-1.5 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-armory-focus focus:outline-none';
 
 const BUTTON_CLASS =
-  'rounded-md bg-purple-700 px-3 py-1.5 text-sm font-medium text-text-primary transition-colors duration-150 hover:bg-purple-600 disabled:bg-armory-interactive disabled:text-text-muted';
+  'rounded-md bg-brand-700 px-3 py-1.5 text-sm font-medium text-text-on-brand transition-colors duration-150 hover:bg-brand-600 disabled:bg-armory-interactive disabled:text-text-muted';
 
 function KeyForm(props: {
   value: string;

@@ -1,4 +1,4 @@
-# Librarius — Architecture & Build Contracts
+# Legion PDF — Architecture & Build Contracts
 
 ## Zones (hard boundaries — imports are one-way)
 
@@ -118,7 +118,7 @@ interface ToolPanel {
   id: string;            // 'bates' | 'redact' | ...
   title: string;         // "Bates Stamping"
   icon: LucideIcon;
-  panel: React.ComponentType; // rendered in right dock (never overlays doc)
+  panel: React.ComponentType; // rendered in the LEFT tool dock (never overlays doc)
 }
 ```
 
@@ -139,6 +139,46 @@ Config over code: new tool = new entry here, zero shell changes.
 Shared files (`shared/ipc.ts`, `tool-registry.ts`, `package.json`) are
 owned by the orchestrator; agents REQUEST additions in their final report
 instead of editing them (pre-declared stubs exist for each lane).
+
+## Shell layout and theming
+
+```
+TabBar                            (full width, only when a document is open)
+ToolDock | ViewerSlot | DocumentRail
+  icons  |  toolbar   |  Pages / Bookmarks
+  panel  |  document  |
+StatusFooter                      (fields | notice | error | Legion credit)
+```
+
+Acrobat's arrangement: tools LEFT, document centre, thumbnails/bookmarks RIGHT.
+There is exactly ONE chrome row above the document — `ViewerToolbar`
+(`src/components/viewer/viewer-toolbar.tsx`) with a document open, `IdleToolbar`
+(`src/app/shell/toolbar/`) without one; both compose the same `FileActions`,
+`BusyIndicator`, and `ThemeToggle`, and share `TOOLBAR_ROW` so the bar does not
+move when the first PDF arrives. The native menu bar is hidden
+(`autoHideMenuBar` + `setMenuBarVisibility(false)`) but the MENU is still
+installed: it is what registers every accelerator, and `electron/menu-template.ts`
+is a pure function so `menu-template.test.ts` can prove each one still exists.
+
+Theming is one attribute. `src/index.html` sets `<html data-theme>` from
+localStorage before React loads (no flash); `src/app/theme.ts` owns the key, the
+default (LIGHT), and the toggle. `src/styles/tokens.css` declares every colour
+in Tailwind's `@theme` with the LIGHT values and re-points the same variables
+under `:root[data-theme='dark']` — unlayered, so it outranks Tailwind's
+`@layer theme`. Components never name a colour, only a token:
+
+| Token family | Use |
+| ------------ | --- |
+| `armory-base/surface/elevated/interactive` | surfaces, in rising elevation |
+| `armory-canvas` | behind the document only |
+| `armory-border`, `armory-border-strong`, `armory-focus` | lines and focus |
+| `text-primary/secondary/muted/inverse` | text on a surface |
+| `text-on-brand` | text on a brand fill — the ONLY colour allowed there |
+| `brand-50…900` | interactive: 300–500 accent, 600–700 solid fills |
+| `status-*`, `success/warning/danger/info` | meaning, identical in both themes |
+
+`bg-white` survives in exactly three places and all three are correct in both
+themes: the PDF page, signature tiles, and whiteout previews — paper is paper.
 
 ## Rasterization note (OCR + redaction both need page→PNG)
 

@@ -12,11 +12,12 @@
 import { PDFArray, PDFRawStream, PDFStream, decodePDFRawStream } from 'pdf-lib';
 import type { PDFDocument, PDFPage } from 'pdf-lib';
 import { ContentStreamError, countShownCharacters } from '@core/ocr';
+import { PRODUCT_NAME } from '@shared/product';
 
 function decodeStream(stream: PDFStream, page: number): Uint8Array {
   if (stream instanceof PDFRawStream) return decodePDFRawStream(stream).decode();
   throw new ContentStreamError(
-    `Page ${page} has a content stream Librarius cannot decode (${stream.constructor.name}), ` +
+    `Page ${page} has a content stream ${PRODUCT_NAME} cannot decode (${stream.constructor.name}), ` +
       'so it cannot prove the page is clean.'
   );
 }

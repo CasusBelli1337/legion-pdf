@@ -1,6 +1,9 @@
 /**
- * The viewer's own strip: page indicator with type-to-jump, zoom controls, fit
- * presets, and the find toggle. It sits above the pages and never covers them.
+ * The app's one chrome row: file actions, document history, the page indicator
+ * with type-to-jump, zoom controls, fit presets, find, and the theme switch.
+ * The native menu bar is hidden, so this bar and the status footer are the
+ * whole of the window's furniture. It sits above the pages and never covers
+ * them.
  */
 
 import {
@@ -14,9 +17,19 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import {
+  BusyIndicator,
+  FileActions,
+  ThemeToggle,
+  TOOLBAR_BUTTON,
+  TOOLBAR_DIVIDER,
+  TOOLBAR_PRESET,
+  TOOLBAR_ROW,
+  TOOLBAR_TRAILING,
+} from '../../app/shell/toolbar';
 import { redoActive, undoActive } from '../../app/undo-actions';
 import { useUndoState } from '../../features/undo';
-import { NumberField, TOOLBAR_BUTTON, TOOLBAR_PRESET } from './toolbar-controls';
+import { NumberField } from './toolbar-controls';
 import type { FitMode } from './tab-view-state';
 
 export interface ViewerToolbarProps {
@@ -100,7 +113,7 @@ function PageJump({
         value={currentPage}
         onCommit={(value) => onGoToPage(Math.min(Math.max(value, 1), pageCount))}
       />
-      <span className="readout text-text-muted">of {pageCount}</span>
+      <span className="readout shrink-0 text-text-muted">of {pageCount}</span>
     </>
   );
 }
@@ -142,7 +155,7 @@ function ZoomGroup({
 
 function FitPresets({ fitMode, onFit }: Pick<ViewerToolbarProps, 'fitMode' | 'onFit'>) {
   const presetClass = (mode: FitMode): string =>
-    `${TOOLBAR_PRESET} ${fitMode === mode ? 'bg-armory-interactive text-purple-400' : 'text-text-muted'}`;
+    `${TOOLBAR_PRESET} ${fitMode === mode ? 'bg-armory-interactive text-brand-400' : 'text-text-muted'}`;
 
   return (
     <>
@@ -167,42 +180,62 @@ function FitPresets({ fitMode, onFit }: Pick<ViewerToolbarProps, 'fitMode' | 'on
   );
 }
 
+function TrailingGroup({
+  isFindOpen,
+  showHarness,
+  onToggleFind,
+  onToggleHarness,
+}: Pick<ViewerToolbarProps, 'isFindOpen' | 'showHarness' | 'onToggleFind' | 'onToggleHarness'>) {
+  return (
+    <div className={TOOLBAR_TRAILING}>
+      <BusyIndicator />
+      {showHarness && (
+        <button
+          type="button"
+          className={TOOLBAR_BUTTON}
+          onClick={onToggleHarness}
+          aria-label="Coordinate check"
+          title="Coordinate check (development build only)"
+        >
+          <Crosshair size={14} aria-hidden />
+        </button>
+      )}
+      <button
+        type="button"
+        className={`${TOOLBAR_BUTTON} ${isFindOpen ? 'bg-armory-interactive text-brand-400' : ''}`}
+        onClick={onToggleFind}
+        aria-label="Find in document"
+        aria-pressed={isFindOpen}
+        title="Find in document (Ctrl+F)"
+      >
+        <Search size={14} aria-hidden />
+      </button>
+      <ThemeToggle />
+    </div>
+  );
+}
+
 export function ViewerToolbar(props: ViewerToolbarProps) {
   return (
-    <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-armory-border bg-armory-surface px-3">
+    <div className={TOOLBAR_ROW}>
+      <FileActions />
+      <span className={TOOLBAR_DIVIDER} />
       <HistoryGroup />
-      <span className="mx-1 h-4 w-px bg-armory-border" />
+      <span className={TOOLBAR_DIVIDER} />
       <PageJump
         currentPage={props.currentPage}
         pageCount={props.pageCount}
         onGoToPage={props.onGoToPage}
       />
-      <span className="mx-1 h-4 w-px bg-armory-border" />
+      <span className={TOOLBAR_DIVIDER} />
       <ZoomGroup zoom={props.zoom} onZoomBy={props.onZoomBy} onSetZoom={props.onSetZoom} />
       <FitPresets fitMode={props.fitMode} onFit={props.onFit} />
-      <div className="ml-auto flex items-center gap-1">
-        {props.showHarness && (
-          <button
-            type="button"
-            className={TOOLBAR_BUTTON}
-            onClick={props.onToggleHarness}
-            aria-label="Coordinate check"
-            title="Coordinate check (development build only)"
-          >
-            <Crosshair size={14} aria-hidden />
-          </button>
-        )}
-        <button
-          type="button"
-          className={`${TOOLBAR_BUTTON} ${props.isFindOpen ? 'bg-armory-interactive text-purple-400' : ''}`}
-          onClick={props.onToggleFind}
-          aria-label="Find in document"
-          aria-pressed={props.isFindOpen}
-          title="Find in document (Ctrl+F)"
-        >
-          <Search size={14} aria-hidden />
-        </button>
-      </div>
+      <TrailingGroup
+        isFindOpen={props.isFindOpen}
+        showHarness={props.showHarness}
+        onToggleFind={props.onToggleFind}
+        onToggleHarness={props.onToggleHarness}
+      />
     </div>
   );
 }

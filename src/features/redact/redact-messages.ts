@@ -5,6 +5,7 @@
  */
 
 import type { ProgressEvent, RedactVerifyResult, TextMatch } from '@shared/types';
+import { PRODUCT_NAME } from '@shared/product';
 
 /** The sentence that must appear before anything is destroyed. */
 export const DESTRUCTION_WARNING =
@@ -14,7 +15,7 @@ export const DESTRUCTION_WARNING =
 export const SEARCHABLE_LABEL = 'Keep the redacted pages searchable';
 
 export const SEARCHABLE_HINT =
-  'On: Librarius reads the blacked-out pages back with text recognition, so the rest of each ' +
+  `On: ${PRODUCT_NAME} reads the blacked-out pages back with text recognition, so the rest of each ` +
   'page can still be searched and copied. Off: those pages become a picture, and nothing on ' +
   'them can be searched or copied. Either way the marked text is destroyed and cannot come back.';
 
@@ -59,7 +60,7 @@ export function receiptText(result: RedactVerifyResult): string {
 export function proofText(result: RedactVerifyResult): string {
   const pages = result.pagesRebuilt.length;
   return (
-    `Librarius re-opened the saved document, searched every stream in the file, and read the ` +
+    `${PRODUCT_NAME} re-opened the saved document, searched every stream in the file, and read the ` +
     `text back off ${groupDigits(pages)} rebuilt ${plural(pages, 'page')}. The marked text is ` +
     'not there.'
   );

@@ -125,7 +125,7 @@ export function ChoiceField<T extends string>({ label, value, options, onChange 
             onClick={() => onChange(option.value)}
             className={`rounded-md px-2 py-1.5 text-xs transition-colors duration-150 ${
               option.value === value
-                ? 'bg-purple-700 text-text-primary'
+                ? 'bg-brand-700 text-text-on-brand'
                 : 'border border-armory-border text-text-secondary hover:bg-armory-interactive hover:text-text-primary'
             }`}
           >
@@ -150,7 +150,7 @@ export function Toggle({ label, checked, onChange }: ToggleProps) {
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-3.5 w-3.5 accent-purple-600"
+        className="h-3.5 w-3.5 accent-brand-600"
       />
       <span className="text-xs text-text-secondary">{label}</span>
     </label>
@@ -167,7 +167,7 @@ interface ActionButtonProps {
 export function ActionButton({ label, onClick, disabled, variant = 'primary' }: ActionButtonProps) {
   const styles =
     variant === 'primary'
-      ? 'bg-purple-700 text-text-primary hover:bg-purple-600 disabled:bg-armory-interactive disabled:text-text-muted'
+      ? 'bg-brand-700 text-text-on-brand hover:bg-brand-600 disabled:bg-armory-interactive disabled:text-text-muted'
       : 'border border-armory-border-strong text-text-secondary hover:bg-armory-interactive hover:text-text-primary';
   return (
     <button
@@ -217,7 +217,7 @@ export function Working({ label, progress }: { label: string; progress: Progress
     <div className="flex flex-col gap-2" aria-live="polite">
       <div className="flex items-baseline justify-between">
         <span className="flex items-center gap-2 text-xs text-text-primary">
-          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-purple-500" />
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-500" />
           {progress?.phase ?? label}
         </span>
         <span className="readout text-text-secondary">
@@ -232,7 +232,7 @@ export function Working({ label, progress }: { label: string; progress: Progress
         aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-purple-600 transition-[width] duration-200"
+          className="h-full rounded-full bg-brand-600 transition-[width] duration-200"
           style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>

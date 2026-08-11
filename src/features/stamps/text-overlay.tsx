@@ -17,8 +17,8 @@ import { PlacementSurface } from './placement-surface';
 import type { TextEditing } from './text-actions';
 import { rectBetween } from './use-placement';
 
-const DRAG_STYLE = 'bg-purple-400/20 outline outline-1 outline-dashed outline-purple-300';
-const COVER_STYLE = 'bg-white/80 outline outline-1 outline-dashed outline-purple-400';
+const DRAG_STYLE = 'bg-brand-400/20 outline outline-1 outline-dashed outline-brand-300';
+const COVER_STYLE = 'bg-white/80 outline outline-1 outline-dashed outline-brand-400';
 
 interface TextOverlayProps {
   api: ViewerApi | null;

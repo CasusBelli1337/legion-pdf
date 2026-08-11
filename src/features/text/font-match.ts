@@ -2,7 +2,7 @@
  * "Match document text": naming the font a page is actually set in, and picking
  * the closest of the fourteen faces every PDF reader has built in.
  *
- * The rule that matters is honesty. Librarius embeds nothing, so a page set in
+ * The rule that matters is honesty. Legion PDF embeds nothing, so a page set in
  * Minion Pro can only be answered with Times — and the attorney is told exactly
  * that, by name, rather than being shown a "matched" badge over a font that was
  * never matched. A pleading that has to look identical is a job for the
@@ -11,6 +11,7 @@
 
 import type { TextFontChoice } from '@shared/types';
 import { familyLabel, type TextFamily } from './font-metrics';
+import { PRODUCT_NAME } from '@shared/product';
 
 /** What one run of text on the page says about its own face. */
 export interface SampledFont {
@@ -90,7 +91,7 @@ export function fontChoiceFor(sample: SampledFont): TextFontChoice {
 
 function noteFor(documentFont: string, font: TextFontChoice, exact: boolean): string {
   if (exact) {
-    return `This document uses ${documentFont} — the same font Librarius types in.`;
+    return `This document uses ${documentFont} — the same font ${PRODUCT_NAME} types in.`;
   }
   if (documentFont === '') {
     return `The text near that box has no font name in the file — using ${familyLabel(font)}, the closest built-in match.`;

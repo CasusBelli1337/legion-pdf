@@ -10,6 +10,7 @@ import type { BrowserWindow, OpenDialogOptions, SaveDialogOptions } from 'electr
 import type { SaveResult } from '@shared/types';
 import type { ConfirmPrompt } from './close-guard';
 import type { DocStore } from './doc-store';
+import { PRODUCT_NAME } from '@shared/product';
 
 const PDF_FILTER = [{ name: 'PDF documents', extensions: ['pdf'] }];
 
@@ -73,6 +74,6 @@ export async function askConfirm(
 export function showSaveFailure(message: string): void {
   dialog.showErrorBox(
     'Could not save',
-    `${message}\n\nLibrarius has left the document open so nothing is lost.`
+    `${message}\n\n${PRODUCT_NAME} has left the document open so nothing is lost.`
   );
 }

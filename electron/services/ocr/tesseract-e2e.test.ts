@@ -4,7 +4,7 @@
  * Builds a genuine scan (a PDF whose only content is a picture of text), proves
  * the detector calls it text-free, runs the actual worker pool over the actual
  * binary, and proves the resulting document is searchable by reading it back
- * with pdfjs — the engine the Librarius viewer uses.
+ * with pdfjs — the engine the Legion PDF viewer uses.
  *
  * The renderer's canvas does not exist in Node, so `pdftoppm` (poppler) stands
  * in for `src/lib/rasterize.ts` here. The suite skips itself, loudly named, on

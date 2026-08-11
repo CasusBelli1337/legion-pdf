@@ -47,14 +47,14 @@ export function InlineEdit(props: InlineEditProps) {
           if (event.key === 'Enter') props.onConfirm();
           if (event.key === 'Escape') props.onCancel();
         }}
-        className="w-full rounded border border-armory-border bg-armory-base px-1.5 py-1 text-xs text-text-primary focus:border-purple-600 focus:outline-none"
+        className="w-full rounded border border-armory-border bg-armory-base px-1.5 py-1 text-xs text-text-primary focus:border-brand-600 focus:outline-none"
       />
       <div className="flex gap-1">
         <button
           type="button"
           disabled={props.disabled || props.value.trim().length === 0}
           onClick={props.onConfirm}
-          className={`${SMALL_BUTTON} bg-purple-700 text-text-primary hover:bg-purple-600 disabled:bg-armory-interactive disabled:text-text-muted`}
+          className={`${SMALL_BUTTON} bg-brand-700 text-text-on-brand hover:bg-brand-600 disabled:bg-armory-interactive disabled:text-text-muted`}
         >
           {props.confirmLabel}
         </button>

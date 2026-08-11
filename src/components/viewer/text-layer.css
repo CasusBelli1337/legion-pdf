@@ -1,8 +1,8 @@
 /*
  * The pdfjs text layer, distilled from pdfjs-dist/web/pdf_viewer.css. Only the
  * .textLayer rules are copied — importing the whole viewer stylesheet would
- * drag its :root variables and print rules into the app. Selection is purple to
- * match the Armory palette.
+ * drag its :root variables and print rules into the app. Selection takes the
+ * brand colour so it reads in either theme.
  *
  * TextLayer positions its spans as percentages of the page box and sizes them
  * from --font-height x --total-scale-factor, which the page sets to the zoom.
@@ -57,5 +57,5 @@
 }
 
 .textLayer ::selection {
-  background: color-mix(in srgb, var(--color-purple-500) 40%, transparent);
+  background: color-mix(in srgb, var(--color-brand-500) 40%, transparent);
 }

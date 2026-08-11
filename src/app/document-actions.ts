@@ -11,6 +11,7 @@ import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
 // so a save never pulls the signature panel's React tree in behind it.
 import { flattenSignaturesFor, hasLiveSignatures } from '../features/signature/save-flattening';
 import { useAppStore } from './store';
+import { PRODUCT_NAME } from '@shared/product';
 
 /** Plain English for the attorney, never a stack trace. */
 function describe(error: unknown): string {
@@ -183,7 +184,9 @@ export async function closeDocument(docId: string): Promise<void> {
 export async function showVersion(): Promise<void> {
   try {
     const version = await window.librarius.app.version();
-    useAppStore.getState().setNotice(`Librarius ${version.app} - Electron ${version.electron}`);
+    useAppStore
+      .getState()
+      .setNotice(`${PRODUCT_NAME} ${version.app} - Electron ${version.electron}`);
   } catch (error) {
     report('Could not read the version:', error);
   }
