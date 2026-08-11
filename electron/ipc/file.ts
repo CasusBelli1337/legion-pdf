@@ -2,15 +2,15 @@
 /**
  * file:* handlers — open dialog, read, save, save as, recent list, close.
  * Fully implemented; the viewer lane consumes these, it does not replace them.
+ * The dialogs themselves live in services/native-dialogs so the unsaved-work
+ * guard raises the very same Save As.
  */
 
-import { dialog, ipcMain } from 'electron';
-import type { OpenDialogOptions } from 'electron';
+import { ipcMain } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { DocumentSession, SaveResult } from '@shared/types';
+import { openPdfDialog, saveAsWithDialog } from '../services/native-dialogs';
 import type { IpcContext } from './context';
-
-const PDF_FILTER = [{ name: 'PDF documents', extensions: ['pdf'] }];
 
 export function registerFileHandlers(context: IpcContext): void {
   registerOpenHandlers(context);
@@ -19,18 +19,7 @@ export function registerFileHandlers(context: IpcContext): void {
 }
 
 function registerOpenHandlers({ store, getWindow }: IpcContext): void {
-  ipcMain.handle(IPC.file.openDialog, async (): Promise<string[]> => {
-    const window = getWindow();
-    const options: OpenDialogOptions = {
-      title: 'Open PDF',
-      filters: PDF_FILTER,
-      properties: ['openFile', 'multiSelections'],
-    };
-    const result = window
-      ? await dialog.showOpenDialog(window, options)
-      : await dialog.showOpenDialog(options);
-    return result.canceled ? [] : result.filePaths;
-  });
+  ipcMain.handle(IPC.file.openDialog, (): Promise<string[]> => openPdfDialog(getWindow()));
 
   ipcMain.handle(IPC.file.open, (_event, filePath: string): Promise<DocumentSession> => {
     return store.openFile(filePath);
@@ -52,15 +41,8 @@ function registerSaveHandlers({ store, getWindow }: IpcContext): void {
 
   ipcMain.handle(
     IPC.file.saveAs,
-    async (_event, docId: string, suggestedName?: string): Promise<SaveResult | null> => {
-      const window = getWindow();
-      const defaultPath = suggestedName ?? store.session(docId).fileName;
-      const options = { title: 'Save PDF As', defaultPath, filters: PDF_FILTER };
-      const result = window
-        ? await dialog.showSaveDialog(window, options)
-        : await dialog.showSaveDialog(options);
-      if (result.canceled || result.filePath === undefined) return null;
-      return store.saveTo(docId, result.filePath);
+    (_event, docId: string, suggestedName?: string): Promise<SaveResult | null> => {
+      return saveAsWithDialog(store, getWindow(), docId, suggestedName);
     }
   );
 }

@@ -15,6 +15,7 @@ import type {
   BatesDetail,
   BatesOptions,
   BookmarkNode,
+  CloseChoice,
   DeletePagesOptions,
   DocumentSession,
   ExhibitDetail,
@@ -118,6 +119,7 @@ export const IPC = {
     print: 'app:print',
     openPath: 'app:openPath',
     version: 'app:version',
+    confirmClose: 'app:confirmClose',
     menu: 'app:menu',
   },
   raster: {
@@ -222,6 +224,8 @@ export interface IpcInvokeContract {
   'app:print': { request: [docId: string]; response: void };
   'app:openPath': { request: [target: string]; response: void };
   'app:version': { request: []; response: AppVersionInfo };
+  /** Native three-way prompt before a tab with unsaved work is dropped. */
+  'app:confirmClose': { request: [fileName: string]; response: CloseChoice };
 }
 
 export type InvokeChannel = keyof IpcInvokeContract;

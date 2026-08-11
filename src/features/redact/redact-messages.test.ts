@@ -12,6 +12,8 @@ import {
   progressLabel,
   proofText,
   receiptText,
+  SEARCHABLE_HINT,
+  SEARCHABLE_LABEL,
   searchSummary,
 } from './redact-messages';
 
@@ -159,5 +161,24 @@ describe('plainError', () => {
 
   it('strips a bare error class prefix', () => {
     expect(plainError('RangeError: page 9 does not exist')).toBe('page 9 does not exist');
+  });
+});
+
+describe('the searchable-output copy', () => {
+  it("names the choice in the attorney's words", () => {
+    expect(SEARCHABLE_LABEL).toBe('Keep the redacted pages searchable');
+  });
+
+  // The default is ON, so the hint has to explain what turning it OFF costs —
+  // not just what leaving it on gains.
+  it('states the tradeoff in both directions', () => {
+    expect(SEARCHABLE_HINT).toContain('On:');
+    expect(SEARCHABLE_HINT).toContain('Off:');
+    expect(SEARCHABLE_HINT).toContain('become a picture');
+    expect(SEARCHABLE_HINT).toContain('searched and copied');
+  });
+
+  it('promises the destruction either way', () => {
+    expect(SEARCHABLE_HINT).toContain('the marked text is destroyed and cannot come back');
   });
 });

@@ -15,6 +15,7 @@ import type {
   BatesDetail,
   BatesOptions,
   BookmarkNode,
+  CloseChoice,
   DeletePagesOptions,
   DocumentSession,
   ExhibitDetail,
@@ -127,6 +128,11 @@ export interface AppBridge {
   print(docId: string): Promise<void>;
   openPath(target: string): Promise<void>;
   version(): Promise<AppVersionInfo>;
+  /**
+   * Asks about unsaved work before a tab is closed. Native, main-process, and
+   * three-way: save and close, close without saving, or cancel.
+   */
+  confirmClose(fileName: string): Promise<CloseChoice>;
   /** File/View/Help menu items arrive here as plain actions. */
   onMenuAction(callback: (action: MenuAction) => void): Unsubscribe;
 }

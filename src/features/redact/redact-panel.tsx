@@ -13,6 +13,8 @@ import {
   markAllLabel,
   markSummary,
   SAVE_AS_NOTICE,
+  SEARCHABLE_HINT,
+  SEARCHABLE_LABEL,
   searchSummary,
 } from './redact-messages';
 import {
@@ -98,8 +100,8 @@ function ApplySection({ redaction }: SectionProps) {
   return (
     <>
       <CheckboxRow
-        label="Keep the redacted pages searchable"
-        hint="Reads the blacked-out pages back with text recognition, so the rest of the page can still be searched. The destroyed text cannot come back."
+        label={SEARCHABLE_LABEL}
+        hint={SEARCHABLE_HINT}
         checked={redaction.reOcr}
         disabled={redaction.busy}
         onChange={redaction.setReOcr}
