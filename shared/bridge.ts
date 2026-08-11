@@ -15,6 +15,9 @@ import type {
   BatesDetail,
   BatesOptions,
   BookmarkNode,
+  BulkOcrOptions,
+  BulkOcrResult,
+  CenturionToolDecision,
   CloseChoice,
   DeletePagesOptions,
   DocumentSession,
@@ -32,6 +35,7 @@ import type {
   OcrDetectResult,
   OcrOptions,
   OcrRunDetail,
+  OpenFilesEvent,
   OpResult,
   PageNumberDetail,
   PageNumberOptions,
@@ -52,6 +56,8 @@ import type {
   SplitDetail,
   SplitOptions,
   TextBoxOptions,
+  UndoResult,
+  UndoState,
   WatermarkOptions,
   WhiteoutOptions,
 } from './types';
@@ -70,6 +76,11 @@ export interface FileBridge {
   recent(): Promise<RecentFile[]>;
   recentClear(): Promise<RecentFile[]>;
   close(docId: string): Promise<void>;
+  /** Steps back one edit. `applied: false` means there was nothing to undo. */
+  undo(docId: string): Promise<UndoResult>;
+  redo(docId: string): Promise<UndoResult>;
+  /** Current history position — what the Undo/Redo controls enable off. */
+  undoState(docId: string): Promise<UndoState>;
   /** Absolute path of a dropped File. Electron 32+ removed File.path; this uses webUtils. */
   pathForDrop(file: File): string;
 }
@@ -97,6 +108,8 @@ export interface StampBridge {
   pageNumbers(docId: string, options: PageNumberOptions): Promise<OpResult<PageNumberDetail>>;
   signatureList(): Promise<SignatureAsset[]>;
   signatureAdd(sourcePath: string, label: string): Promise<SignatureAsset>;
+  /** Same library entry from bytes in hand — a pasted or drawn signature. */
+  signatureAddBytes(data: Uint8Array, label: string): Promise<SignatureAsset>;
   signatureRemove(signatureId: string): Promise<SignatureAsset[]>;
   signaturePlace(docId: string, placement: SignaturePlacement): Promise<OpResult>;
   textBox(docId: string, options: TextBoxOptions): Promise<OpResult>;
@@ -107,6 +120,10 @@ export interface OcrBridge {
   detect(docId: string): Promise<OcrDetectResult>;
   run(docId: string, options: OcrOptions): Promise<OpResult<OcrRunDetail>>;
   cancel(docId: string): Promise<void>;
+  /** OCRs files on disk without opening them; one result per input path. */
+  bulk(paths: string[], options: BulkOcrOptions): Promise<BulkOcrResult>;
+  /** Stops after the file in flight; finished files keep their output. */
+  bulkCancel(): Promise<void>;
 }
 
 export interface RedactBridge {
@@ -122,6 +139,12 @@ export interface AiBridge {
   /** Streams deltas to `onChunk`; resolves with the finished, stop_reason-checked answer. */
   ask(request: AiAskRequest): Promise<AiAskResult>;
   onChunk(callback: (chunk: AiChunk) => void): Unsubscribe;
+  /** Answers a tool confirm card. Nothing runs until this carries 'approved'. */
+  toolDecision(
+    requestId: string,
+    toolUseId: string,
+    decision: CenturionToolDecision
+  ): Promise<void>;
 }
 
 export interface AppBridge {
@@ -135,6 +158,11 @@ export interface AppBridge {
   confirmClose(fileName: string): Promise<CloseChoice>;
   /** File/View/Help menu items arrive here as plain actions. */
   onMenuAction(callback: (action: MenuAction) => void): Unsubscribe;
+  /**
+   * Files the OS handed the app — double-clicked, dropped on the icon, or on the
+   * command line. Subscribe early: the first batch can arrive during startup.
+   */
+  onOpenFiles(callback: (event: OpenFilesEvent) => void): Unsubscribe;
 }
 
 export interface RasterBridge {

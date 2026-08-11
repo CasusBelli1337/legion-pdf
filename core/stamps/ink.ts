@@ -14,13 +14,51 @@
 
 import { degrees, StandardFonts } from 'pdf-lib';
 import type { PDFDocument, PDFFont, PDFImage, PDFPage, RGB } from 'pdf-lib';
-import type { PdfPoint } from '@shared/types';
+import type { PdfPoint, TextFontChoice } from '@shared/types';
 import { frameOf, toUserSpace, uprightDegrees, type BoxSize, type PageFrame } from './geometry';
 
 /** Stamps use Helvetica-Bold: it survives photocopying, which Bates numbers must. */
 export const STAMP_FONT = StandardFonts.HelveticaBold;
 /** Body text (text boxes, whiteout retype) reads better in the regular weight. */
 export const BODY_FONT = StandardFonts.Helvetica;
+
+type FontStyle = 'regular' | 'bold' | 'italic' | 'boldItalic';
+
+/**
+ * The twelve text faces every PDF reader has built in. Config over code: a new
+ * family is a new row here, not a new branch. (Symbol and ZapfDingbats are the
+ * other two standard fonts; neither is a face anyone types a note in.)
+ */
+const FONT_FACES: Record<TextFontChoice['family'], Record<FontStyle, StandardFonts>> = {
+  helvetica: {
+    regular: StandardFonts.Helvetica,
+    bold: StandardFonts.HelveticaBold,
+    italic: StandardFonts.HelveticaOblique,
+    boldItalic: StandardFonts.HelveticaBoldOblique,
+  },
+  times: {
+    regular: StandardFonts.TimesRoman,
+    bold: StandardFonts.TimesRomanBold,
+    italic: StandardFonts.TimesRomanItalic,
+    boldItalic: StandardFonts.TimesRomanBoldItalic,
+  },
+  courier: {
+    regular: StandardFonts.Courier,
+    bold: StandardFonts.CourierBold,
+    italic: StandardFonts.CourierOblique,
+    boldItalic: StandardFonts.CourierBoldOblique,
+  },
+};
+
+function styleOf(choice: TextFontChoice): FontStyle {
+  if (choice.bold === true) return choice.italic === true ? 'boldItalic' : 'bold';
+  return choice.italic === true ? 'italic' : 'regular';
+}
+
+/** The built-in face a choice maps to. No choice = BODY_FONT, unchanged. */
+export function standardFontFor(choice?: TextFontChoice): StandardFonts {
+  return choice === undefined ? BODY_FONT : FONT_FACES[choice.family][styleOf(choice)];
+}
 
 export function embedFont(document: PDFDocument, font: StandardFonts): Promise<PDFFont> {
   return document.embedFont(font);

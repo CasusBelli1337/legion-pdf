@@ -31,6 +31,7 @@ export {
   cornerAnchor,
   frameOf,
   normalizeRotation,
+  stampAnchor,
   toUserSpace,
   toVisualSpace,
   uprightDegrees,

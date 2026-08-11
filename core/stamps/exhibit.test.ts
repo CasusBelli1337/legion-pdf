@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { RangeCollapseError } from '@shared/types';
-import type { ExhibitOptions } from '@shared/types';
+import type { ExhibitOptions, ExhibitPosition } from '@shared/types';
 import { annotationCounts, containsText, makeTestPdf } from '../ops/test-fixtures';
 import { applyExhibitStamp } from './exhibit';
-import { angleOf, marksOnPage, textMarksOnPage } from './stamp-testkit';
+import { angleOf, marksOnPage, place, textMarksOnPage } from './stamp-testkit';
 
 function pages(count: number, rotation?: number) {
   return Array.from({ length: count }, (_unused, index) => ({
@@ -69,6 +69,23 @@ describe('applyExhibitStamp', () => {
     );
     expect(containsText(second.bytes, 'EXHIBIT Z')).toBe(true);
     expect(containsText(second.bytes, 'EXHIBIT AA')).toBe(true);
+  });
+
+  it('centres a bottom-center label between the bottom corners, same margin', async () => {
+    const bytes = await makeTestPdf({ pages: pages(1) });
+    const labelAt = async (position: ExhibitPosition) => {
+      const result = await applyExhibitStamp(bytes, options({ position }));
+      const mark = (await textMarksOnPage(result.bytes, 1)).find((m) => m.text === 'EXHIBIT A');
+      return place(mark?.matrix ?? [1, 0, 0, 1, 0, 0], { x: 0, y: 0 });
+    };
+
+    const left = await labelAt('bottom-left');
+    const right = await labelAt('bottom-right');
+    const centre = await labelAt('bottom-center');
+    expect(centre.x).toBeCloseTo((left.x + right.x) / 2, 6);
+    expect(centre.x).toBeGreaterThan(left.x);
+    expect(centre.x).toBeLessThan(right.x);
+    expect(centre.y).toBeCloseTo(left.y, 6);
   });
 
   it('turns the stamp upright on a rotated page', async () => {

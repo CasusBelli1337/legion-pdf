@@ -12,7 +12,7 @@
  * makes drawn ink read the right way up once the reader turns the paper.
  */
 
-import type { Alignment, Corner, PageSize, PdfPoint } from '@shared/types';
+import type { Alignment, Corner, ExhibitPosition, PageSize, PdfPoint } from '@shared/types';
 
 /** A page's stored size, its quarter turn, and the size the reader shows. */
 export interface PageFrame {
@@ -113,6 +113,23 @@ export function cornerAnchor(
     x: atLeft ? margin : visual.width - margin - box.width,
     y: atTop ? visual.height - margin - box.height : margin,
   };
+}
+
+/**
+ * Visual bottom-left of a stamp box at any exhibit position. The four corners
+ * are `cornerAnchor` unchanged; 'bottom-center' sits on the same bottom edge at
+ * the same margin, centred across the displayed width.
+ */
+export function stampAnchor(
+  position: ExhibitPosition,
+  visual: PageSize,
+  box: BoxSize,
+  margin: number
+): PdfPoint {
+  if (position === 'bottom-center') {
+    return { x: (visual.width - box.width) / 2, y: margin };
+  }
+  return cornerAnchor(position, visual, box, margin);
 }
 
 /** Visual bottom-left of a box in a header or footer band, horizontally aligned. */

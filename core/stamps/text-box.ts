@@ -11,7 +11,7 @@ import type { OpResult, TextBoxOptions } from '@shared/types';
 import { finish, loadPdf } from '../ops/pdf-io';
 import { parseHexColor } from './color';
 import { toVisualSpace } from './geometry';
-import { drawText, embedFont, measureText, pageFrame, BODY_FONT } from './ink';
+import { drawText, embedFont, measureText, pageFrame, standardFontFor } from './ink';
 import type { PDFFont } from 'pdf-lib';
 
 const MAX_CHARACTERS = 8000;
@@ -74,7 +74,7 @@ export async function addTextBox(bytes: Uint8Array, options: TextBoxOptions): Pr
 
   const page = document.getPage(options.page - 1);
   const frame = pageFrame(page);
-  const font = await embedFont(document, BODY_FONT);
+  const font = await embedFont(document, standardFontFor(options.font));
   const color = parseHexColor(options.color, 'text colour');
   const start = toVisualSpace(frame, options.at);
   const step = measureText(font, 'Hg', options.fontSize).height * LINE_SPACING;

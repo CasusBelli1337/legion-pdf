@@ -21,6 +21,7 @@ import type { LibrariusBridge, Unsubscribe } from '@shared/bridge';
 import type {
   AiChunk,
   MenuAction,
+  OpenFilesEvent,
   ProgressEvent,
   RasterRequest,
   RasterResponse,
@@ -58,6 +59,9 @@ const bridge: LibrariusBridge = {
     recent: () => invoke(IPC.file.recent),
     recentClear: () => invoke(IPC.file.recentClear),
     close: (docId) => invoke(IPC.file.close, docId),
+    undo: (docId) => invoke(IPC.file.undo, docId),
+    redo: (docId) => invoke(IPC.file.redo, docId),
+    undoState: (docId) => invoke(IPC.file.undoState, docId),
     pathForDrop: (file) => webUtils.getPathForFile(file),
   },
   ops: {
@@ -82,6 +86,7 @@ const bridge: LibrariusBridge = {
     pageNumbers: (docId, options) => invoke(IPC.stamp.pageNumbers, docId, options),
     signatureList: () => invoke(IPC.stamp.signatureList),
     signatureAdd: (sourcePath, label) => invoke(IPC.stamp.signatureAdd, sourcePath, label),
+    signatureAddBytes: (data, label) => invoke(IPC.stamp.signatureAddBytes, data, label),
     signatureRemove: (signatureId) => invoke(IPC.stamp.signatureRemove, signatureId),
     signaturePlace: (docId, placement) => invoke(IPC.stamp.signaturePlace, docId, placement),
     textBox: (docId, options) => invoke(IPC.stamp.textBox, docId, options),
@@ -91,6 +96,8 @@ const bridge: LibrariusBridge = {
     detect: (docId) => invoke(IPC.ocr.detect, docId),
     run: (docId, options) => invoke(IPC.ocr.run, docId, options),
     cancel: (docId) => invoke(IPC.ocr.cancel, docId),
+    bulk: (paths, options) => invoke(IPC.ocr.bulk, paths, options),
+    bulkCancel: () => invoke(IPC.ocr.bulkCancel),
   },
   redact: {
     apply: (docId, options) => invoke(IPC.redact.apply, docId, options),
@@ -102,6 +109,8 @@ const bridge: LibrariusBridge = {
     clearKey: () => invoke(IPC.ai.clearKey),
     ask: (request) => invoke(IPC.ai.ask, request),
     onChunk: (callback: (chunk: AiChunk) => void) => subscribe(IPC.ai.chunk, callback),
+    toolDecision: (requestId, toolUseId, decision) =>
+      invoke(IPC.ai.toolDecision, requestId, toolUseId, decision),
   },
   app: {
     print: (docId) => invoke(IPC.app.print, docId),
@@ -109,6 +118,8 @@ const bridge: LibrariusBridge = {
     version: () => invoke(IPC.app.version),
     confirmClose: (fileName) => invoke(IPC.app.confirmClose, fileName),
     onMenuAction: (callback: (action: MenuAction) => void) => subscribe(IPC.app.menu, callback),
+    onOpenFiles: (callback: (event: OpenFilesEvent) => void) =>
+      subscribe(IPC.app.openFiles, callback),
   },
   raster: {
     onRequest: (callback: (request: RasterRequest) => void) =>

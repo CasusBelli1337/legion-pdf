@@ -15,6 +15,9 @@ import type {
   BatesDetail,
   BatesOptions,
   BookmarkNode,
+  BulkOcrOptions,
+  BulkOcrResult,
+  CenturionToolDecision,
   CloseChoice,
   DeletePagesOptions,
   DocumentSession,
@@ -32,6 +35,7 @@ import type {
   OcrDetectResult,
   OcrOptions,
   OcrRunDetail,
+  OpenFilesEvent,
   OpResult,
   PageNumberDetail,
   PageNumberOptions,
@@ -52,6 +56,8 @@ import type {
   SplitDetail,
   SplitOptions,
   TextBoxOptions,
+  UndoResult,
+  UndoState,
   WatermarkOptions,
   WhiteoutOptions,
 } from './types';
@@ -67,6 +73,9 @@ export const IPC = {
     recent: 'file:recent',
     recentClear: 'file:recentClear',
     close: 'file:close',
+    undo: 'file:undo',
+    redo: 'file:redo',
+    undoState: 'file:undoState',
   },
   ops: {
     merge: 'ops:merge',
@@ -91,6 +100,7 @@ export const IPC = {
     pageNumbers: 'stamp:pageNumbers',
     signatureList: 'stamp:signatureList',
     signatureAdd: 'stamp:signatureAdd',
+    signatureAddBytes: 'stamp:signatureAddBytes',
     signatureRemove: 'stamp:signatureRemove',
     signaturePlace: 'stamp:signaturePlace',
     textBox: 'stamp:textBox',
@@ -101,6 +111,8 @@ export const IPC = {
     detect: 'ocr:detect',
     run: 'ocr:run',
     cancel: 'ocr:cancel',
+    bulk: 'ocr:bulk',
+    bulkCancel: 'ocr:bulkCancel',
     progress: 'ocr:progress',
   },
   redact: {
@@ -114,6 +126,7 @@ export const IPC = {
     clearKey: 'ai:clearKey',
     ask: 'ai:ask',
     chunk: 'ai:chunk',
+    toolDecision: 'ai:toolDecision',
   },
   app: {
     print: 'app:print',
@@ -121,6 +134,7 @@ export const IPC = {
     version: 'app:version',
     confirmClose: 'app:confirmClose',
     menu: 'app:menu',
+    openFiles: 'app:openFiles',
   },
   raster: {
     request: 'raster:request',
@@ -145,6 +159,15 @@ export interface IpcInvokeContract {
   'file:recent': { request: []; response: RecentFile[] };
   'file:recentClear': { request: []; response: RecentFile[] };
   'file:close': { request: [docId: string]; response: void };
+  /**
+   * Steps the document back to the previous state. `applied: false` means the
+   * history was already at its end — a no-op, not a failure. The renderer
+   * re-reads bytes with `file:read` whenever `applied` is true.
+   */
+  'file:undo': { request: [docId: string]; response: UndoResult };
+  'file:redo': { request: [docId: string]; response: UndoResult };
+  /** Drives the enabled state of the Undo/Redo controls. */
+  'file:undoState': { request: [docId: string]; response: UndoState };
 
   /** Creates a NEW document; `detail.docId` is the tab the renderer opens. */
   'ops:merge': { request: [options: MergeOptions]; response: OpResult<MergeDetail> };
@@ -193,6 +216,16 @@ export interface IpcInvokeContract {
     request: [sourcePath: string, label: string];
     response: SignatureAsset;
   };
+  /**
+   * Same library entry as `stamp:signatureAdd`, from bytes already in hand — a
+   * pasted image or a drawn-on-canvas signature that never existed as a file.
+   * A Uint8Array crosses structured clone intact; the raster channels already
+   * carry PNG bytes both ways.
+   */
+  'stamp:signatureAddBytes': {
+    request: [data: Uint8Array, label: string];
+    response: SignatureAsset;
+  };
   'stamp:signatureRemove': { request: [signatureId: string]; response: SignatureAsset[] };
   'stamp:signaturePlace': {
     request: [docId: string, placement: SignaturePlacement];
@@ -204,6 +237,17 @@ export interface IpcInvokeContract {
   'ocr:detect': { request: [docId: string]; response: OcrDetectResult };
   'ocr:run': { request: [docId: string, options: OcrOptions]; response: OpResult<OcrRunDetail> };
   'ocr:cancel': { request: [docId: string]; response: void };
+  /**
+   * OCR whole files off disk, none of them open in a tab. The result carries one
+   * entry per input path, in request order, so a skipped file is visible rather
+   * than absent. Progress streams on `ocr:progress`.
+   */
+  'ocr:bulk': {
+    request: [paths: string[], options: BulkOcrOptions];
+    response: BulkOcrResult;
+  };
+  /** Stops the run after the file in flight; finished files keep their output. */
+  'ocr:bulkCancel': { request: []; response: void };
 
   /** Destruction. The result carries the verification receipt in `detail`. */
   'redact:apply': {
@@ -220,6 +264,14 @@ export interface IpcInvokeContract {
   'ai:clearKey': { request: []; response: AiKeyStatus };
   /** Streams deltas on `ai:chunk`; resolves with the completed answer. */
   'ai:ask': { request: [request: AiAskRequest]; response: AiAskResult };
+  /**
+   * The attorney's answer to a tool confirm card. 'rejected' is a normal
+   * outcome: the model is told the tool was declined and keeps talking.
+   */
+  'ai:toolDecision': {
+    request: [requestId: string, toolUseId: string, decision: CenturionToolDecision];
+    response: void;
+  };
 
   'app:print': { request: [docId: string]; response: void };
   'app:openPath': { request: [target: string]; response: void };
@@ -240,6 +292,8 @@ export interface IpcMainToRendererContract {
   'redact:progress': ProgressEvent;
   'ai:chunk': AiChunk;
   'app:menu': MenuAction;
+  /** Paths the OS handed the app (double-click, drop on icon, command line). */
+  'app:openFiles': OpenFilesEvent;
   'raster:request': RasterRequest;
 }
 
@@ -263,6 +317,7 @@ export const PUSH_CHANNELS: readonly PushChannel[] = [
   'redact:progress',
   'ai:chunk',
   'app:menu',
+  'app:openFiles',
   'raster:request',
 ];
 

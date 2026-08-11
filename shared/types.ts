@@ -5,6 +5,7 @@
  */
 
 export type * from './tool-options';
+export type * from './centurion-tools';
 
 /** A point in PDF user space: origin bottom-left, units are points (1/72"). */
 export interface PdfPoint {
@@ -144,6 +145,34 @@ export interface SaveResult {
   filePath: string;
   byteLength: number;
   savedAt: string;
+}
+
+/**
+ * Whether a document has anything to step back to, and anything to step forward
+ * to. The undo history is main-process state (it wraps the doc store's bytes),
+ * so the renderer asks rather than tracks.
+ */
+export interface UndoState {
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+/**
+ * What one undo/redo returns. `applied` is false when there was nothing to step
+ * to — a no-op, never an error — and the state fields describe the doc AFTER.
+ */
+export interface UndoResult extends UndoState {
+  applied: boolean;
+}
+
+/**
+ * Files the OS handed the app: double-clicked in Explorer, dropped on the icon,
+ * or passed on the command line. Pushed on `app:openFiles`, which can fire
+ * before the renderer has mounted — a subscriber may receive a backlog.
+ */
+export interface OpenFilesEvent {
+  /** Absolute paths, in the order the OS listed them. */
+  paths: string[];
 }
 
 /** Answer to `app:version` — shown in Help > About and the status footer. */
