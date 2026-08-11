@@ -35,9 +35,9 @@ function BatesReadout({ first, last, summary }: { first: string; last: string; s
   return (
     <div className="flex flex-col gap-1 rounded-md border border-armory-border bg-armory-elevated p-3">
       <span className="readout text-text-muted">First page</span>
-      <span className="font-mono text-sm text-purple-300">{first}</span>
+      <span className="font-mono text-sm text-brand-300">{first}</span>
       <span className="readout mt-1 text-text-muted">Last page</span>
-      <span className="font-mono text-sm text-purple-300">{last}</span>
+      <span className="font-mono text-sm text-brand-300">{last}</span>
       <span className="mt-1 text-xs text-text-secondary">{summary}</span>
     </div>
   );

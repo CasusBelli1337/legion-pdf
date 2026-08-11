@@ -164,7 +164,7 @@ export function PageNumberSection({
         mono
         onChange={(template) => change({ template })}
       />
-      <p className="font-mono text-xs text-purple-300">
+      <p className="font-mono text-xs text-brand-300">
         {renderPageNumber(form.template, form.startNumber, Math.max(form.startNumber, total))}
       </p>
       <NumberFields form={form} onChange={change} />

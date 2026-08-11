@@ -7,6 +7,7 @@ import type { DragEvent } from 'react';
 import { PdfViewer } from '../../components/viewer';
 import { useActiveSession } from '../store';
 import { EmptyState } from './empty-state';
+import { IdleToolbar } from './toolbar';
 
 interface ViewerSlotProps {
   onOpenPaths(paths: string[]): void;
@@ -34,8 +35,8 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
 
   return (
     <section
-      className={`relative flex min-h-0 min-w-0 flex-1 items-stretch justify-center bg-armory-base transition-colors duration-150 ${
-        isDragging ? 'ring-2 ring-purple-700 ring-inset' : ''
+      className={`relative flex min-h-0 min-w-0 flex-1 flex-col bg-armory-canvas transition-colors duration-150 ${
+        isDragging ? 'ring-2 ring-brand-700 ring-inset' : ''
       }`}
       onDragOver={(event) => {
         event.preventDefault();
@@ -44,7 +45,16 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
       onDragLeave={() => setIsDragging(false)}
       onDrop={onDrop}
     >
-      {session === null ? <EmptyState /> : <PdfViewer key={session.id} session={session} />}
+      {session === null ? (
+        <>
+          <IdleToolbar />
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <EmptyState />
+          </div>
+        </>
+      ) : (
+        <PdfViewer key={session.id} session={session} />
+      )}
     </section>
   );
 }

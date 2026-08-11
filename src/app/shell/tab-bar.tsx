@@ -25,7 +25,7 @@ export function TabBar({ onClose }: TabBarProps) {
             key={session.id}
             className={`flex min-w-40 items-center gap-2 border-r border-armory-border px-3 text-xs transition-colors duration-150 ${
               isActive
-                ? 'border-b-2 border-b-purple-700 bg-armory-surface text-text-primary'
+                ? 'border-b-2 border-b-brand-700 bg-armory-surface text-text-primary'
                 : 'bg-armory-base text-text-secondary hover:bg-armory-interactive'
             }`}
           >
@@ -39,7 +39,7 @@ export function TabBar({ onClose }: TabBarProps) {
             </button>
             {session.dirty && (
               <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full bg-purple-500"
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500"
                 title="Unsaved changes"
               />
             )}

@@ -15,12 +15,12 @@ import { RedactPanel } from '@renderer/features/redact';
 import { BatesPanel, StampsPanel } from '@renderer/features/stamps';
 
 export interface ToolPanel {
-  /** Stable id, also the right-dock selection key. */
+  /** Stable id, also the tool-dock selection key. */
   id: string;
   /** Plain-English title shown in the dock header. */
   title: string;
   icon: LucideIcon;
-  /** Rendered in the right dock — it pushes the document aside, never overlays it. */
+  /** Rendered in the left tool dock — it pushes the document aside, never overlays it. */
   panel: ComponentType;
 }
 

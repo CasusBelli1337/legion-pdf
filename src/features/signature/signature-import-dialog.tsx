@@ -62,7 +62,7 @@ function Sensitivity({ value, onChange }: { value: number; onChange(value: numbe
         value={value}
         aria-label="How much of the pen stroke to keep"
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-purple-600"
+        className="w-full accent-brand-600"
       />
       <span className="flex justify-between text-[10px] text-text-muted">
         <span>Only the darkest ink</span>

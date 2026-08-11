@@ -4,7 +4,7 @@ import { TesseractNotFoundError, resolveTesseract } from './tesseract-binary';
 import type { ResolveTesseractOptions } from './tesseract-binary';
 
 const DEV_ROOT = '/home/casusbelli/projects/legion-librarius';
-const INSTALL_ROOT = 'C:\\Program Files\\Librarius\\resources';
+const INSTALL_ROOT = 'C:\\Program Files\\Legion PDF\\resources';
 
 function options(
   present: string[],

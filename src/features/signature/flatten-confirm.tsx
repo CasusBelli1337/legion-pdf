@@ -36,7 +36,7 @@ function Placing({ progress }: { progress: FlattenProgress }) {
       <p className="text-sm text-text-primary">Placing your signatures into the document.</p>
       <div className="flex items-baseline justify-between">
         <span className="flex items-center gap-2 text-xs text-text-secondary">
-          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-purple-500" />
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-brand-500" />
           Writing them into the page
         </span>
         <span className="readout text-text-secondary">
@@ -51,7 +51,7 @@ function Placing({ progress }: { progress: FlattenProgress }) {
         aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-purple-600 transition-[width] duration-200"
+          className="h-full rounded-full bg-brand-600 transition-[width] duration-200"
           style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>
@@ -80,7 +80,7 @@ function Question({ count, onConfirm, onCancel }: Omit<FlattenConfirmProps, 'pro
           ref={confirmButton}
           type="button"
           onClick={onConfirm}
-          className="rounded-md bg-purple-700 px-3 py-2 text-xs font-medium text-text-primary transition-colors duration-150 hover:bg-purple-600"
+          className="rounded-md bg-brand-700 px-3 py-2 text-xs font-medium text-text-on-brand transition-colors duration-150 hover:bg-brand-600"
         >
           {FLATTEN_CONFIRM_LABEL}
         </button>

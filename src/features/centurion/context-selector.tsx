@@ -60,7 +60,7 @@ export function ContextSelector(props: ContextSelectorProps) {
             onClick={() => props.onModeChange(option.id)}
             className={`flex-1 rounded-md px-2 py-1 text-xs transition-colors duration-150 disabled:text-text-muted ${
               props.mode === option.id
-                ? 'bg-armory-interactive text-purple-400'
+                ? 'bg-armory-interactive text-brand-400'
                 : 'text-text-secondary hover:bg-armory-interactive hover:text-text-primary'
             }`}
           >

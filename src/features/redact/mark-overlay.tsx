@@ -3,8 +3,8 @@
  *
  * A mark is deliberately NOT painted solid black on screen: while it is only
  * marked, the attorney has to be able to read what they are about to destroy.
- * It is a translucent purple box with a hard border, and the black only exists
- * once the pixels are burned. Nothing here covers the workspace — the overlay
+ * It is a translucent brand-coloured box with a hard border, and the black only
+ * exists once the pixels are burned. Nothing here covers the workspace — the overlay
  * sits on the page, and the panel stays in the dock beside it.
  */
 
@@ -40,10 +40,10 @@ interface MarkBoxProps {
 }
 
 function MarkBox({ mark, context, selected, drag }: MarkBoxProps) {
-  const border = selected ? 'border-purple-400' : 'border-purple-600/70';
+  const border = selected ? 'border-brand-400' : 'border-brand-600/70';
   return (
     <div
-      className={`pointer-events-auto absolute cursor-move border-2 ${border} bg-purple-500/35`}
+      className={`pointer-events-auto absolute cursor-move border-2 ${border} bg-brand-500/35`}
       style={styleOf(context.toLocalBox(mark.rect))}
       onPointerDown={(event) => drag.beginMove(mark, context.rect, event)}
       role="presentation"
@@ -52,7 +52,7 @@ function MarkBox({ mark, context, selected, drag }: MarkBoxProps) {
         RESIZE_HANDLES.map((handle) => (
           <span
             key={handle}
-            className={`absolute h-2.5 w-2.5 rounded-xs border border-armory-base bg-purple-300 ${HANDLE_POSITION[handle]}`}
+            className={`absolute h-2.5 w-2.5 rounded-xs border border-armory-base bg-brand-300 ${HANDLE_POSITION[handle]}`}
             onPointerDown={(event) => drag.beginResize(mark, handle, context.rect, event)}
             role="presentation"
           />
@@ -64,7 +64,7 @@ function MarkBox({ mark, context, selected, drag }: MarkBoxProps) {
 function PreviewBox({ preview, context }: { preview: MarkPreview; context: PageOverlayContext }) {
   return (
     <div
-      className="absolute border-2 border-dashed border-purple-300 bg-purple-500/25"
+      className="absolute border-2 border-dashed border-brand-300 bg-brand-500/25"
       style={styleOf(context.toLocalBox(preview.rect))}
     />
   );

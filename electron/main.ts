@@ -3,10 +3,12 @@
  * Business logic lives in core/; this file only wires things together.
  */
 
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { BrowserWindow, app, shell } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { ProgressChannel } from '@shared/ipc';
+import { PRODUCT_NAME } from '@shared/product';
 import type { MenuAction, ProgressEvent, RasterRequest } from '@shared/types';
 import { DocStore } from './services/doc-store';
 import { OpenFilesRelay, pdfPathsFromArgv } from './services/open-files';
@@ -27,6 +29,16 @@ function getWindow(): BrowserWindow | null {
   return mainWindow !== null && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
+/**
+ * The Legion "L" for the dev window's title bar and taskbar entry. A packaged
+ * Windows build takes its icon from the .exe that electron-builder stamps, so
+ * this only matters while developing — hence "missing is fine".
+ */
+function appIconPath(): string | undefined {
+  const candidate = join(import.meta.dirname, '../../build/icon.png');
+  return existsSync(candidate) ? candidate : undefined;
+}
+
 function send(channel: string, payload: unknown): void {
   getWindow()?.webContents.send(channel, payload);
 }
@@ -37,9 +49,17 @@ function createWindow(): BrowserWindow {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-    backgroundColor: '#09090B',
+    // The flash before the renderer paints. Light is the default theme, so
+    // white is the right guess; a dark-theme user sees one white frame.
+    backgroundColor: '#FFFFFF',
     show: false,
-    title: 'Legion Armory - Librarius',
+    title: PRODUCT_NAME,
+    icon: appIconPath(),
+    // The menu itself stays installed — every accelerator (Ctrl+O/S/P/Z/Y/F)
+    // fires from it. Only the BAR is hidden: its File/Edit/View items are on
+    // the app's own toolbar now, and two rows of the same commands is exactly
+    // the double chrome this window is meant to be rid of.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -48,6 +68,9 @@ function createWindow(): BrowserWindow {
       spellcheck: false,
     },
   });
+
+  // autoHideMenuBar alone still shows the bar until the first Alt press.
+  window.setMenuBarVisibility(false);
 
   window.once('ready-to-show', () => window.show());
   window.on('closed', () => {

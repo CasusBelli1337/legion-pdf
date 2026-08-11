@@ -4,6 +4,8 @@
  * eyeballed.
  */
 
+import { PRODUCT_NAME } from '@shared/product';
+
 /** How many entries the empty state shows, however many are kept on disk. */
 export const MAX_RECENT_SHOWN = 10;
 
@@ -22,7 +24,7 @@ export function formatOpenedAt(iso: string): string {
 /** Said out loud, never silently: the file is gone AND it left the list. */
 export function missingFileNotice(fileName: string): string {
   return (
-    `Librarius could not open ${fileName}. It may have been moved, renamed, or deleted, ` +
+    `${PRODUCT_NAME} could not open ${fileName}. It may have been moved, renamed, or deleted, ` +
     'so it has been taken off this list.'
   );
 }

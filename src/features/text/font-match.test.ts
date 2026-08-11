@@ -79,7 +79,7 @@ describe('what the attorney is told', () => {
   it('says so plainly when the document is already in a built-in face', () => {
     const match = matchDocumentFont({ name: 'Helvetica', fallback: 'sans-serif' });
     expect(match.exact).toBe(true);
-    expect(match.note).toBe('This document uses Helvetica — the same font Librarius types in.');
+    expect(match.note).toBe('This document uses Helvetica — the same font Legion PDF types in.');
   });
 
   it('admits when the file records no name for the face', () => {

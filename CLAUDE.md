@@ -1,8 +1,10 @@
-# Legion Armory — Librarius
+# Legion PDF
 
 ## Overview
 
-Lightweight desktop PDF editor for litigation attorneys — the Acrobat
+Ships as **Legion PDF** (the repo, npm package, and build dir keep the
+`legion-librarius` name — only the product name changed). Lightweight desktop
+PDF editor for litigation attorneys — the Acrobat
 replacement. Fast viewer plus the litigation toolset: combine/organize,
 Bates/exhibit stamps, watermarks, signatures, local OCR, true redaction,
 metadata scrubbing, and an embedded Claude ("Centurion") panel.
@@ -26,6 +28,7 @@ PDF text (whiteout-and-retype ships instead).
 - `npm test` — Vitest
 - `npm run typecheck` — tsc --noEmit (node + web tsconfigs)
 - `npm run lint` — ESLint + Prettier check
+- `npm run build:icon` — rasterise `resources/brand/fav.svg` → `build/icon.png`
 - `npm run build:win` — package Windows installer into `release/`
 
 ## Architecture
@@ -68,10 +71,20 @@ API key lives in safeStorage, settings in `app.getPath('userData')`.
 
 ## Design
 
-Armory design system, tokens in `src/styles/tokens.css` — copied from
-legion-armory `docs/DESIGN_SYSTEM.md`. Dark-first, purple = interactive,
-Inter + JetBrains Mono, no emojis/gradients/bounce. Window chrome:
-"LEGION ARMORY — LIBRARIUS" mono uppercase, purple accent.
+Two themes, one token file (`src/styles/tokens.css`): **light is the default**
+(Legion — white/#FAFAFA surfaces, near-black text, deep maroon-purple
+`hsl(326 94% 19.6%)` interactive) and dark is the Armory look, verbatim.
+Every colour is a CSS variable consumed by the Tailwind `@theme`, so a theme is
+a `data-theme` attribute on `<html>` and nothing else. Never hardcode a hex or
+a stock Tailwind colour class in a component — use `armory-*` (surfaces),
+`brand-*` (interactive), `text-*`, `status-*`. Text on a brand fill is
+`text-text-on-brand`, never `text-text-primary` (near-black on maroon is
+unreadable). Inter + JetBrains Mono, no emojis/gradients/bounce.
+
+Chrome: exactly ONE toolbar row above the document and the status footer below.
+The native menu bar is hidden but the menu is still installed — it registers
+every accelerator (see `electron/menu-template.ts` + its test). Layout follows
+Acrobat: tool dock LEFT, document centre, thumbnails/bookmarks rail RIGHT.
 
 ## Quality Gates
 

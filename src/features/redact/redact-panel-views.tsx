@@ -21,7 +21,7 @@ export function PanelNotice({ children }: { children: string }) {
 export function StatusLine({ label, tone }: { label: string; tone: 'idle' | 'busy' | 'done' }) {
   const dot = {
     idle: 'bg-text-muted',
-    busy: 'animate-pulse bg-purple-500',
+    busy: 'animate-pulse bg-brand-500',
     done: 'bg-status-operational',
   }[tone];
   return (
@@ -41,7 +41,7 @@ interface ActionButtonProps {
 
 export function ActionButton({ label, onClick, disabled, variant = 'primary' }: ActionButtonProps) {
   const styles = {
-    primary: 'bg-purple-700 text-text-primary hover:bg-purple-600',
+    primary: 'bg-brand-700 text-text-on-brand hover:bg-brand-600',
     danger: 'bg-danger text-text-primary hover:brightness-110',
     quiet:
       'border border-armory-border-strong text-text-secondary hover:bg-armory-interactive hover:text-text-primary',
@@ -87,7 +87,7 @@ export function RunProgress({ event }: { event: ProgressEvent | null }) {
         aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-purple-600 transition-[width] duration-200"
+          className="h-full rounded-full bg-brand-600 transition-[width] duration-200"
           style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>
@@ -125,7 +125,7 @@ export function CheckboxRow({
         checked={checked}
         disabled={disabled === true}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 accent-purple-600"
+        className="mt-0.5 h-4 w-4 accent-brand-600"
       />
       <span className="flex flex-col gap-0.5">
         <span className="text-sm text-text-primary">{label}</span>
@@ -196,7 +196,7 @@ export function SearchBox({ query, onQuery, onSearch, searching, disabled }: Sea
         onKeyDown={(event) => {
           if (event.key === 'Enter') onSearch();
         }}
-        className="min-w-0 flex-1 rounded-md border border-armory-border bg-armory-base px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-purple-600 focus:outline-none disabled:text-text-muted"
+        className="min-w-0 flex-1 rounded-md border border-armory-border bg-armory-base px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-600 focus:outline-none disabled:text-text-muted"
       />
       <ActionButton
         label={searching ? 'Searching' : 'Find'}

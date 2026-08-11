@@ -6,6 +6,7 @@
 
 import { rgb } from 'pdf-lib';
 import type { RGB } from 'pdf-lib';
+import { PRODUCT_NAME } from '@shared/product';
 
 const SHORT_HEX = /^#?([0-9a-f])([0-9a-f])([0-9a-f])$/i;
 const LONG_HEX = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
@@ -25,7 +26,7 @@ export function parseHexColor(hex: string, label = 'colour'): RGB {
   const [, red, green, blue] = match ?? [];
   if (red === undefined || green === undefined || blue === undefined) {
     throw new RangeError(
-      `"${hex}" is not a ${label} Librarius understands — write it as #RRGGBB, for example #808080.`
+      `"${hex}" is not a ${label} ${PRODUCT_NAME} understands — write it as #RRGGBB, for example #808080.`
     );
   }
   return rgb(channel(red), channel(green), channel(blue));

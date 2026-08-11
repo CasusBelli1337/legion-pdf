@@ -14,6 +14,7 @@
 import { inflateSync } from 'node:zlib';
 import { UnsupportedRedactionRasterError } from './types';
 import type { RgbImage } from './types';
+import { PRODUCT_NAME } from '@shared/product';
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 4: 2, 6: 4 };
@@ -45,7 +46,7 @@ function readHeader(png: Uint8Array): Omit<DecodedPng, 'samples'> {
   const channels = CHANNELS[colorType];
   if (bitDepth !== 8 || channels === undefined || interlace !== 0) {
     throw new UnsupportedRedactionRasterError(
-      `Librarius cannot take this page raster apart (bit depth ${bitDepth}, colour type ` +
+      `${PRODUCT_NAME} cannot take this page raster apart (bit depth ${bitDepth}, colour type ` +
         `${colorType}, interlace ${interlace}) — it will not claim to have destroyed it.`
     );
   }

@@ -2,7 +2,7 @@
  * The single brush every stamp paints with.
  *
  * Ink goes straight into the page's content stream — flattened by construction.
- * Nothing here creates an annotation, so no stamp Librarius applies can be
+ * Nothing here creates an annotation, so no stamp Legion PDF applies can be
  * selected, moved, or deleted in another PDF reader (F-3/F-4/F-6 all depend on
  * that).
  *

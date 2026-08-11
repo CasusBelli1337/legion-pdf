@@ -41,7 +41,7 @@ function SignatureTile({ signature, selected, busy, drag, onSelect, onRemove }: 
         }}
         className={`flex h-16 w-full cursor-grab touch-none flex-col items-center justify-center gap-1 rounded-md border bg-armory-base p-1 transition-colors duration-150 ${
           selected
-            ? 'border-purple-500 shadow-glow-sm'
+            ? 'border-brand-500 shadow-glow-sm'
             : 'border-armory-border hover:border-armory-border-strong'
         }`}
       >
@@ -160,7 +160,7 @@ export function DragGhostLayer({ drag }: { drag: SignatureDrag }) {
   const source = ghost.signature.dataUrl;
   return (
     <div
-      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-purple-400 bg-white/90 p-0.5 opacity-80"
+      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-brand-400 bg-white/90 p-0.5 opacity-80"
       style={{ left: `${ghost.x}px`, top: `${ghost.y}px` }}
     >
       {source === undefined ? (

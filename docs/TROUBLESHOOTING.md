@@ -1,4 +1,4 @@
-# Librarius — Troubleshooting & Build Recipes
+# Legion PDF — Troubleshooting & Build Recipes
 
 Symptom-first index of everything that bit us during the 2026-08-10 build.
 
@@ -14,6 +14,49 @@ Symptom-first index of everything that bit us during the 2026-08-10 build.
 | `tsc` error TS5101 about `baseUrl` | TypeScript 6 removed it. `paths` work without it (see `tsconfig.base.json`). |
 | pdfjs teardown throws | pdfjs 6: call `loadingTask.destroy()`, not `document.destroy()`. `RenderParameters` requires a `canvas` key (pass `canvas: null` + cast context for OffscreenCanvas). |
 | Preload "should be ESM" temptation | Preload is CJS **on purpose** — ESM preload forces `sandbox: false`. Leave it. |
+
+## The rename to "Legion PDF" (2026-08-11) — what does NOT carry over
+
+The product name is `Legion PDF` (`electron-builder.yml` + `productName` in
+package.json + `PRODUCT_NAME` in `shared/product.ts`). The repo, the npm
+package, and the `window.librarius` bridge keep the old name on purpose.
+
+**Windows stores per-app state under the product name, so nothing saved by the
+old build carries over.** `app.getPath('userData')` moved from
+`%APPDATA%\Legion Armory - Librarius\` to `%APPDATA%\Legion PDF\`, which means
+a machine that ran the old build starts fresh on:
+
+- the encrypted Anthropic key (safeStorage) — re-enter it in Centurion,
+- the signature library (`signatures/`),
+- the recent-documents list,
+- window/theme state.
+
+Accepted: the app is pre-release and was never distributed. If a migration is
+ever wanted, copy the old folder's contents into the new one BEFORE first
+launch — the safeStorage blob is machine-bound, not path-bound, so it decrypts
+fine from the new location.
+
+The `appId` also changed (`law.legion.armory.librarius` → `com.legion.legionpdf`),
+so an old install is a SEPARATE entry in Add/Remove Programs and its `.pdf`
+ProgID (`HKCU\Software\Classes\PDF Document`) still points at the old exe.
+Uninstall the old build before testing associations, or Explorer will keep
+opening the stale one.
+
+## App icon
+
+`npm run build:icon` renders `resources/brand/fav.svg` (the Legion "L", drawn
+on a 16-unit grid) to `build/icon.png` at 512x512 RGBA, via a hidden Electron
+window. electron-builder's `win.icon` points at that PNG and generates the
+multi-size `.ico` it stamps on the exe, the installer, and the shortcut.
+
+- **On WSL the script needs a display**: run it as `DISPLAY=:0 npm run
+  build:icon`. Without `DISPLAY` Electron exits with "Missing X server or
+  $DISPLAY" (WSLg provides `:0`; the socket is `/tmp/.X11-unix/X0`).
+- 512 is 32 x 16, so every edge in the mark lands on a pixel boundary and the
+  vector render is already crisp — no nearest-neighbour upscale needed, and the
+  LEGION lettering (real glyph outlines) stays legible instead of blocking up.
+- The script fails loudly if the canvas comes back under 1 KB rather than
+  writing an empty icon nobody would notice until the installer shipped.
 
 ## Windows packaging (no admin, no Wine)
 
@@ -35,13 +78,13 @@ Wine and no passwordless sudo, and this is the more faithful environment anyway.
 4. On the host (via powershell.exe from WSL, `-ExecutionPolicy Bypass`):
    `npm.cmd install --include=dev`, then `node node_modules\electron\install.js`
    (postinstall skips here too), then `npm.cmd run build:win`.
-5. Installer lands at `repo\release\LegionArmory-Librarius-<ver>-Setup.exe`;
+5. Installer lands at `repo\release\LegionPDF-<ver>-Setup.exe`;
    `/S` silent-installs per-user (no UAC) to
-   `%LOCALAPPDATA%\Programs\Legion Armory - Librarius\`.
+   `%LOCALAPPDATA%\Programs\Legion PDF\`.
 
 ### PDF file association (only provable from the installed app)
 
-`fileAssociations` in `electron-builder.yml` puts Librarius in Explorer's
+`fileAssociations` in `electron-builder.yml` puts Legion PDF in Explorer's
 "Open with" list. The NSIS macro writes to `SHELL_CONTEXT`, which follows the
 install mode, so a per-user install (`nsis.perMachine: false`) registers under
 `HKCU\Software\Classes\.pdf` + `...\PDF Document\shell\open\command`. The
@@ -54,8 +97,8 @@ true` (which costs a UAC prompt at install).
 After installing, verify from PowerShell:
 `reg query "HKCU\Software\Classes\.pdf"` and
 `reg query "HKCU\Software\Classes\PDF Document\shell\open\command"`
-(the command must be `"...\Librarius.exe" "%1"`), then right-click a PDF →
-Open with → Librarius, and double-click one with the app already running (the
+(the command must be `"...\Legion PDF.exe" "%1"`), then right-click a PDF →
+Open with → Legion PDF, and double-click one with the app already running (the
 second launch must focus the open window and add a tab, never start a
 second app).
 
@@ -74,7 +117,6 @@ second app).
 
 ## Known deferred items (as of 2026-08-10)
 
-- Custom app icon (installer currently ships the default Electron icon).
 - `core/image/` consolidation (PNG decode primitives duplicated in
   `core/ocr/png-blank.ts` and `core/redact/png-decode.ts`).
 - Shared UI atoms (`StatusLine`/`ActionButton`/... duplicated in ocr + redact).

@@ -1,5 +1,5 @@
-appId: law.legion.armory.librarius
-productName: Legion Armory - Librarius
+appId: com.legion.legionpdf
+productName: Legion PDF
 copyright: Copyright (c) 2026 Legion LegalTech
 directories:
   output: release
@@ -17,7 +17,7 @@ asarUnpack:
 extraResources:
   - from: resources/tesseract-win
     to: tesseract-win
-# Puts Librarius in Explorer's "Open with" list for PDFs, so it can be set as
+# Puts Legion PDF in Explorer's "Open with" list for PDFs, so it can be set as
 # the default PDF app. The NSIS macro writes to SHELL_CONTEXT, which follows the
 # install mode — a per-user install (perMachine: false, no UAC) registers under
 # HKCU\Software\Classes, the per-user association hive. Windows passes the
@@ -28,15 +28,20 @@ fileAssociations:
     name: PDF Document
     description: PDF Document
 win:
+  # The Legion "L", rasterised from resources/brand/fav.svg by
+  # `npm run build:icon`. electron-builder converts this PNG into the multi-size
+  # .ico it stamps on the exe, the installer, and the Start-menu shortcut, so
+  # 512x512 with a transparent background is the input it wants.
+  icon: build/icon.png
   target:
     - target: nsis
       arch:
         - x64
-  artifactName: LegionArmory-Librarius-${version}-Setup.${ext}
+  artifactName: LegionPDF-${version}-Setup.${ext}
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Librarius
+  shortcutName: Legion PDF

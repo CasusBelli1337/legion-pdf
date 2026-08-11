@@ -5,7 +5,7 @@
  * as much as an upright one, with no coordinate arithmetic to get wrong.
  *
  * These are previews: the browser measures the text, pdf-lib measures it again
- * when the stamp is applied, and the two agree to within a hair. The purple
+ * when the stamp is applied, and the two agree to within a hair. The brand
  * dashed outline is the tell that nothing has been written to the file yet.
  */
 
@@ -17,7 +17,7 @@ import type { PageOverlayContext } from '@renderer/components/viewer';
 
 /** The screen stand-in for the PDF base fonts the stamps are drawn in. */
 const PREVIEW_FONT = "Helvetica, Arial, 'Liberation Sans', sans-serif";
-const PENDING_OUTLINE = 'outline outline-1 outline-dashed outline-purple-400/70';
+const PENDING_OUTLINE = 'outline outline-1 outline-dashed outline-brand-400/70';
 
 export interface MarkText {
   text: string;
@@ -191,7 +191,7 @@ export function CentredMark({
           height={0}
           fill="none"
           stroke="currentColor"
-          className="text-purple-400/70"
+          className="text-brand-400/70"
           strokeWidth={1}
           strokeDasharray="4 3"
           vectorEffect="non-scaling-stroke"

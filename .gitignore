@@ -36,3 +36,4 @@ CLAUDE.local.md
 .DS_Store
 Thumbs.db
 qa/fixtures/
+!build/icon.png

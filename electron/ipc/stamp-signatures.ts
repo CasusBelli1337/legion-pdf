@@ -13,6 +13,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SignatureAsset } from '@shared/types';
 import { readPngInfo } from '@core/stamps';
+import { PRODUCT_NAME } from '@shared/product';
 
 const INDEX_FILE = 'index.json';
 
@@ -43,7 +44,7 @@ function parseIndex(text: string, path: string): SignatureAsset[] {
   const parsed: unknown = JSON.parse(text);
   const signatures = (parsed as Partial<SignatureIndex>)?.signatures;
   if (!Array.isArray(signatures)) {
-    throw new Error(`The signature list at ${path} is not in a shape Librarius understands.`);
+    throw new Error(`The signature list at ${path} is not in a shape ${PRODUCT_NAME} understands.`);
   }
   return signatures.filter(isAsset);
 }

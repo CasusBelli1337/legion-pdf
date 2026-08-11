@@ -48,7 +48,7 @@ function TabBar({ active, onSelect }: { active: string; onSelect(id: string): vo
           onClick={() => onSelect(tab.id)}
           className={`rounded-md px-2 py-1 text-xs transition-colors duration-150 ${
             tab.id === active
-              ? 'bg-armory-interactive text-purple-300'
+              ? 'bg-armory-interactive text-brand-300'
               : 'text-text-muted hover:bg-armory-interactive hover:text-text-primary'
           }`}
         >

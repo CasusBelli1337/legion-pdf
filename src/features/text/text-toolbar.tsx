@@ -15,7 +15,7 @@ import type { TextDraft } from './editor-state';
 const CHIP =
   'rounded px-1.5 py-0.5 text-[11px] leading-none transition-colors duration-150 disabled:cursor-not-allowed';
 const IDLE = 'text-text-secondary hover:bg-armory-interactive hover:text-text-primary';
-const ON = 'bg-purple-700 text-text-primary';
+const ON = 'bg-brand-700 text-text-on-brand';
 
 const FAMILIES: readonly { family: TextFamily; label: string }[] = [
   { family: 'helvetica', label: 'Helvetica' },

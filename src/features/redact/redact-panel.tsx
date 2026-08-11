@@ -31,6 +31,7 @@ import {
 } from './redact-panel-views';
 import { useRedaction } from './use-redaction';
 import type { RedactionController } from './use-redaction';
+import { PRODUCT_NAME } from '@shared/product';
 
 interface SectionProps {
   redaction: RedactionController;
@@ -148,8 +149,8 @@ function FailedView({ redaction }: SectionProps) {
       <StatusLine label="Redaction not applied" tone="idle" />
       <ErrorNotice message={redaction.run.state.error ?? failureText([], [])} />
       <PanelNotice>
-        Your document was not changed. Nothing is handed over unless Librarius can prove the marked
-        text is gone from the saved file.
+        {`Your document was not changed. Nothing is handed over unless ${PRODUCT_NAME} can prove ` +
+          'the marked text is gone from the saved file.'}
       </PanelNotice>
       <ActionButton label="Back to the marks" onClick={redaction.run.reset} />
     </>

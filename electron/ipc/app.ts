@@ -8,6 +8,7 @@ import { app, ipcMain, shell } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { AppVersionInfo, CloseChoice } from '@shared/types';
 import { choiceOf, closePrompt } from '../services/close-guard';
+import { isExternalWebLink } from '../services/external-link';
 import { askConfirm } from '../services/native-dialogs';
 import type { IpcContext } from './context';
 
@@ -24,7 +25,13 @@ export function registerAppHandlers({ getWindow }: IpcContext): void {
     });
   });
 
+  // Files go to the OS handler; an https link goes to the default browser.
+  // `isExternalWebLink` is the whole allowance — no other scheme gets out.
   ipcMain.handle(IPC.app.openPath, async (_event, target: string): Promise<void> => {
+    if (isExternalWebLink(target)) {
+      await shell.openExternal(target);
+      return;
+    }
     const failure = await shell.openPath(target);
     if (failure !== '') throw new Error(failure);
   });

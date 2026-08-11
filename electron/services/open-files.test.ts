@@ -7,7 +7,7 @@ import { posix, win32 } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { OpenFilesRelay, pdfPathsFromArgv } from './open-files';
 
-const EXE = 'C:\\Users\\rothr\\AppData\\Local\\Programs\\Legion Armory - Librarius\\Librarius.exe';
+const EXE = 'C:\\Users\\rothr\\AppData\\Local\\Programs\\Legion PDF\\Legion PDF.exe';
 const CWD = 'C:\\Users\\rothr\\Documents';
 
 describe('pdfPathsFromArgv', () => {

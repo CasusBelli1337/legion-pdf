@@ -41,7 +41,7 @@ function FindControls({ find, onClose }: { find: FindState; onClose(): void }) {
         className="h-6 w-64 rounded border border-armory-border bg-armory-base px-2 text-xs text-text-primary focus:border-armory-focus focus:outline-none"
       />
       {find.progress !== null && (
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
       )}
       <span className="readout text-text-muted">{statusOf(find)}</span>
       <button

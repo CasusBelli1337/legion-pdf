@@ -20,7 +20,7 @@ interface PdfViewerProps {
 function ViewerNotice({ message, isError }: { message: string; isError: boolean }) {
   return (
     <div className="flex h-full items-center justify-center gap-2">
-      {!isError && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-purple-500" />}
+      {!isError && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />}
       <p className={`readout ${isError ? 'text-danger' : 'text-text-secondary'}`}>{message}</p>
     </div>
   );
@@ -35,7 +35,7 @@ export function PdfViewer({ session }: PdfViewerProps) {
   useFindShortcut(useCallback(() => setFindOpen(true), []));
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-armory-base">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-armory-canvas">
       <ViewerToolbar
         currentPage={view.currentPage}
         pageCount={session.pageCount}

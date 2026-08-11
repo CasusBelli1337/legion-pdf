@@ -9,6 +9,7 @@ import { BulkOcrSection } from './bulk-ocr-section';
 import { detectSummary, runButtonLabel } from './ocr-messages';
 import { useOcr } from './use-ocr';
 import type { OcrController } from './use-ocr';
+import { PRODUCT_NAME } from '@shared/product';
 import {
   ActionButton,
   ErrorNotice,
@@ -90,7 +91,7 @@ function FailedView({ controller }: ViewProps) {
       <StatusLine label="Recognition failed" tone="idle" />
       <ErrorNotice message={controller.state.error ?? 'Text recognition could not finish.'} />
       <PanelNotice>
-        Nothing was changed. Every page has to succeed before Librarius will touch the document.
+        {`Nothing was changed. Every page has to succeed before ${PRODUCT_NAME} will touch the document.`}
       </PanelNotice>
       <ActionButton label="Try again" onClick={() => controller.recheck()} />
     </>

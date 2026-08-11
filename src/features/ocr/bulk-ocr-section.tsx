@@ -101,7 +101,7 @@ function OutputChoice({ controller }: { controller: BulkOcrController }) {
           type="checkbox"
           checked={state.overwrite}
           onChange={(event) => controller.setOverwrite(event.target.checked)}
-          className="h-4 w-4 accent-purple-600"
+          className="h-4 w-4 accent-brand-600"
         />
         Replace files that are already there
       </label>

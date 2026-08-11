@@ -14,7 +14,7 @@ export function PanelNotice({ children }: { children: string }) {
 export function StatusLine({ label, tone }: { label: string; tone: 'idle' | 'busy' | 'done' }) {
   const dot = {
     idle: 'bg-text-muted',
-    busy: 'animate-pulse bg-purple-500',
+    busy: 'animate-pulse bg-brand-500',
     done: 'bg-status-operational',
   }[tone];
   return (
@@ -41,7 +41,7 @@ export function RunProgress({ event }: { event: ProgressEvent | null }) {
         aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-purple-600 transition-[width] duration-200"
+          className="h-full rounded-full bg-brand-600 transition-[width] duration-200"
           style={{ width: `${Math.max(percent, 2)}%` }}
         />
       </div>
@@ -80,7 +80,7 @@ interface ActionButtonProps {
 export function ActionButton({ label, onClick, disabled, variant = 'primary' }: ActionButtonProps) {
   const styles =
     variant === 'primary'
-      ? 'bg-purple-700 text-text-primary hover:bg-purple-600 disabled:bg-armory-interactive disabled:text-text-muted'
+      ? 'bg-brand-700 text-text-on-brand hover:bg-brand-600 disabled:bg-armory-interactive disabled:text-text-muted'
       : 'border border-armory-border-strong text-text-secondary hover:bg-armory-interactive hover:text-text-primary';
   return (
     <button

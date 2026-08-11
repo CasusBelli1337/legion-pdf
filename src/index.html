@@ -7,7 +7,24 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self' file: blob: data:; script-src 'self' file: blob: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src 'self' file: data: blob: ws://localhost:* http://localhost:*; worker-src 'self' file: blob:; object-src 'none'; frame-src 'none'"
     />
-    <title>Legion Armory - Librarius</title>
+    <title>Legion PDF</title>
+    <!--
+      The theme goes on <html> BEFORE any stylesheet or React code runs, so the
+      window never paints the wrong theme and then corrects itself. Light is the
+      default; only an explicit stored "dark" turns it off. The key is
+      THEME_STORAGE_KEY in src/app/theme.ts — change both together.
+    -->
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem('legion-pdf-theme');
+        } catch (error) {
+          stored = null;
+        }
+        document.documentElement.dataset.theme = stored === 'dark' ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

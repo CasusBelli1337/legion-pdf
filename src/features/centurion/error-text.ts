@@ -7,6 +7,7 @@
  */
 
 import type { CenturionErrorCode } from '@shared/types';
+import { PRODUCT_NAME } from '@shared/product';
 
 const IPC_PREFIX = /^Error invoking remote method '[^']+':\s*/;
 const ERROR_PREFIX = /^Error:\s*/;
@@ -18,8 +19,7 @@ export interface CenturionFailure {
   message: string;
 }
 
-const FALLBACK =
-  'Centurion hit an unexpected problem. Try again; if it repeats, restart Librarius.';
+const FALLBACK = `Centurion hit an unexpected problem. Try again; if it repeats, restart ${PRODUCT_NAME}.`;
 
 export function readFailure(error: unknown, code?: CenturionErrorCode | null): CenturionFailure {
   const message = (error instanceof Error ? error.message : String(error))

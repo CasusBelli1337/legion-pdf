@@ -12,6 +12,7 @@ import { PDFArray, PDFDocument, PDFRawStream, PDFStream, decodePDFRawStream } fr
 import type { PDFPage } from 'pdf-lib';
 import type { OcrDetectResult } from '@shared/types';
 import { countShownCharacters } from './content-text';
+import { PRODUCT_NAME } from '@shared/product';
 
 /**
  * Fewer shown characters than this and the page is treated as a scan. A page
@@ -31,7 +32,7 @@ export class ContentStreamError extends Error {
 function decodeStream(stream: PDFStream, page: number): Uint8Array {
   if (stream instanceof PDFRawStream) return decodePDFRawStream(stream).decode();
   throw new ContentStreamError(
-    `Page ${page} has a content stream Librarius cannot decode (${stream.constructor.name}).`
+    `Page ${page} has a content stream ${PRODUCT_NAME} cannot decode (${stream.constructor.name}).`
   );
 }
 

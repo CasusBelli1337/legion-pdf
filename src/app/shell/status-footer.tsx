@@ -4,6 +4,7 @@
 
 import { useActiveSession, useAppStore } from '../store';
 import { useLiveSignatureCount } from '../../features/signature/placement-store';
+import { LegionCredit } from './legion-credit';
 
 function saveField(dirty: boolean, unplaced: number): string {
   if (unplaced > 0) {
@@ -33,9 +34,12 @@ export function StatusFooter() {
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-2 border-t border-armory-border bg-armory-surface px-3">
-      <span className="readout text-text-muted">{fields.join(' - ')}</span>
-      {notice !== null && <span className="readout text-text-secondary">{notice}</span>}
-      {error !== null && <span className="readout ml-auto text-danger">{error}</span>}
+      <span className="readout shrink-0 text-text-muted">{fields.join(' - ')}</span>
+      {notice !== null && (
+        <span className="readout min-w-0 truncate text-text-secondary">{notice}</span>
+      )}
+      {error !== null && <span className="readout min-w-0 truncate text-danger">{error}</span>}
+      <LegionCredit />
     </footer>
   );
 }
