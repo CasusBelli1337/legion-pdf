@@ -3,7 +3,7 @@ import { makeTestPdf } from '@core/ops/test-fixtures';
 import { rebuildWithImagePages } from './image-pages';
 import { fakePageRaster } from './raster.testkit';
 import { RedactionNotVerifiedError } from './types';
-import { assertVerified, textOnPageMarker, verifyRedaction } from './verify';
+import { assertVerified, verifyRedaction } from './verify';
 
 const SECRET = 'SSN 545-45-6789';
 const SURVIVOR = 'MUST-SURVIVE-REDACTION';
@@ -41,6 +41,7 @@ describe('verifyRedaction', () => {
       pagesRebuilt: [1],
       instancesDestroyed: 1,
       survivingStrings: [],
+      pagesStillCarryingText: [],
     });
   });
 
@@ -58,6 +59,7 @@ describe('verifyRedaction', () => {
     });
     expect(result.verified).toBe(false);
     expect(result.survivingStrings).toEqual([SECRET]);
+    expect(result.pagesStillCarryingText).toEqual([]);
     expect(() => assertVerified(result)).toThrow(RedactionNotVerifiedError);
   });
 
@@ -71,7 +73,24 @@ describe('verifyRedaction', () => {
       instancesDestroyed: 1,
     });
     expect(result.verified).toBe(false);
-    expect(result.survivingStrings).toEqual([textOnPageMarker(1)]);
+    // A page that was not really rebuilt is its OWN failure, never smuggled
+    // into survivingStrings as a sentence.
+    expect(result.pagesStillCarryingText).toEqual([1]);
+    expect(result.survivingStrings).toEqual([]);
+    expect(() => assertVerified(result)).toThrow(RedactionNotVerifiedError);
+  });
+
+  it('names the page in the loud failure', async () => {
+    const source = await makeTestPdf({ pages: [{ label: SURVIVOR }, { label: SURVIVOR }] });
+    const result = await verifyRedaction({
+      bytes: source,
+      strings: [],
+      pagesRebuilt: [1, 2],
+      expectNoTextOnRebuiltPages: true,
+      instancesDestroyed: 2,
+    });
+    expect(result.pagesStillCarryingText).toEqual([1, 2]);
+    expect(() => assertVerified(result)).toThrow(/pages 1, 2 still draw text/);
   });
 
   it('searches the fresh text layer instead when re-OCR was asked for', async () => {
@@ -161,5 +180,43 @@ describe('assertVerified', () => {
         survivingStrings: [SECRET],
       })
     ).toThrow(/1 marked item is still readable/);
+  });
+
+  // `verified` is one flag over two failure lists. Trusting it alone is how a
+  // receipt that says "true" beside a non-empty failure list ships a leak.
+  it('refuses a receipt that claims success beside surviving text', () => {
+    expect(() =>
+      assertVerified({
+        verified: true,
+        pagesRebuilt: [1],
+        instancesDestroyed: 1,
+        survivingStrings: [SECRET],
+        pagesStillCarryingText: [],
+      })
+    ).toThrow(RedactionNotVerifiedError);
+  });
+
+  it('refuses a receipt that claims success beside a page still drawing text', () => {
+    expect(() =>
+      assertVerified({
+        verified: true,
+        pagesRebuilt: [1],
+        instancesDestroyed: 1,
+        survivingStrings: [],
+        pagesStillCarryingText: [1],
+      })
+    ).toThrow(/page 1 still draws text/);
+  });
+
+  it('reports both failure kinds together when both happened', () => {
+    expect(() =>
+      assertVerified({
+        verified: false,
+        pagesRebuilt: [1, 2],
+        instancesDestroyed: 2,
+        survivingStrings: [SECRET],
+        pagesStillCarryingText: [2],
+      })
+    ).toThrow(/still readable and page 2 still draws text/);
   });
 });

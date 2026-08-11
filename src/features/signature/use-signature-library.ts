@@ -18,6 +18,8 @@ export interface SignatureLibraryState {
   error: string | null;
   /** Copies a chosen or dropped PNG into the library. */
   importFile(file: File): Promise<void>;
+  /** Deletes a stored signature; the list becomes what the main process returns. */
+  remove(signatureId: string): Promise<void>;
   dismiss(): void;
 }
 
@@ -65,7 +67,19 @@ export function useSignatureLibrary(): SignatureLibraryState {
     }
   }, []);
 
+  const remove = useCallback(async (signatureId: string): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      setSignatures(await window.librarius.stamp.signatureRemove(signatureId));
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const dismiss = useCallback(() => setError(null), []);
 
-  return { signatures, busy, error, importFile, dismiss };
+  return { signatures, busy, error, importFile, remove, dismiss };
 }

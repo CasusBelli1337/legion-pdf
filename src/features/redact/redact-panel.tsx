@@ -144,7 +144,7 @@ function FailedView({ redaction }: SectionProps) {
   return (
     <>
       <StatusLine label="Redaction not applied" tone="idle" />
-      <ErrorNotice message={redaction.run.state.error ?? failureText([])} />
+      <ErrorNotice message={redaction.run.state.error ?? failureText([], [])} />
       <PanelNotice>
         Your document was not changed. Nothing is handed over unless Librarius can prove the marked
         text is gone from the saved file.

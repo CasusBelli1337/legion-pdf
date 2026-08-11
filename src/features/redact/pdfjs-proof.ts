@@ -25,28 +25,35 @@ export interface PdfjsProofRequest {
   expectNoText: boolean;
 }
 
-/** How a page that still yields selectable text is reported. */
-export function selectableTextMarker(page: number): string {
-  return `selectable text on page ${page}`;
+/** What the last gate found. Both arrays empty is the proof. */
+export interface PdfjsFindings {
+  /** Marked text pdfjs could still read back out. */
+  survivingStrings: string[];
+  /** Rebuilt pages that still yield selectable text when they should not. */
+  pagesStillCarryingText: number[];
 }
 
-/**
- * Everything that survived, as plain strings. An empty array is the proof.
- * A page-level failure is reported alongside the strings so the panel can show
- * one loud message either way.
- */
-export async function proveWithPdfjs(request: PdfjsProofRequest): Promise<string[]> {
-  if (request.pages.length === 0) return [];
+const CLEAN: PdfjsFindings = { survivingStrings: [], pagesStillCarryingText: [] };
+
+/** True when nothing survived — the only shape that lets a tab open. */
+export function isClean(findings: PdfjsFindings): boolean {
+  return findings.survivingStrings.length === 0 && findings.pagesStillCarryingText.length === 0;
+}
+
+export async function proveWithPdfjs(request: PdfjsProofRequest): Promise<PdfjsFindings> {
+  if (request.pages.length === 0) return CLEAN;
   try {
     const extracted = await extractDocumentText(request.bytes, request.pages);
     const haystack = extracted.text.toLowerCase();
-    const survivors = request.needles.filter((needle) =>
-      haystack.includes(needle.trim().toLowerCase())
-    );
-    return [...survivors, ...pagesStillCarryingText(request, extracted.charsPerPage)];
+    return {
+      survivingStrings: request.needles.filter((needle) =>
+        haystack.includes(needle.trim().toLowerCase())
+      ),
+      pagesStillCarryingText: pagesStillCarryingText(request, extracted.charsPerPage),
+    };
   } catch (error) {
     // Every rebuilt page came back image-only. That IS the proof, not a failure.
-    if (error instanceof NoTextLayerError) return [];
+    if (error instanceof NoTextLayerError) return CLEAN;
     throw error;
   }
 }
@@ -54,9 +61,7 @@ export async function proveWithPdfjs(request: PdfjsProofRequest): Promise<string
 function pagesStillCarryingText(
   request: PdfjsProofRequest,
   charsPerPage: readonly number[]
-): string[] {
+): number[] {
   if (!request.expectNoText) return [];
-  return request.pages
-    .filter((_page, index) => (charsPerPage[index] ?? 0) > 0)
-    .map(selectableTextMarker);
+  return request.pages.filter((_page, index) => (charsPerPage[index] ?? 0) > 0);
 }

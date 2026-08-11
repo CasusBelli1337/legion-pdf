@@ -16,14 +16,10 @@ import { useCallback, useEffect } from 'react';
 import type { ProgressEvent, RedactVerifyResult, RedactionBox } from '@shared/types';
 import { useAppStore } from '@renderer/app/store';
 import { failureText, plainError } from './redact-messages';
-import { proveWithPdfjs } from './pdfjs-proof';
+import { isClean, proveWithPdfjs } from './pdfjs-proof';
 import { useRedactionStore } from './redaction-store';
 import type { RedactionRun } from './redaction-store';
-import {
-  discardRedactedDocument,
-  isRedactedDocumentAnnouncement,
-  openRedactedDocument,
-} from './redacted-document';
+import { discardRedactedDocument, openRedactedDocument } from './redacted-document';
 
 /** 300 DPI is the production default: legible print, and what Tesseract likes. */
 export const REDACT_DPI = 300;
@@ -51,44 +47,42 @@ async function acceptOrDiscard(
   request: ApplyRequest,
   resultDocId: string | null
 ): Promise<void> {
-  const survivors = outcome.receipt.verified
+  const findings = outcome.receipt.verified
     ? await proveWithPdfjs({
         bytes: outcome.bytes,
         pages: outcome.receipt.pagesRebuilt,
         needles: request.verifyStrings,
         expectNoText: !request.reOcr,
       })
-    : outcome.receipt.survivingStrings;
+    : {
+        survivingStrings: outcome.receipt.survivingStrings,
+        pagesStillCarryingText: outcome.receipt.pagesStillCarryingText ?? [],
+      };
 
-  if (survivors.length === 0) {
+  if (isClean(findings)) {
     if (resultDocId !== null) await openRedactedDocument(resultDocId);
     return;
   }
   if (resultDocId !== null) await discardRedactedDocument(resultDocId);
-  throw new Error(failureText(survivors));
+  throw new Error(failureText(findings.survivingStrings, findings.pagesStillCarryingText));
 }
 
 /** Progress belongs to the run, not to whichever tab happens to be in front. */
 function useProgressStream(): void {
   const noteProgress = useRedactionStore((store) => store.noteProgress);
-  const noteResultDocument = useRedactionStore((store) => store.noteResultDocument);
 
   useEffect(() => {
     return window.librarius.onProgress('redact:progress', (event: ProgressEvent) => {
-      if (isRedactedDocumentAnnouncement(event) && event.docId !== null) {
-        noteResultDocument(event.docId);
-        return;
-      }
       const { run } = useRedactionStore.getState();
       if (event.docId === run.sourceDocId) noteProgress(event);
     });
-  }, [noteProgress, noteResultDocument]);
+  }, [noteProgress]);
 }
 
 export function useRedactApply(docId: string | null): RedactApplyController {
   const run = useRedactionStore((store) => store.run);
   const setBusy = useAppStore((store) => store.setBusy);
-  const { startRun, finishRun, failRun, resetRun } = useRedactionStore();
+  const { startRun, finishRun, failRun, resetRun, noteResultDocument } = useRedactionStore();
   useProgressStream();
 
   const apply = useCallback(
@@ -104,7 +98,11 @@ export function useRedactApply(docId: string | null): RedactApplyController {
           verifyStrings: request.verifyStrings,
         })
         .then(async (result) => {
-          const resultDocId = useRedactionStore.getState().run.resultDocId;
+          // Recorded BEFORE the tab opens: activating the new document resets
+          // the panel's document-scoped state, and the run has to be recognised
+          // as belonging to it or the receipt would be dropped on the way in.
+          const resultDocId = result.detail.docId ?? null;
+          if (resultDocId !== null) noteResultDocument(resultDocId);
           await acceptOrDiscard(
             { bytes: result.bytes, receipt: result.detail },
             request,
@@ -115,7 +113,7 @@ export function useRedactApply(docId: string | null): RedactApplyController {
         .catch((error: unknown) => failRun(plainError(error)))
         .finally(() => setBusy(null));
     },
-    [docId, failRun, finishRun, setBusy, startRun]
+    [docId, failRun, finishRun, noteResultDocument, setBusy, startRun]
   );
 
   return { state: run, apply, reset: resetRun };

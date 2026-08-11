@@ -96,6 +96,7 @@ export interface StampBridge {
   pageNumbers(docId: string, options: PageNumberOptions): Promise<OpResult<PageNumberDetail>>;
   signatureList(): Promise<SignatureAsset[]>;
   signatureAdd(sourcePath: string, label: string): Promise<SignatureAsset>;
+  signatureRemove(signatureId: string): Promise<SignatureAsset[]>;
   signaturePlace(docId: string, placement: SignaturePlacement): Promise<OpResult>;
   textBox(docId: string, options: TextBoxOptions): Promise<OpResult>;
   whiteout(docId: string, options: WhiteoutOptions): Promise<OpResult>;

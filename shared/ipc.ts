@@ -90,6 +90,7 @@ export const IPC = {
     pageNumbers: 'stamp:pageNumbers',
     signatureList: 'stamp:signatureList',
     signatureAdd: 'stamp:signatureAdd',
+    signatureRemove: 'stamp:signatureRemove',
     signaturePlace: 'stamp:signaturePlace',
     textBox: 'stamp:textBox',
     whiteout: 'stamp:whiteout',
@@ -190,6 +191,7 @@ export interface IpcInvokeContract {
     request: [sourcePath: string, label: string];
     response: SignatureAsset;
   };
+  'stamp:signatureRemove': { request: [signatureId: string]; response: SignatureAsset[] };
   'stamp:signaturePlace': {
     request: [docId: string, placement: SignaturePlacement];
     response: OpResult;

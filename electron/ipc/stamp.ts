@@ -163,12 +163,19 @@ async function applyPlacement(
 }
 
 function registerSignatureHandlers(context: IpcContext, library: SignatureLibrary): void {
-  ipcMain.handle(IPC.stamp.signatureList, (): Promise<SignatureAsset[]> => library.list());
+  ipcMain.handle(IPC.stamp.signatureList, (): Promise<SignatureAsset[]> =>
+    library.listWithThumbnails()
+  );
 
   ipcMain.handle(
     IPC.stamp.signatureAdd,
     (_event, sourcePath: string, label: string): Promise<SignatureAsset> =>
       library.add(sourcePath, label)
+  );
+
+  ipcMain.handle(
+    IPC.stamp.signatureRemove,
+    (_event, signatureId: string): Promise<SignatureAsset[]> => library.remove(signatureId)
   );
 
   ipcMain.handle(

@@ -12,8 +12,7 @@
  */
 
 import type { OpResult, RedactApplyOptions, RedactVerifyResult } from '@shared/types';
-import { sealResult } from '@core/ops/pdf-io';
-import { loadPdf } from '@core/ops/pdf-io';
+import { loadPdf, sealResult } from '@core/ops';
 import { burnRects } from './burn';
 import { pdfRectToPixels } from './geometry';
 import { rebuildWithImagePages } from './image-pages';

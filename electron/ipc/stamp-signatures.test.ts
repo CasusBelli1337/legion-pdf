@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -37,7 +37,7 @@ describe('SignatureLibrary', () => {
     expect(asset.widthPx).toBe(300);
     expect(asset.heightPx).toBe(100);
     expect(asset.filePath.startsWith(root)).toBe(true);
-    expect(await library.list()).toEqual([asset]);
+    expect((await library.list()).map((stored) => stored.id)).toEqual([asset.id]);
   });
 
   it('keeps every signature in the library, in import order', async () => {
@@ -72,6 +72,86 @@ describe('SignatureLibrary', () => {
     expect(Buffer.from(stored).equals(await readFile(source))).toBe(true);
   });
 
+  describe('thumbnails', () => {
+    it('carries the image inline so the renderer can show a real thumbnail', async () => {
+      const library = new SignatureLibrary(root);
+      const source = await writePng('sig.png');
+      await library.add(source, 'Full signature');
+
+      const [listed] = await library.listWithThumbnails();
+      expect(listed?.dataUrl?.startsWith('data:image/png;base64,')).toBe(true);
+      const encoded = listed?.dataUrl?.split(',')[1] ?? '';
+      expect(Buffer.from(encoded, 'base64').equals(await readFile(source))).toBe(true);
+    });
+
+    it('hands back a thumbnail with a fresh import, not only on the next list', async () => {
+      const library = new SignatureLibrary(root);
+      const source = await writePng('sig.png');
+      const asset = await library.add(source, 'Full signature');
+      const encoded = asset.dataUrl?.split(',')[1] ?? '';
+      expect(Buffer.from(encoded, 'base64').equals(await readFile(source))).toBe(true);
+    });
+
+    it('keeps the image bytes out of the stored index', async () => {
+      const library = new SignatureLibrary(root);
+      await library.add(await writePng('sig.png'), 'Full signature');
+
+      expect((await library.list()).map((stored) => stored.dataUrl)).toEqual([undefined]);
+      expect(await readFile(join(root, 'index.json'), 'utf8')).not.toContain('dataUrl');
+    });
+
+    it('still lists a signature whose image has gone missing, minus its thumbnail', async () => {
+      const library = new SignatureLibrary(root);
+      const asset = await library.add(await writePng('sig.png'), 'Full signature');
+      await rm(asset.filePath);
+
+      const listed = await library.listWithThumbnails();
+      expect(listed.map((stored) => stored.label)).toEqual(['Full signature']);
+      expect(listed[0]?.dataUrl).toBeUndefined();
+    });
+  });
+
+  describe('removing', () => {
+    it('removes the chosen signature and hands back what is left', async () => {
+      const library = new SignatureLibrary(root);
+      const first = await library.add(await writePng('one.png'), 'Full signature');
+      await library.add(await writePng('two.png'), 'Initials');
+
+      const remaining = await library.remove(first.id);
+      expect(remaining.map((stored) => stored.label)).toEqual(['Initials']);
+      expect(remaining[0]?.dataUrl?.startsWith('data:image/png;base64,')).toBe(true);
+      expect((await library.list()).map((stored) => stored.label)).toEqual(['Initials']);
+    });
+
+    it('deletes the PNG from disk, not just the index entry', async () => {
+      const library = new SignatureLibrary(root);
+      const asset = await library.add(await writePng('sig.png'), 'Full signature');
+      await library.remove(asset.id);
+      await expect(access(asset.filePath)).rejects.toThrow();
+    });
+
+    it('rewrites the index atomically, leaving no half-written file behind', async () => {
+      const library = new SignatureLibrary(root);
+      const first = await library.add(await writePng('one.png'), 'Full signature');
+      const second = await library.add(await writePng('two.png'), 'Initials');
+      await library.remove(first.id);
+
+      const files = await readdir(root);
+      expect(files.filter((name) => name.endsWith('.tmp'))).toEqual([]);
+      expect(files).toContain('index.json');
+      const index: unknown = JSON.parse(await readFile(join(root, 'index.json'), 'utf8'));
+      expect(index).toMatchObject({ version: 1, signatures: [{ id: second.id }] });
+    });
+
+    it('drops the index entry even when the image is already gone', async () => {
+      const library = new SignatureLibrary(root);
+      const asset = await library.add(await writePng('sig.png'), 'Full signature');
+      await rm(asset.filePath);
+      expect(await library.remove(asset.id)).toEqual([]);
+      expect(await library.list()).toEqual([]);
+    });
+  });
+
   describe('refusals', () => {
     it('refuses a file that is not a PNG', async () => {
       const library = new SignatureLibrary(root);
@@ -100,6 +180,13 @@ describe('SignatureLibrary', () => {
       await expect(new SignatureLibrary(root).bytesOf('missing')).rejects.toThrow(
         /no longer in your library/
       );
+    });
+
+    it('says so plainly when asked to remove a signature that is not there', async () => {
+      const library = new SignatureLibrary(root);
+      const kept = await library.add(await writePng('sig.png'), 'Full signature');
+      await expect(library.remove('missing')).rejects.toThrow(/not in your library/);
+      expect((await library.list()).map((stored) => stored.id)).toEqual([kept.id]);
     });
 
     it('reports a damaged library instead of silently starting over', async () => {

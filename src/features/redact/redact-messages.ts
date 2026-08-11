@@ -57,15 +57,36 @@ export function proofText(result: RedactVerifyResult): string {
   );
 }
 
-/** The loud failure. Never softened: an unverified redaction is not a result. */
-export function failureText(surviving: readonly string[]): string {
-  if (surviving.length === 0) {
+/**
+ * The loud failure. Never softened: an unverified redaction is not a result.
+ * The two failure kinds read differently because they mean different things —
+ * text that survived, versus a page that was not really rebuilt.
+ */
+export function failureText(
+  surviving: readonly string[],
+  pagesStillCarryingText: readonly number[] = []
+): string {
+  const parts: string[] = [];
+  if (surviving.length > 0) {
+    parts.push(
+      `${groupDigits(surviving.length)} marked ` +
+        `${plural(surviving.length, 'item is', 'items are')} still readable ` +
+        `(${surviving.join(', ')})`
+    );
+  }
+  if (pagesStillCarryingText.length > 0) {
+    parts.push(
+      `${plural(pagesStillCarryingText.length, 'page', 'pages')} ` +
+        `${pagesStillCarryingText.map(groupDigits).join(', ')} still ` +
+        `${plural(pagesStillCarryingText.length, 'carries', 'carry')} text`
+    );
+  }
+  if (parts.length === 0) {
     return 'The redaction could not be verified, so nothing was changed.';
   }
   return (
-    `The redaction was NOT applied: ${groupDigits(surviving.length)} marked ` +
-    `${plural(surviving.length, 'item is', 'items are')} still readable in the rebuilt ` +
-    `document (${surviving.join(', ')}). Your document was not changed.`
+    `The redaction was NOT applied: ${parts.join(' and ')} in the rebuilt document. ` +
+    'Your document was not changed.'
   );
 }
 
