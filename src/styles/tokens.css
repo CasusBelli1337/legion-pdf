@@ -17,6 +17,11 @@
  *             their own background, 600–700 are the solid button fills.
  *   text-on-brand  the ONLY text colour allowed on a brand fill. Near-black
  *             text-primary vanishes on maroon, so buttons must not use it.
+ *   text-on-danger  the same rule for the red status fill, and for exactly the
+ *             same reason: light theme's near-black text-primary on #dc2626
+ *             reads as a rendering fault on the one button that destroys
+ *             evidence ("Destroy and redact"). Both themes keep it near-white
+ *             — the fill is dark red either way.
  *
  * @theme carries the LIGHT values because light is the default. The
  * :root[data-theme='dark'] block below is unlayered, so it outranks Tailwind's
@@ -44,6 +49,7 @@
   --color-text-muted: #71717a;
   --color-text-inverse: #ffffff;
   --color-text-on-brand: #fafafa;
+  --color-text-on-danger: #fafafa;
 
   /* Brand ramp — Legion deep maroon-purple, hsl(326 94% 19.6%) at 700 */
   --color-brand-50: #fdf1f7;
@@ -98,6 +104,7 @@
   --color-text-muted: #71717a;
   --color-text-inverse: #09090b;
   --color-text-on-brand: #fafafa;
+  --color-text-on-danger: #fafafa;
 
   --color-brand-50: #faf5ff;
   --color-brand-100: #f3e8ff;

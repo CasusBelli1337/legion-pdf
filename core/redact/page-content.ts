@@ -2,11 +2,13 @@
  * Reading one page's own content streams — the second, structure-aware half of
  * verification.
  *
- * The byte scan asks "is the string anywhere in the file". This asks the
+ * The byte scan counts how often a term is left in the file. This asks the
  * narrower question that matters most: "does the rebuilt page draw any text at
  * all". A page rebuilt from a raster draws one image and nothing else, so zero
  * shown characters is a claim about the page that no encoding trick can dress
- * up — and it is checked against the SAVED bytes, not the document we built.
+ * up — and it settles every marked rectangle on that page at once, because a
+ * silent page has nothing readable anywhere, marked or not. It is checked
+ * against the SAVED bytes, not the document we built.
  */
 
 import { PDFArray, PDFRawStream, PDFStream, decodePDFRawStream } from 'pdf-lib';
@@ -44,13 +46,4 @@ export function shownCharactersOn(document: PDFDocument, pageNumber: number): nu
     (total, content) => total + countShownCharacters(content),
     0
   );
-}
-
-/** A page's decoded content as searchable latin1 text, lowercased. */
-export function pageContentText(document: PDFDocument, pageNumber: number): string {
-  const page = document.getPage(pageNumber - 1);
-  return pageContentStreams(page, pageNumber)
-    .map((content) => Buffer.from(content).toString('latin1'))
-    .join('\n')
-    .toLowerCase();
 }

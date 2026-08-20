@@ -35,6 +35,20 @@ const VERIFIED: RedactVerifyResult = {
   pagesRebuilt: [2, 5],
   instancesDestroyed: 3,
   survivingStrings: [],
+  terms: [{ text: 'SSN 545-45-6789', before: 3, remaining: 0, marked: 3 }],
+};
+
+/** Two of five copies marked and destroyed; three the attorney left alone. */
+const PARTLY_MARKED: RedactVerifyResult = {
+  ...VERIFIED,
+  instancesDestroyed: 2,
+  terms: [{ text: 'SSN 545-45-6789', before: 5, remaining: 3, marked: 2 }],
+};
+
+const NOTHING_FOUND = {
+  survivingStrings: [],
+  textInMarkedAreas: [],
+  pagesStillCarryingText: [],
 };
 
 describe('the warning', () => {
@@ -94,37 +108,102 @@ describe('receiptText', () => {
     expect(receiptText({ ...VERIFIED, instancesDestroyed: 1234 })).toContain('1,234 instances');
   });
 
+  /**
+   * QA F-1. Marking one copy of a term the document holds five times is a
+   * complete redaction, and the receipt has to say so without ever implying the
+   * term itself is gone — this sentence may end up quoted in a declaration.
+   */
+  it('states plainly how many unmarked instances are still in the document', () => {
+    expect(receiptText(PARTLY_MARKED)).toBe(
+      'Redaction verified — 2 of 5 instances of one term destroyed on 2 pages. 3 unmarked ' +
+        'instances remain elsewhere in the document.'
+    );
+  });
+
+  it('uses the singular for a single copy left behind', () => {
+    expect(
+      receiptText({
+        ...VERIFIED,
+        instancesDestroyed: 1,
+        pagesRebuilt: [1],
+        terms: [{ text: 'SSN 545-45-6789', before: 2, remaining: 1, marked: 1 }],
+      })
+    ).toBe(
+      'Redaction verified — 1 of 2 instances of one term destroyed on 1 page. 1 unmarked ' +
+        'instance remains elsewhere in the document.'
+    );
+  });
+
+  it('counts the terms when more than one was marked', () => {
+    expect(
+      receiptText({
+        ...PARTLY_MARKED,
+        terms: [
+          { text: 'SSN 545-45-6789', before: 3, remaining: 2, marked: 1 },
+          { text: 'ACCT-99887766', before: 2, remaining: 1, marked: 1 },
+        ],
+      })
+    ).toContain('2 of 5 instances of 2 terms destroyed');
+  });
+
   it('says which proof was run', () => {
     expect(proofText(VERIFIED)).toContain('re-opened the saved document');
+    expect(proofText(VERIFIED)).toContain('The marked text is not there.');
+  });
+
+  it('never claims the whole term is gone when unmarked copies remain', () => {
+    const proof = proofText(PARTLY_MARKED);
+    expect(proof).toContain('The copies you marked are gone.');
+    expect(proof).toContain('The copies you did not mark were left exactly as they were');
+    expect(proof).not.toContain('The marked text is not there.');
   });
 });
 
 describe('failureText', () => {
-  it('names the survivors and says nothing was changed', () => {
-    const text = failureText(['SSN 545-45-6789']);
+  it('names the terms whose MARKED copies survived, and says nothing was changed', () => {
+    const text = failureText({ ...NOTHING_FOUND, survivingStrings: ['SSN 545-45-6789'] });
     expect(text).toContain('NOT applied');
+    expect(text).toContain('the marked copies of 1 term are still readable');
     expect(text).toContain('SSN 545-45-6789');
     expect(text).toContain('was not changed');
   });
 
+  /** The wording the QA finding forced: never "still readable" for a twin. */
+  it('blames the marked copies, never the term being in the document', () => {
+    const text = failureText({ ...NOTHING_FOUND, survivingStrings: ['SSN 1', 'ACCT-2'] });
+    expect(text).toContain('the marked copies of 2 terms are still readable');
+  });
+
+  it('names text still readable inside a marked area as its own failure', () => {
+    const text = failureText({ ...NOTHING_FOUND, textInMarkedAreas: ['545-45-6789'] });
+    expect(text).toContain('1 marked area still shows text (545-45-6789)');
+  });
+
   it('names a page that was not really rebuilt, as its own failure', () => {
-    const text = failureText([], [3]);
+    const text = failureText({ ...NOTHING_FOUND, pagesStillCarryingText: [3] });
     expect(text).toContain('NOT applied');
     expect(text).toContain('page 3 still carries text');
   });
 
   it('reads correctly for several pages', () => {
-    expect(failureText([], [2, 5])).toContain('pages 2, 5 still carry text');
+    expect(failureText({ ...NOTHING_FOUND, pagesStillCarryingText: [2, 5] })).toContain(
+      'pages 2, 5 still carry text'
+    );
   });
 
-  it('reports both failure kinds together when both happened', () => {
-    const text = failureText(['SSN 1'], [4]);
-    expect(text).toContain('1 marked item is still readable');
+  it('reports every failure kind together when they all happened', () => {
+    const text = failureText({
+      survivingStrings: ['SSN 1'],
+      textInMarkedAreas: ['545-45'],
+      pagesStillCarryingText: [4],
+    });
+    expect(text).toContain('the marked copies of 1 term are still readable');
+    expect(text).toContain('1 marked area still shows text');
     expect(text).toContain('and page 4 still carries text');
   });
 
   it('still refuses loudly when it cannot name what survived', () => {
-    expect(failureText([])).toContain('could not be verified');
+    expect(failureText(NOTHING_FOUND)).toContain('could not be verified');
   });
 });
 

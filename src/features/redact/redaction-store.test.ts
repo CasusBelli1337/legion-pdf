@@ -116,6 +116,7 @@ describe('the run and its receipt', () => {
     pagesRebuilt: [1, 4],
     instancesDestroyed: 2,
     survivingStrings: [],
+    terms: [{ text: 'SSN 1', before: 2, remaining: 0, marked: 2 }],
   };
 
   it('keeps the receipt when the redacted document takes the foreground', () => {
@@ -236,6 +237,7 @@ describe('pending marks, seen from outside React', () => {
       pagesRebuilt: [2],
       instancesDestroyed: 1,
       survivingStrings: [],
+      terms: [],
     });
     expect(hasPendingMarks('doc-1')).toBe(false);
   });

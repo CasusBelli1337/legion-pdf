@@ -7,9 +7,17 @@
  * Highlight and Redact both go through the lanes that already own them: the
  * stamp channel `stamp:highlight`, and the redaction store's `markMatches`,
  * which merges and pads the quads exactly the way a search-and-redact does.
+ *
+ * Highlight also goes through the stamps lane's OP-COMPLETION path rather than
+ * calling the channel and walking away. Calling the channel alone put the
+ * highlight in the file while the screen, the dirty flag and Undo all said
+ * nothing had happened — so closing the tab threw the work away with no
+ * prompt (F-2). Redact needs none of this: it only adds marks to the panel and
+ * touches no bytes until the attorney destroys them.
  */
 
 import type { HighlightOptions, TextMatch } from '@shared/types';
+import { runDocumentOp } from '../stamps/use-stamp-runner';
 import { useRedactionStore } from '../redact/redaction-store';
 import type { SelectionPayload } from './engine';
 
@@ -17,6 +25,8 @@ export interface SelectionActionDeps {
   writeText(text: string): Promise<void>;
   highlight(docId: string, options: HighlightOptions): Promise<unknown>;
   markRedactions(docId: string, matches: readonly TextMatch[]): void;
+  /** Runs an edit and settles it: new bytes on screen, receipt, dirty, undo. */
+  runOp(docId: string, label: string, work: () => Promise<string>): Promise<unknown>;
 }
 
 /**
@@ -46,16 +56,35 @@ export async function copySelectionWithCite(
   await deps.writeText(textWithCite(payload));
 }
 
-/** One highlight call per page the selection crosses. Returns pages marked. */
+/** The receipt an attorney reads in the footer once the highlight has landed. */
+export function highlightReceipt(areas: number, pages: readonly number[]): string {
+  const what = areas === 1 ? '1 area' : `${areas} areas`;
+  const where = pages.length === 1 ? `page ${pages[0]}` : `${pages.length} pages`;
+  return `Highlighted ${what} on ${where}. Save the document to keep it.`;
+}
+
+/**
+ * One highlight call per page the selection crosses, all of them inside a
+ * single completion so the viewer re-reads the document once. Returns pages
+ * marked.
+ */
 export async function highlightSelection(
   payload: SelectionPayload,
   deps: SelectionActionDeps
 ): Promise<number> {
   let pages = 0;
-  for (const page of payload.pages) {
-    await deps.highlight(payload.docId, { page: page.page, rects: page.quads });
-    pages += 1;
-  }
+  let areas = 0;
+  await deps.runOp(payload.docId, 'Highlighting the selection', async () => {
+    for (const page of payload.pages) {
+      await deps.highlight(payload.docId, { page: page.page, rects: page.quads });
+      pages += 1;
+      areas += page.quads.length;
+    }
+    return highlightReceipt(
+      areas,
+      payload.pages.map((page) => page.page)
+    );
+  });
   return pages;
 }
 
@@ -79,5 +108,6 @@ export function liveActionDeps(): SelectionActionDeps {
       store.forDocument(docId);
       useRedactionStore.getState().markMatches(matches);
     },
+    runOp: runDocumentOp,
   };
 }

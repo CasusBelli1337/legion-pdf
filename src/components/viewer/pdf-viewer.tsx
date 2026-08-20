@@ -11,6 +11,7 @@ import { CoordinateHarness } from './coordinate-harness';
 import { PageList } from './page-list';
 import { PrintSheet } from './print-sheet';
 import { SelectionMenuHost } from './selection-menu-host';
+import { useSmartCopy } from './use-smart-copy';
 import { useFindShortcut, useViewerState } from './use-viewer-state';
 import { ViewerToolbar } from './viewer-toolbar';
 
@@ -72,6 +73,8 @@ export function PdfViewer({ session }: PdfViewerProps) {
   const [isHarnessOpen, setHarnessOpen] = useState(false);
 
   useFindShortcut(useCallback(() => setFindOpen(true), []));
+  // Ctrl+C over the pages copies the paragraph, not the transcript (F-3).
+  useSmartCopy(view.document, session.id, scrollRef);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-armory-canvas">

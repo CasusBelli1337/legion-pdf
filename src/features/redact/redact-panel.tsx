@@ -1,8 +1,8 @@
 /**
  * Redaction (F-8). Mark what has to go, then destroy it: the marked pages are
  * rebuilt from a 300 DPI picture with the marks burned into the pixels, and the
- * saved file is re-opened and searched to prove the text is gone before the
- * attorney is ever told it worked.
+ * saved file is re-opened and counted to prove the MARKED copies are gone
+ * before the attorney is ever told it worked.
  */
 
 import { useActiveSession } from '@renderer/app/store';
@@ -36,6 +36,13 @@ import { PRODUCT_NAME } from '@shared/product';
 interface SectionProps {
   redaction: RedactionController;
 }
+
+/** The fallback when a run failed without naming a cause. Never a soft one. */
+const NOTHING_NAMED = {
+  survivingStrings: [],
+  textInMarkedAreas: [],
+  pagesStillCarryingText: [],
+};
 
 function MarkingSection({ redaction }: SectionProps) {
   const { search } = redaction;
@@ -147,7 +154,7 @@ function FailedView({ redaction }: SectionProps) {
   return (
     <>
       <StatusLine label="Redaction not applied" tone="idle" />
-      <ErrorNotice message={redaction.run.state.error ?? failureText([], [])} />
+      <ErrorNotice message={redaction.run.state.error ?? failureText(NOTHING_NAMED)} />
       <PanelNotice>
         {`Your document was not changed. Nothing is handed over unless ${PRODUCT_NAME} can prove ` +
           'the marked text is gone from the saved file.'}

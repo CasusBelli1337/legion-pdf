@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { isRangeCollapseError } from '@shared/types';
 import type { RedactApplyOptions, RedactionBox, TextMatch } from '@shared/types';
-import { planRedactions, verificationStrings } from './plan';
+import { instancesByString, planRedactions, verificationStrings } from './plan';
 import { NoRedactionMarksError, RedactionGeometryError } from './types';
 
-function box(page: number, id = `${page}`, text?: string): RedactionBox {
+function box(page: number, id = `${page}`, text?: string, index = 0): RedactionBox {
   const base: RedactionBox = { id, page, rect: { x: 10, y: 10, width: 50, height: 12 } };
   if (text === undefined) return base;
-  return { ...base, sourceMatch: { page, text, index: 0, quads: [base.rect] } };
+  return { ...base, sourceMatch: { page, text, index, quads: [base.rect] } };
 }
 
 function options(boxes: RedactionBox[], verifyStrings: string[] = []): RedactApplyOptions {
@@ -79,6 +79,43 @@ describe('planRedactions', () => {
   it('refuses a fractional page number', () => {
     const odd: RedactionBox = { id: 'q', page: 1.5, rect: { x: 1, y: 1, width: 5, height: 5 } };
     expect(() => planRedactions(options([odd]), 3)).toThrow();
+  });
+});
+
+/**
+ * The count verification is measured against: how many copies of a term the
+ * attorney asked to destroy. Marking one instance of a term the document holds
+ * five times must report ONE, or the verification demands the destruction of
+ * four copies nobody marked.
+ */
+describe('instancesByString', () => {
+  it('counts one per marked hit, keyed by the lowercased term', () => {
+    const marks = [box(1, 'a', 'SSN 545-45-6789', 0), box(4, 'b', 'ssn 545-45-6789', 1)];
+    expect(instancesByString(marks)).toEqual(new Map([['ssn 545-45-6789', 2]]));
+  });
+
+  it('counts the several marks of ONE hit as one instance', () => {
+    const marks = ['a', 'b', 'c'].map((id) => box(1, id, 'SSN 545-45-6789', 7));
+    expect(instancesByString(marks).get('ssn 545-45-6789')).toBe(1);
+  });
+
+  it('keeps terms apart', () => {
+    const marks = [box(1, 'a', 'SSN 1', 0), box(2, 'b', 'ACCT-2', 1), box(3, 'c', 'ACCT-2', 2)];
+    expect(instancesByString(marks)).toEqual(
+      new Map([
+        ['ssn 1', 1],
+        ['acct-2', 2],
+      ])
+    );
+  });
+
+  it('contributes nothing for a hand-drawn box, which names no term', () => {
+    expect(instancesByString([box(1, 'a')])).toEqual(new Map());
+  });
+
+  it('rides on the plan, so the verifier never has to re-derive it', () => {
+    const plan = planRedactions(options([box(1, 'a', 'SSN 1', 0), box(4, 'b', 'SSN 1', 1)]), 5);
+    expect(plan.markedInstances.get('ssn 1')).toBe(2);
   });
 });
 

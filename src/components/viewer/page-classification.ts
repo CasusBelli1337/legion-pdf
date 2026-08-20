@@ -9,7 +9,10 @@
  * coming along with a copied paragraph.
  *
  * WHAT THE LANE MUST EXPORT from `src/features/select-copy/index.ts`:
- *   engineForDocument(document, docId) -> { classifyPage(page): Promise<PageClassification> }
+ *   engineForDocument(document, docId) -> {
+ *     classifyPage(page): Promise<PageClassification>,
+ *     smartText(selection): Promise<string>,
+ *   }
  *   (preferred: WeakMap-cached per pdfjs document, so the selection menu and
  *   this hook share one engine) — with createPdfjsSource+createSelectCopyEngine
  *   as the uncached fallback shape.
@@ -23,39 +26,60 @@ import type { PageRoleMap } from './text-layer-roles';
 
 type ClassifyPage = (page: number) => Promise<PageClassification>;
 
+/** The lane's flowing-prose pass over a live DOM selection. */
+export type SmartText = (selection: unknown) => Promise<string>;
+
+interface LaneEngine {
+  classifyPage?: ClassifyPage;
+  smartText?: SmartText;
+}
+
 interface SelectCopyModule {
-  engineForDocument?: (
-    document: PDFDocumentProxy,
-    docId: string
-  ) => { classifyPage?: ClassifyPage };
+  engineForDocument?: (document: PDFDocumentProxy, docId: string) => LaneEngine;
   createPdfjsSource?: (document: PDFDocumentProxy, docId: string) => unknown;
-  createSelectCopyEngine?: (source: unknown) => { classifyPage?: ClassifyPage };
+  createSelectCopyEngine?: (source: unknown) => LaneEngine;
 }
 
 const LANE_PATH = '../../features/select-copy/index.ts';
 const LANE = import.meta.glob<SelectCopyModule>('../../features/select-copy/index.ts');
+
+/** The lane's engine for a document, or null when it is absent or unusable. */
+async function loadLaneEngine(
+  document: PDFDocumentProxy,
+  docId: string
+): Promise<LaneEngine | null> {
+  const load = LANE[LANE_PATH];
+  if (load === undefined) return null;
+  try {
+    const { engineForDocument, createPdfjsSource, createSelectCopyEngine } = await load();
+    if (typeof engineForDocument === 'function') return engineForDocument(document, docId);
+    if (typeof createPdfjsSource === 'function' && typeof createSelectCopyEngine === 'function') {
+      return createSelectCopyEngine(createPdfjsSource(document, docId));
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /** The classifier for a document, or null when the lane is absent or unusable. */
 export async function loadPageClassifier(
   document: PDFDocumentProxy,
   docId: string
 ): Promise<ClassifyPage | null> {
-  const load = LANE[LANE_PATH];
-  if (load === undefined) return null;
-  try {
-    const module = await load();
-    const { engineForDocument, createPdfjsSource, createSelectCopyEngine } = module;
-    const engine =
-      typeof engineForDocument === 'function'
-        ? engineForDocument(document, docId)
-        : typeof createPdfjsSource === 'function' && typeof createSelectCopyEngine === 'function'
-          ? createSelectCopyEngine(createPdfjsSource(document, docId))
-          : null;
-    if (engine === null) return null;
-    return typeof engine.classifyPage === 'function' ? engine.classifyPage.bind(engine) : null;
-  } catch {
-    return null;
-  }
+  const engine = await loadLaneEngine(document, docId);
+  if (engine === null || typeof engine.classifyPage !== 'function') return null;
+  return engine.classifyPage.bind(engine);
+}
+
+/** The smart-copy pass for a document, or null when the lane cannot supply one. */
+export async function loadSmartText(
+  document: PDFDocumentProxy,
+  docId: string
+): Promise<SmartText | null> {
+  const engine = await loadLaneEngine(document, docId);
+  if (engine === null || typeof engine.smartText !== 'function') return null;
+  return engine.smartText.bind(engine);
 }
 
 /** Roles keyed by the item index the text layer stamps onto each span. */

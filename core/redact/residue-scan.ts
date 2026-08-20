@@ -1,5 +1,9 @@
 /**
- * Is the marked text still readable ANYWHERE in the saved file?
+ * HOW MANY times is the marked text still readable in the saved file?
+ *
+ * This module only counts; `verify.ts` decides what a count means. That split
+ * matters: a term the attorney marked once may legitimately appear four more
+ * times on pages nobody marked, so "found it" is not a verdict.
  *
  * A raw grep over PDF bytes is theatre: pdf-lib compresses content streams,
  * packs small objects into object streams, and writes text as hex. A marker can
@@ -75,24 +79,28 @@ export function scannableText(bytes: Uint8Array): string {
   return parts.join('\n').toLowerCase();
 }
 
-/** Which of `needles` are still readable in the file. Empty means clean. */
-export function residueOf(bytes: Uint8Array, needles: readonly string[]): string[] {
-  if (needles.length === 0) return [];
-  const haystack = scannableText(bytes);
-  return needles.filter((needle) =>
-    encodingsOf(needle).some((encoded) => haystack.includes(encoded))
-  );
+/** Occurrences of one needle in an already-built haystack, over every encoding. */
+function countIn(haystack: string, needle: string): number {
+  if (needle.length === 0) return 0;
+  return encodingsOf(needle).reduce((total, encoded) => total + occurrences(haystack, encoded), 0);
 }
 
 /**
- * How many times a string appears in the file, counting every encoding.
- * Used to prove a target really was there BEFORE — a verification that passes
- * against a string the document never contained proves nothing.
+ * How many times EACH needle is still readable, over a single scan of the file.
+ *
+ * Counting rather than answering yes-or-no is what makes verification
+ * instance-scoped: the promise is that the marked copies are gone, so the
+ * question is how many copies vanished, not whether the term appears at all.
+ * One scan serves every needle — inflating a 500-page file once per term would
+ * turn the proof into the slowest step of the run.
  */
-export function countOccurrences(bytes: Uint8Array, needle: string): number {
-  if (needle.length === 0) return 0;
+export function countEachOccurrence(
+  bytes: Uint8Array,
+  needles: readonly string[]
+): Map<string, number> {
+  if (needles.length === 0) return new Map();
   const haystack = scannableText(bytes);
-  return encodingsOf(needle).reduce((total, encoded) => total + occurrences(haystack, encoded), 0);
+  return new Map(needles.map((needle) => [needle, countIn(haystack, needle)]));
 }
 
 function occurrences(haystack: string, needle: string): number {

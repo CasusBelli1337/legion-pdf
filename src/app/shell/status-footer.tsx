@@ -2,7 +2,7 @@
  * Status footer: mono 11px readout — filename, page count, zoom.
  */
 
-import { useActiveSession, useAppStore } from '../store';
+import { useActiveSession, useAppStore, useScopedError, useScopedNotice } from '../store';
 import { useLiveSignatureCount } from '../../features/signature/placement-store';
 import { LegionCredit } from './legion-credit';
 
@@ -18,8 +18,10 @@ export function StatusFooter() {
   const session = useActiveSession();
   const currentPage = useAppStore((state) => state.currentPage);
   const zoom = useAppStore((state) => state.zoom);
-  const error = useAppStore((state) => state.error);
-  const notice = useAppStore((state) => state.notice);
+  // Scoped, not raw: a receipt from one document must never be read as this
+  // one's (F-6).
+  const error = useScopedError();
+  const notice = useScopedNotice();
   const unplaced = useLiveSignatureCount(session?.id ?? null);
 
   const fields =

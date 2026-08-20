@@ -9,13 +9,16 @@
  * The main process has already proved destruction twice by the time this
  * resolves. The renderer runs one more proof with pdfjs (pdfjs-proof.ts) before
  * the tab is ever shown, because pdfjs is the only reader in the app that maps
- * glyphs back to letters. If that proof fails, the adopted document is thrown
- * away and the attorney gets a loud error — never a receipt.
+ * glyphs back to letters AND knows where on the page they sit — so it can ask
+ * whether anything is readable inside the rectangles that were marked. If that
+ * proof fails, the adopted document is thrown away and the attorney gets a loud
+ * error — never a receipt.
  */
 
 import type { RedactVerifyResult, RedactionBox } from '@shared/types';
 import { useAppStore } from '@renderer/app/store';
 import { failureText, plainError } from './redact-messages';
+import type { RedactionFindings } from './redact-messages';
 import { isClean, proveWithPdfjs } from './pdfjs-proof';
 import { useRedactionStore } from './redaction-store';
 import { discardRedactedDocument, openRedactedDocument } from './redacted-document';
@@ -34,30 +37,45 @@ interface Outcome {
   receipt: RedactVerifyResult;
 }
 
+/**
+ * What survived, from whichever gate spoke last. A receipt that already failed
+ * is not re-examined: its own findings are the answer, and re-reading bytes the
+ * main process has refused would only risk softening them.
+ */
+async function findingsFor(outcome: Outcome, request: ApplyRequest): Promise<RedactionFindings> {
+  if (!outcome.receipt.verified) {
+    return {
+      survivingStrings: outcome.receipt.survivingStrings,
+      textInMarkedAreas: [],
+      pagesStillCarryingText: outcome.receipt.pagesStillCarryingText ?? [],
+    };
+  }
+  return proveWithPdfjs({
+    bytes: outcome.bytes,
+    pages: outcome.receipt.pagesRebuilt,
+    areas: request.boxes.map(({ page, rect, sourceMatch }) => ({
+      page,
+      rect,
+      text: sourceMatch?.text,
+    })),
+    expectNoText: !request.reOcr,
+  });
+}
+
 /** The renderer's own gate. Throws rather than let an unproven tab open. */
 async function acceptOrDiscard(
   outcome: Outcome,
   request: ApplyRequest,
   resultDocId: string | null
 ): Promise<void> {
-  const findings = outcome.receipt.verified
-    ? await proveWithPdfjs({
-        bytes: outcome.bytes,
-        pages: outcome.receipt.pagesRebuilt,
-        needles: request.verifyStrings,
-        expectNoText: !request.reOcr,
-      })
-    : {
-        survivingStrings: outcome.receipt.survivingStrings,
-        pagesStillCarryingText: outcome.receipt.pagesStillCarryingText ?? [],
-      };
+  const findings = await findingsFor(outcome, request);
 
   if (isClean(findings)) {
     if (resultDocId !== null) await openRedactedDocument(resultDocId);
     return;
   }
   if (resultDocId !== null) await discardRedactedDocument(resultDocId);
-  throw new Error(failureText(findings.survivingStrings, findings.pagesStillCarryingText));
+  throw new Error(failureText(findings));
 }
 
 /**

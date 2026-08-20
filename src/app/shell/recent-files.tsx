@@ -13,7 +13,9 @@ import { useRecentFiles } from './use-recent-files';
 async function openRecent(file: RecentFile, forget: (filePath: string) => void): Promise<void> {
   if (await openPaths([file.filePath])) return;
   forget(file.filePath);
-  useAppStore.getState().setError(missingFileNotice(file.fileName));
+  // App-wide: the file that went missing is the one that could NOT be opened,
+  // so this belongs to no tab and must outlive a tab switch.
+  useAppStore.getState().setError(missingFileNotice(file.fileName), null);
 }
 
 function RecentRow({ file, onOpen }: { file: RecentFile; onOpen(): void }) {

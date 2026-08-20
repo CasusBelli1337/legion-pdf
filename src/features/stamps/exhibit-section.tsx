@@ -131,6 +131,15 @@ function PlacementFields({ form, onChange }: { form: ExhibitForm; onChange: Chan
   );
 }
 
+interface SlipSheetFieldsProps {
+  form: ExhibitForm;
+  currentPage: number;
+  pageCount: number;
+  busy: boolean;
+  onChange: Change;
+  onInsert(): void;
+}
+
 function SlipSheetFields({
   form,
   currentPage,
@@ -138,14 +147,7 @@ function SlipSheetFields({
   busy,
   onChange,
   onInsert,
-}: {
-  form: ExhibitForm;
-  currentPage: number;
-  pageCount: number;
-  busy: boolean;
-  onChange: Change;
-  onInsert(): void;
-}) {
+}: SlipSheetFieldsProps) {
   const index = slipSheetIndex(form, currentPage, pageCount);
   return (
     <div className="mt-2 flex flex-col gap-2 border-t border-armory-border pt-3">

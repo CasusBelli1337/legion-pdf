@@ -42,7 +42,7 @@ interface ActionButtonProps {
 export function ActionButton({ label, onClick, disabled, variant = 'primary' }: ActionButtonProps) {
   const styles = {
     primary: 'bg-brand-700 text-text-on-brand hover:bg-brand-600',
-    danger: 'bg-danger text-text-primary hover:brightness-110',
+    danger: 'bg-danger text-text-on-danger hover:brightness-110',
     quiet:
       'border border-armory-border-strong text-text-secondary hover:bg-armory-interactive hover:text-text-primary',
   }[variant];
