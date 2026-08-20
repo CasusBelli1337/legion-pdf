@@ -18,9 +18,12 @@ function source(): string {
 }
 
 describe('undo/redo handlers', () => {
-  it('answers with the applied flag and the state after the step', () => {
+  // `tag` rides along with the bytes so the renderer can roll its own state
+  // back to match them; it is optional because most ops record no tag at all.
+  it('answers with the applied flag, the op tag, and the state after the step', () => {
     expectTypeOf<InvokeResponse<'file:undo'>>().toEqualTypeOf<{
       applied: boolean;
+      tag?: string;
       canUndo: boolean;
       canRedo: boolean;
     }>();

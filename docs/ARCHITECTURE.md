@@ -57,14 +57,18 @@ Rules: validate ranges against real pageCount BEFORE slicing (throw
 
 All channels + payload types live in `shared/ipc.ts` (single source of
 truth; `#seam:ipc-contract` marker on every handler registration site).
+The `IpcInvokeContract` request/response map is split into the sibling
+`shared/ipc-contract.ts` for the 300-line limit and re-exported from
+`shared/ipc.ts`, so `@shared/ipc` stays the one import path; compile-time
+drift guards in `shared/ipc.ts` hold the two halves to the same channel set.
 Channel groups:
 
 - `file:*`   open dialog, read, save, saveAs, saveTo (no dialog), chooseFolder,
              recent list, undo/redo/undoState
 - `ops:*`    merge, split, reorder, rotate, delete, extract, insertBlank,
              insertFrom, bookmarks get/set, scrubMetadata, flatten
-- `stamp:*`  bates, exhibit, watermark, pageNumbers, signature list/add/
-             addBytes/place, textBox, whiteout
+- `stamp:*`  bates, exhibit, slipSheet, watermark, pageNumbers, signature
+             list/add/addBytes/remove/place, textBox, whiteout, highlight
 - `ocr:*`    detect, run (streams `ocr:progress`), cancel, bulk, bulkCancel
 - `redact:*` apply (streams progress), verify
 - `ai:*`     hasKey, setKey, clearKey, ask (streams `ai:chunk`), toolDecision

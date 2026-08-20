@@ -163,6 +163,12 @@ export interface UndoState {
  */
 export interface UndoResult extends UndoState {
   applied: boolean;
+  /**
+   * Op tag of the change that was undone/redone, e.g. 'exhibit:A' — lanes use
+   * it to roll UI state back with the bytes. Undefined when the change carried
+   * no tag, or when nothing applied.
+   */
+  tag?: string;
 }
 
 /**

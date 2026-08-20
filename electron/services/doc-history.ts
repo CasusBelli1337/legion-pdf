@@ -2,9 +2,10 @@
  * Per-document edit history behind Undo/Redo.
  *
  * Every mutation in this app replaces a document's whole byte array (core/
- * functions are pure: bytes in, bytes out), so history is a stack of the byte
- * arrays that came before. Nothing is copied — the entries are the very buffers
- * the store already held, so the only cost is keeping them alive.
+ * functions are pure: bytes in, bytes out), so history is a stack of the
+ * versions that came before, each labelled with the op that stepped away from
+ * it. Nothing is copied — an entry holds the very buffer the store already
+ * held, so the only cost is keeping it alive.
  *
  * Depth is capped because those buffers are whole PDFs: a scanned deposition
  * runs 50-200 MB, so an uncapped history would grow without bound on a long
@@ -26,46 +27,61 @@ export class EmptySnapshotError extends Error {
   }
 }
 
+/**
+ * One version in the history. `tag` names the op that moved the document ACROSS
+ * this boundary — the change an undo of this entry takes back, and the change a
+ * redo of it puts back — so a lane can roll its own UI state to match the bytes
+ * (`'exhibit:A'` tells the exhibit panel which label to restore). Undefined
+ * when the change was made without a tag, which is every op that has not asked
+ * for one.
+ */
+export interface HistoryEntry {
+  /** The document as it stood at this point. Never empty. */
+  bytes: Uint8Array;
+  tag?: string;
+}
+
 export class DocumentHistory {
   /** Versions before the current one, oldest first. */
-  private readonly past: Uint8Array[] = [];
+  private readonly past: HistoryEntry[] = [];
   /** Versions undone away, ready to be stepped forward into. */
-  private readonly future: Uint8Array[] = [];
+  private readonly future: HistoryEntry[] = [];
 
   constructor(private readonly depth: number = UNDO_DEPTH) {}
 
   /**
-   * Records the bytes a mutation is about to replace. A new edit invalidates
-   * the redo stack: those versions can no longer be reached from here.
+   * Records the bytes a mutation is about to replace, under the tag of the
+   * mutation making the replacement. A new edit invalidates the redo stack:
+   * those versions can no longer be reached from here.
    */
-  record(priorBytes: Uint8Array): void {
+  record(priorBytes: Uint8Array, tag?: string): void {
     if (priorBytes.byteLength === 0) throw new EmptySnapshotError('record');
-    this.past.push(priorBytes);
+    this.past.push({ bytes: priorBytes, tag });
     if (this.past.length > this.depth) this.past.shift();
     this.future.length = 0;
   }
 
   /**
-   * The version an undo would land on, without moving the history. The caller
+   * The entry an undo would land on, without moving the history. The caller
    * checks that version before committing, so a restore that fails validation
    * leaves the stacks exactly where they were.
    */
-  peekBack(): Uint8Array | null {
+  peekBack(): HistoryEntry | null {
     return this.past.at(-1) ?? null;
   }
 
-  /** The version a redo would land on, without moving the history. */
-  peekForward(): Uint8Array | null {
+  /** The entry a redo would land on, without moving the history. */
+  peekForward(): HistoryEntry | null {
     return this.future.at(-1) ?? null;
   }
 
   /** The version before `currentBytes`, or null when there is nothing to undo. */
-  stepBack(currentBytes: Uint8Array): Uint8Array | null {
+  stepBack(currentBytes: Uint8Array): HistoryEntry | null {
     return this.step(this.past, this.future, currentBytes);
   }
 
   /** The version undone away most recently, or null when there is nothing to redo. */
-  stepForward(currentBytes: Uint8Array): Uint8Array | null {
+  stepForward(currentBytes: Uint8Array): HistoryEntry | null {
     return this.step(this.future, this.past, currentBytes);
   }
 
@@ -83,13 +99,21 @@ export class DocumentHistory {
    * Both directions are the same move: pop the version being stepped to, and
    * push what was current onto the opposite stack. Neither stack can outgrow
    * the depth, because a step only ever moves one entry across.
+   *
+   * The tag rides across with it. It labels the boundary between the two
+   * versions, not either one of them, so undoing and redoing the same change
+   * always reports the same tag.
    */
-  private step(from: Uint8Array[], to: Uint8Array[], currentBytes: Uint8Array): Uint8Array | null {
+  private step(
+    from: HistoryEntry[],
+    to: HistoryEntry[],
+    currentBytes: Uint8Array
+  ): HistoryEntry | null {
     const restored = from.pop();
     if (restored === undefined) return null;
-    if (restored.byteLength === 0) throw new EmptySnapshotError('restore');
+    if (restored.bytes.byteLength === 0) throw new EmptySnapshotError('restore');
     if (currentBytes.byteLength === 0) throw new EmptySnapshotError('step away from');
-    to.push(currentBytes);
+    to.push({ bytes: currentBytes, tag: restored.tag });
     return restored;
   }
 }

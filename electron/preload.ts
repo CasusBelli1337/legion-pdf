@@ -93,6 +93,7 @@ const bridge: LibrariusBridge = {
     signaturePlace: (docId, placement) => invoke(IPC.stamp.signaturePlace, docId, placement),
     textBox: (docId, options) => invoke(IPC.stamp.textBox, docId, options),
     whiteout: (docId, options) => invoke(IPC.stamp.whiteout, docId, options),
+    highlight: (docId, options) => invoke(IPC.stamp.highlight, docId, options),
   },
   ocr: {
     detect: (docId) => invoke(IPC.ocr.detect, docId),

@@ -40,6 +40,7 @@ import {
   placeSignature,
 } from '@core/stamps';
 import type { IpcContext } from './context';
+import { registerNotImplemented } from './not-implemented';
 import { SignatureLibrary } from './stamp-signatures';
 
 /** Where the attorney's scanned signatures live. */
@@ -200,4 +201,7 @@ export function registerStampHandlers(context: IpcContext): void {
   registerMarkHandlers(context);
   registerTextHandlers(context);
   registerSignatureHandlers(context, library);
+  // The translucent-multiply drawing is the highlight lane's to build; until it
+  // lands the channel rejects loudly rather than looking like a working pen.
+  registerNotImplemented([IPC.stamp.highlight]);
 }

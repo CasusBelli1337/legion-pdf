@@ -8,7 +8,7 @@
  * document and swap the session in, which is what re-renders the viewer.
  */
 
-import type { UndoState } from '@shared/types';
+import type { UndoResult, UndoState } from '@shared/types';
 import { useAppStore } from './store';
 
 type Step = 'undo' | 'redo';
@@ -66,9 +66,15 @@ function keepPageInRange(pageCount: number): void {
   if (store.currentPage > pageCount) store.setCurrentPage(pageCount);
 }
 
-async function settle(step: Step, docId: string, applied: boolean): Promise<void> {
+/**
+ * The document is back where it was; anything a lane put on screen ALONGSIDE
+ * that change has to follow it. The broadcast carries the op tag the store
+ * returned, so a panel can roll its own state back without guessing what moved.
+ * It fires only when a step actually applied — a no-op moved nothing.
+ */
+async function settle(step: Step, docId: string, result: UndoResult): Promise<void> {
   const store = useAppStore.getState();
-  if (!applied) {
+  if (!result.applied) {
     // The end of the history is a no-op, not a failure: say so and stop.
     store.setNotice(NOTHING[step]);
     return;
@@ -76,6 +82,7 @@ async function settle(step: Step, docId: string, applied: boolean): Promise<void
   const session = await window.librarius.file.read(docId);
   store.replaceSession(session);
   keepPageInRange(session.pageCount);
+  store.noteHistoryEvent({ docId, direction: step, tag: result.tag });
   store.setNotice(DONE[step]);
 }
 
@@ -93,7 +100,7 @@ async function stepHistory(step: Step): Promise<void> {
   try {
     const bridge = window.librarius.file;
     const result = step === 'undo' ? await bridge.undo(docId) : await bridge.redo(docId);
-    await settle(step, docId, result.applied);
+    await settle(step, docId, result);
   } catch (error) {
     store.setError(`${FAILED[step]} ${describe(error)}`);
   } finally {

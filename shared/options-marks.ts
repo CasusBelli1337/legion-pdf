@@ -1,7 +1,8 @@
 /**
  * Option and detail shapes for the stamping lane (core/stamps/**): Bates,
  * exhibit stamps, slip sheets, watermarks, page numbers, signatures, text
- * boxes, whiteout. Types only — re-exported type-only from @shared/types.
+ * boxes, whiteout, highlights. Types only — re-exported type-only from
+ * @shared/types.
  */
 
 import type { Alignment, Corner, PdfPoint, PdfRect } from './types';
@@ -48,11 +49,28 @@ export interface ExhibitDetail {
   labelsApplied: string[];
 }
 
-/** Insert a standalone "Exhibit A" sheet ahead of a page. */
+/**
+ * Where the label sits on a slip sheet: any exhibit-stamp placement, or the
+ * middle of the otherwise blank sheet.
+ */
+export type SlipSheetPosition = ExhibitPosition | 'center';
+
+/**
+ * Insert a standalone "Exhibit A" sheet ahead of a page. `fontSize`,
+ * `bordered`, and `position` are all optional and all three must be honoured by
+ * core: omitting them draws the sheet exactly as it has always been drawn, and
+ * setting any one of them has to change the sheet accordingly.
+ */
 export interface SlipSheetOptions {
   label: string;
   /** 1-based index the slip sheet occupies after insertion. */
   atPage: number;
+  /** Omit for the size the sheet has always used. */
+  fontSize?: number;
+  /** Classic bordered exhibit-stamp box around the label. Omit for no border. */
+  bordered?: boolean;
+  /** Defaults to 'center' — the placement every slip sheet had before. */
+  position?: SlipSheetPosition;
 }
 
 export type WatermarkOrientation = 'diagonal' | 'horizontal';
@@ -134,11 +152,36 @@ export interface TextBoxOptions {
   maxWidthPt?: number;
   /** Omit for Helvetica regular, which is what every text box drew before. */
   font?: TextFontChoice;
+  /**
+   * Draws a rule under each wrapped line. NOT a font variant — the fourteen
+   * built-in faces have no underlined cut, so this is a drawn line.
+   */
+  underline?: boolean;
 }
 
 export interface WhiteoutOptions {
   page: number;
   rect: PdfRect;
   /** Hex fill; defaults to white. Sampled background color when provided. */
+  color?: string;
+  /**
+   * Delete the text operators whose glyphs fall inside the rect, so extraction,
+   * OCR, and AI never see the text the box covers. False at the type level —
+   * painting over text is what whiteout has always done — and the UI lane sets
+   * its own default.
+   */
+  removeCoveredText?: boolean;
+}
+
+/**
+ * Translucent marker over one or more boxes on a page — the pen an attorney
+ * reaches for while reading, not a redaction: the text underneath stays exactly
+ * where it was and stays extractable.
+ */
+export interface HighlightOptions {
+  page: number;
+  /** The boxes to cover, in PDF user space. */
+  rects: PdfRect[];
+  /** Hex, e.g. "#FFFF00". Defaults to yellow. */
   color?: string;
 }
