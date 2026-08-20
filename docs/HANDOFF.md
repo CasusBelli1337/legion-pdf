@@ -19,7 +19,23 @@ NOT verified by a human yet: keyboard accelerators in the packaged build
 (automation couldn't reach the native menu; Arthur pressing Ctrl+Z once
 settles it) and Centurion live asks (needs his key).
 
-The text-editing stretch plan below is unchanged and still the next mission.
+**v0.3 update (2026-08-19):** Arthur's second feedback batch (~20 items) all
+shipped — selection intelligence (line-number/page-number classification,
+smart flowing copy incl. Ctrl+C, right-click Copy/Copy-with-cite/Highlight/
+Redact, printed-page-number cites with per-document prefixes), render-hang +
+flicker fixes, resizable panels, find arrow keys, stamps polish (box metrics,
+tagged label undo, settings persistence, slip-sheet independence), whiteout
+type-over with content-stream text removal (core/edit/ — the stretch
+session's seed, see docs/references/content-stream-editing.md), redaction
+consent dialogs + save gates with instance-scoped verification, white-tile
+icon. Two click-through QA rounds (2026-08-19 report + addendum); 1,590
+tests; installed build = commit `4511fbd`. Known-open: highlight bleeding
+into line-number gutter (F-7, cosmetic), quit-guard blind to marks/live
+signatures (pre-existing), duplicate danger-button classes in
+redact-confirm.tsx worth collapsing into ActionButton.
+
+The text-editing stretch plan below is unchanged and still the next mission —
+note core/edit/ now exists and does half of Phase 1's work already.
 
 ## Mission & current state
 
