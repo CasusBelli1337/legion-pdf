@@ -13,6 +13,20 @@ export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 8;
 const ZOOM_STEP = 0.1;
 
+/**
+ * An undo/redo that ACTUALLY applied, broadcast to whoever cares. A lane
+ * subscribes to roll its own panel state back in step with the document —
+ * `tag` says which change moved (e.g. 'exhibit:A'), and `seq` increments on
+ * every event so two identical steps in a row are still two events.
+ */
+export interface HistoryEvent {
+  docId: string;
+  direction: 'undo' | 'redo';
+  /** Op tag of the change undone/redone; undefined when it carried none. */
+  tag?: string;
+  seq: number;
+}
+
 export interface AppState {
   sessions: DocumentSession[];
   activeId: string | null;
@@ -25,6 +39,8 @@ export interface AppState {
   busy: string | null;
   /** Transient informational line, e.g. the version readout from Help. */
   notice: string | null;
+  /** The last undo/redo that applied. Null until one does. */
+  lastHistoryEvent: HistoryEvent | null;
 
   openSession(session: DocumentSession): void;
   replaceSession(session: DocumentSession): void;
@@ -37,6 +53,8 @@ export interface AppState {
   setError(message: string | null): void;
   setBusy(message: string | null): void;
   setNotice(message: string | null): void;
+  /** Announces an applied undo/redo; the store stamps the sequence number. */
+  noteHistoryEvent(event: Omit<HistoryEvent, 'seq'>): void;
 }
 
 function clampZoom(zoom: number): number {
@@ -52,6 +70,7 @@ export const useAppStore = create<AppState>((set) => ({
   error: null,
   busy: null,
   notice: null,
+  lastHistoryEvent: null,
 
   openSession: (session) =>
     set((state) => ({
@@ -82,6 +101,10 @@ export const useAppStore = create<AppState>((set) => ({
   setError: (message) => set({ error: message }),
   setBusy: (message) => set({ busy: message }),
   setNotice: (message) => set({ notice: message }),
+  noteHistoryEvent: (event) =>
+    set((state) => ({
+      lastHistoryEvent: { ...event, seq: (state.lastHistoryEvent?.seq ?? 0) + 1 },
+    })),
 }));
 
 /** The document in the foreground tab, or null when nothing is open. */

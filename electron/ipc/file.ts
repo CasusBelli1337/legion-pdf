@@ -23,7 +23,9 @@ export function registerFileHandlers(context: IpcContext): void {
  * The history lives in the doc store, alongside the bytes it steps between, so
  * these three are pass-throughs. `applied: false` is an honest no-op answer —
  * the end of the history is not a failure — and the state fields always
- * describe the document as it stands AFTER the call.
+ * describe the document as it stands AFTER the call. An applied step also
+ * carries the `tag` of the change it stepped over, straight from the store, so
+ * the renderer can roll its own state back with the bytes.
  */
 function registerHistoryHandlers({ store }: IpcContext): void {
   ipcMain.handle(IPC.file.undo, (_event, docId: string): Promise<UndoResult> => {

@@ -126,13 +126,17 @@ export class DocStore {
    * The version being replaced goes on the undo stack first: this is the one
    * door every mutation passes through, so Undo covers all of them by
    * construction rather than by each op remembering to record itself.
+   *
+   * `tag` is optional and free-form (e.g. 'exhibit:A'). An op that passes one
+   * gets it back from the undo/redo that steps over this change, which is how a
+   * lane rolls its own UI state back alongside the bytes.
    */
-  async setBytes(docId: string, bytes: Uint8Array): Promise<DocumentSession> {
+  async setBytes(docId: string, bytes: Uint8Array, tag?: string): Promise<DocumentSession> {
     const document = this.require(docId);
     if (bytes.byteLength === 0) {
       throw new Error(`Refusing to store an empty result for ${document.fileName}.`);
     }
-    document.history.record(document.bytes);
+    document.history.record(document.bytes, tag);
     document.bytes = bytes;
     document.pageCount = await this.countPages(bytes);
     document.dirty = true;
@@ -199,12 +203,14 @@ export class DocStore {
    * restore that produced an empty or unreadable document would be exactly the
    * silent data loss undo exists to prevent, so it throws instead — and it
    * validates BEFORE the history moves, so a refused restore leaves both the
-   * document and its history untouched.
+   * document and its history untouched. The entry's tag comes back with the
+   * bytes so the renderer can undo its own state in the same beat.
    */
   private async step(document: StoredDocument, direction: 'back' | 'forward'): Promise<UndoResult> {
     const history = document.history;
-    const restored = direction === 'back' ? history.peekBack() : history.peekForward();
-    if (restored === null) return { applied: false, ...history.state };
+    const entry = direction === 'back' ? history.peekBack() : history.peekForward();
+    if (entry === null) return { applied: false, ...history.state };
+    const restored = entry.bytes;
     if (restored.byteLength === 0) {
       throw new Error(`Refusing to restore an empty version of ${document.fileName}.`);
     }
@@ -217,7 +223,7 @@ export class DocStore {
     document.bytes = restored;
     document.pageCount = pageCount;
     document.dirty = restored !== document.savedBytes;
-    return { applied: true, ...history.state };
+    return { applied: true, tag: entry.tag, ...history.state };
   }
 
   private require(docId: string): StoredDocument {

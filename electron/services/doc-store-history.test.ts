@@ -136,6 +136,44 @@ describe('history limits and invalidation', () => {
   });
 });
 
+/**
+ * The tag is how a feature lane rolls its OWN state back with the bytes: the
+ * exhibit panel that advanced "EXHIBIT A" to "EXHIBIT B" learns which label to
+ * put back. It has to survive the round trip through the store untouched.
+ */
+describe('op tags on the history', () => {
+  it('returns the tag of the change an undo took back, and again on the redo', async () => {
+    const session = await store.openFile(await seedFile('brief.pdf', 2));
+    await store.setBytes(session.id, await makePdf(5), 'exhibit:A');
+
+    expect(await store.undo(session.id)).toMatchObject({ applied: true, tag: 'exhibit:A' });
+    expect(await store.redo(session.id)).toMatchObject({ applied: true, tag: 'exhibit:A' });
+  });
+
+  it('keeps each edit under its own tag through a multi-step walk back', async () => {
+    const session = await store.openFile(await seedFile('brief.pdf', 1));
+    await store.setBytes(session.id, await makePdf(3), 'exhibit:A');
+    await store.setBytes(session.id, await makePdf(7), 'watermark');
+
+    expect(await store.undo(session.id)).toMatchObject({ tag: 'watermark' });
+    expect(await store.undo(session.id)).toMatchObject({ tag: 'exhibit:A' });
+  });
+
+  // Every op that exists today calls setBytes without a tag; none of them may
+  // start reporting somebody else's.
+  it('carries no tag for an edit made without one', async () => {
+    const { docId } = await openAndEdit();
+    const result = await store.undo(docId);
+    expect(result.applied).toBe(true);
+    expect(result.tag).toBeUndefined();
+  });
+
+  it('carries no tag when nothing applied', async () => {
+    const session = await store.openFile(await seedFile('brief.pdf', 2));
+    expect((await store.undo(session.id)).tag).toBeUndefined();
+  });
+});
+
 describe('history across a save', () => {
   it('survives the save — the edits before it are still there to step back', async () => {
     const filePath = await seedFile('brief.pdf', 2);

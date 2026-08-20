@@ -37,6 +37,7 @@ beforeEach(() => {
     error: null,
     busy: null,
     notice: null,
+    lastHistoryEvent: null,
   });
 });
 
@@ -153,6 +154,71 @@ describe('Ctrl+Z while typing in a text box', () => {
     await undoActive();
 
     expect(file.undo).toHaveBeenCalledWith('doc-1');
+  });
+});
+
+/**
+ * The document is only half of what an undo has to take back: a panel that
+ * advanced its own state when the change landed has to follow the bytes home.
+ * The broadcast is how it hears about it — tagged, so it knows WHICH change
+ * moved, and sequenced, so two identical steps read as two events.
+ */
+describe('broadcasting an applied step to the rest of the app', () => {
+  it('publishes the direction and the op tag the main process reported', async () => {
+    file.undo.mockResolvedValueOnce({ ...APPLIED, tag: 'exhibit:A' });
+
+    await undoActive();
+
+    expect(state().lastHistoryEvent).toEqual({
+      docId: 'doc-1',
+      direction: 'undo',
+      tag: 'exhibit:A',
+      seq: 1,
+    });
+  });
+
+  it('publishes a redo the same way', async () => {
+    file.redo.mockResolvedValueOnce({ ...APPLIED, tag: 'watermark' });
+
+    await redoActive();
+
+    expect(state().lastHistoryEvent).toMatchObject({ direction: 'redo', tag: 'watermark' });
+  });
+
+  it('leaves the tag undefined for a change that carried none', async () => {
+    await undoActive();
+
+    expect(state().lastHistoryEvent?.tag).toBeUndefined();
+    expect(state().lastHistoryEvent?.direction).toBe('undo');
+  });
+
+  // Undo the same tagged change twice and the tag is identical both times; only
+  // the sequence number tells a subscriber that something moved again.
+  it('increments the sequence number on every event', async () => {
+    file.undo.mockResolvedValueOnce({ ...APPLIED, tag: 'exhibit:A' });
+    file.undo.mockResolvedValueOnce({ ...APPLIED, tag: 'exhibit:A' });
+
+    await undoActive();
+    expect(state().lastHistoryEvent?.seq).toBe(1);
+
+    await undoActive();
+    expect(state().lastHistoryEvent?.seq).toBe(2);
+  });
+
+  it('says nothing when there was nothing to step to', async () => {
+    file.undo.mockResolvedValueOnce(NOTHING_TO_DO);
+
+    await undoActive();
+
+    expect(state().lastHistoryEvent).toBeNull();
+  });
+
+  it('says nothing when the step failed', async () => {
+    file.undo.mockRejectedValueOnce(new Error('The file is damaged.'));
+
+    await undoActive();
+
+    expect(state().lastHistoryEvent).toBeNull();
   });
 });
 

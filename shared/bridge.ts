@@ -27,6 +27,7 @@ import type {
   ExtractOptions,
   FlattenDetail,
   FlattenOptions,
+  HighlightOptions,
   InsertBlankOptions,
   InsertFromOptions,
   MenuAction,
@@ -118,6 +119,8 @@ export interface StampBridge {
   signaturePlace(docId: string, placement: SignaturePlacement): Promise<OpResult>;
   textBox(docId: string, options: TextBoxOptions): Promise<OpResult>;
   whiteout(docId: string, options: WhiteoutOptions): Promise<OpResult>;
+  /** Translucent marker over the given boxes; the text underneath is untouched. */
+  highlight(docId: string, options: HighlightOptions): Promise<OpResult>;
 }
 
 export interface OcrBridge {

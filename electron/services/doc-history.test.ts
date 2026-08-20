@@ -28,8 +28,8 @@ describe('DocumentHistory.record', () => {
       const previous = history.stepBack(current);
       expect(previous).not.toBeNull();
       if (previous === null) return;
-      restored.push(previous[0] ?? -1);
-      current = previous;
+      restored.push(previous.bytes[0] ?? -1);
+      current = previous.bytes;
     }
     expect(restored).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
     expect(history.stepBack(current)).toBeNull();
@@ -53,9 +53,9 @@ describe('DocumentHistory stepping', () => {
     const after = version(2);
     history.record(before);
 
-    expect(history.stepBack(after)).toBe(before);
+    expect(history.stepBack(after)?.bytes).toBe(before);
     expect(history.state).toEqual({ canUndo: false, canRedo: true });
-    expect(history.stepForward(before)).toBe(after);
+    expect(history.stepForward(before)?.bytes).toBe(after);
     expect(history.state).toEqual({ canUndo: true, canRedo: false });
   });
 
@@ -65,8 +65,8 @@ describe('DocumentHistory stepping', () => {
     history.record(first);
     history.record(second);
 
-    expect(history.stepBack(third)).toBe(second);
-    expect(history.stepBack(second)).toBe(first);
+    expect(history.stepBack(third)?.bytes).toBe(second);
+    expect(history.stepBack(second)?.bytes).toBe(first);
     expect(history.stepBack(first)).toBeNull();
   });
 
@@ -96,5 +96,47 @@ describe('DocumentHistory stepping', () => {
     const history = new DocumentHistory();
     history.record(version(1));
     expect(() => history.stepBack(new Uint8Array(0))).toThrow(EmptySnapshotError);
+  });
+});
+
+/**
+ * The tag labels the CHANGE, not either version around it. A lane rolls its
+ * panel back off that string, so undoing 'exhibit:A' and then redoing it have
+ * to report the same tag — a tag that drifted onto the neighbouring version
+ * would restore the wrong exhibit letter on the way forward.
+ */
+describe('DocumentHistory tags', () => {
+  it('hands back the tag of the change an undo takes back', () => {
+    const history = new DocumentHistory();
+    history.record(version(1), 'exhibit:A');
+    expect(history.stepBack(version(2))?.tag).toBe('exhibit:A');
+  });
+
+  it('leaves the tag undefined when the change was recorded without one', () => {
+    const history = new DocumentHistory();
+    history.record(version(1));
+    expect(history.stepBack(version(2))?.tag).toBeUndefined();
+  });
+
+  it('keeps every change under its own tag, walking back and forward again', () => {
+    const history = new DocumentHistory();
+    const [oldest, middle, newest] = [version(0), version(1), version(2)];
+    history.record(oldest, 'exhibit:A');
+    history.record(middle, 'watermark');
+
+    expect(history.stepBack(newest)).toEqual({ bytes: middle, tag: 'watermark' });
+    expect(history.stepBack(middle)).toEqual({ bytes: oldest, tag: 'exhibit:A' });
+
+    // Forward through the same two boundaries, in the same order they were made.
+    expect(history.stepForward(oldest)).toEqual({ bytes: middle, tag: 'exhibit:A' });
+    expect(history.stepForward(middle)).toEqual({ bytes: newest, tag: 'watermark' });
+  });
+
+  it('peeks the tag without moving the history', () => {
+    const history = new DocumentHistory();
+    history.record(version(1), 'bates:ASHFORD000001');
+
+    expect(history.peekBack()?.tag).toBe('bates:ASHFORD000001');
+    expect(history.state).toEqual({ canUndo: true, canRedo: false });
   });
 });
