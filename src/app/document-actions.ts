@@ -20,8 +20,9 @@ function describe(error: unknown): string {
   return raw.replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '');
 }
 
-function report(prefix: string, error: unknown): void {
-  useAppStore.getState().setError(`${prefix} ${describe(error)}`);
+/** `docId` scopes the message; omit it for the document in front, null for the app. */
+function report(prefix: string, error: unknown, docId?: string | null): void {
+  useAppStore.getState().setError(`${prefix} ${describe(error)}`, docId);
 }
 
 /** Guards against the menu accelerator and the Ctrl+O key handler both firing. */
@@ -34,7 +35,7 @@ export async function openDialog(): Promise<void> {
     const paths = await window.librarius.file.openDialog();
     if (paths.length > 0) await openPaths(paths);
   } catch (error) {
-    report('Could not open the file picker:', error);
+    report('Could not open the file picker:', error, null);
   } finally {
     dialogIsOpen = false;
   }
@@ -51,7 +52,8 @@ export async function openPaths(paths: string[]): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    report('Could not open that PDF:', error);
+    // The file that would not open is not a tab, so this belongs to no document.
+    report('Could not open that PDF:', error, null);
     return false;
   } finally {
     store.setBusy(null);
@@ -186,9 +188,10 @@ export async function closeDocument(docId: string): Promise<void> {
 export async function showVersion(): Promise<void> {
   try {
     const version = await window.librarius.app.version();
+    // About the app, not about a document: it stays put across a tab switch.
     useAppStore
       .getState()
-      .setNotice(`${PRODUCT_NAME} ${version.app} - Electron ${version.electron}`);
+      .setNotice(`${PRODUCT_NAME} ${version.app} - Electron ${version.electron}`, null);
   } catch (error) {
     report('Could not read the version:', error);
   }

@@ -19,13 +19,13 @@ export {
 export type { ImagePlacement } from './geometry';
 export { rebuildWithImagePages } from './image-pages';
 export type { BurnedRaster, RebuildResult } from './image-pages';
-export { pageContentText, pageContentStreams, shownCharactersOn } from './page-content';
-export { countInstances, planRedactions, verificationStrings } from './plan';
+export { pageContentStreams, shownCharactersOn } from './page-content';
+export { countInstances, instancesByString, planRedactions, verificationStrings } from './plan';
 export type { RedactionPlan } from './plan';
 export { decodePng, toOpaqueRgb } from './png-decode';
 export type { DecodedPng } from './png-decode';
 export { encodeRgbPng } from './png-encode';
-export { countOccurrences, encodingsOf, residueOf, scannableText } from './residue-scan';
+export { countEachOccurrence, encodingsOf, scannableText } from './residue-scan';
 export {
   NoRedactionMarksError,
   RedactionGeometryError,
@@ -33,5 +33,5 @@ export {
   UnsupportedRedactionRasterError,
 } from './types';
 export type { BurnedPage, PageRaster, PixelRect, RgbImage } from './types';
-export { assertVerified, verifyRedaction } from './verify';
-export type { VerifyRequest } from './verify';
+export { assertVerified, censusOf, verifyRedaction } from './verify';
+export type { VerifyRequest, VerifyTarget } from './verify';

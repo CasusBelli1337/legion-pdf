@@ -4,11 +4,11 @@
  */
 
 import { FileText } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useScopedError } from '../store';
 import { RecentFiles } from './recent-files';
 
 export function EmptyState() {
-  const error = useAppStore((state) => state.error);
+  const error = useScopedError();
 
   return (
     <div className="flex max-h-full w-full flex-col items-center justify-center gap-3 self-center overflow-y-auto p-6 text-center">

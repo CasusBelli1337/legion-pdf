@@ -32,12 +32,12 @@ function rasterPort(pages: Page[]) {
   };
 }
 
-function mark(page: number, id = `mark-${page}`): RedactionBox {
+function mark(page: number, id = `mark-${page}`, index = page): RedactionBox {
   return {
     id,
     page,
     rect: { x: 15, y: 190, width: 120, height: 30 },
-    sourceMatch: { page, text: SECRET, index: 0, quads: [] },
+    sourceMatch: { page, text: SECRET, index, quads: [] },
   };
 }
 
@@ -53,6 +53,19 @@ async function twoPages(): Promise<Uint8Array> {
     ],
   });
 }
+
+/** The same secret on both pages, so one of the two copies can be left alone. */
+async function secretOnBothPages(): Promise<Uint8Array> {
+  return makeTestPdf({
+    pages: [
+      { label: SECRET, width: 200, height: 300 },
+      { label: SECRET, width: 200, height: 300 },
+    ],
+  });
+}
+
+/** A search hit on page 2 — used on a mark that was placed on page 1 by mistake. */
+const HIT_ON_PAGE_2 = { page: 2, text: SECRET, index: 9, quads: [] };
 
 describe('applyRedactions', () => {
   it('destroys the marked text and hands back a verified receipt', async () => {
@@ -74,6 +87,7 @@ describe('applyRedactions', () => {
       instancesDestroyed: 1,
       survivingStrings: [],
       pagesStillCarryingText: [],
+      terms: [{ text: SECRET, before: 1, remaining: 0, marked: 1 }],
     });
   });
 
@@ -130,23 +144,58 @@ describe('applyRedactions', () => {
     expect(containsText(outcome.result.bytes, SURVIVOR)).toBe(false);
   });
 
-  it('REFUSES to return a document when a marked string survives elsewhere', async () => {
-    // The secret is on both pages; only page 1 is marked. Verification catches
-    // the copy on page 2 and the whole operation is abandoned.
-    const before = await makeTestPdf({
-      pages: [
-        { label: SECRET, width: 200, height: 300 },
-        { label: SECRET, width: 200, height: 300 },
-      ],
+  /**
+   * QA F-1. The secret is on both pages and only page 1 is marked. That is a
+   * complete redaction of what was asked for, so the run SUCCEEDS — and the
+   * receipt says plainly that one copy is still in the document.
+   */
+  it('destroys only the marked instance and reports the unmarked one', async () => {
+    const before = await secretOnBothPages();
+    const outcome = await applyRedactions(before, options([mark(1)]), {
+      rasterize: rasterPort([
+        { width: 200, height: 300 },
+        { width: 200, height: 300 },
+      ]),
     });
+
+    expect(outcome.result.detail.verified).toBe(true);
+    expect(outcome.result.detail.survivingStrings).toEqual([]);
+    expect(outcome.result.detail.terms).toEqual([
+      { text: SECRET, before: 2, remaining: 1, marked: 1 },
+    ]);
+    expect(outcome.targets).toEqual([{ text: SECRET, occurrencesBefore: 2, markedInstances: 1 }]);
+  });
+
+  /**
+   * The genuine survivor. Both instances are marked, but the second mark's
+   * rectangle was placed on page 1 instead of the page its hit came from — the
+   * burn destroys the wrong region and the attorney's second marked copy is
+   * still readable. Two copies were marked, one died: the run is abandoned.
+   */
+  it('REFUSES to return a document when a marked instance is still readable', async () => {
+    const before = await secretOnBothPages();
+    const misplaced: RedactionBox = { ...mark(1, 'stray'), sourceMatch: HIT_ON_PAGE_2 };
     await expect(
-      applyRedactions(before, options([mark(1)]), {
+      applyRedactions(before, options([mark(1), misplaced]), {
         rasterize: rasterPort([
           { width: 200, height: 300 },
           { width: 200, height: 300 },
         ]),
       })
     ).rejects.toThrow(RedactionNotVerifiedError);
+  });
+
+  it('says the MARKED copies survived, not that the term is in the document', async () => {
+    const before = await secretOnBothPages();
+    const misplaced: RedactionBox = { ...mark(1, 'stray'), sourceMatch: HIT_ON_PAGE_2 };
+    await expect(
+      applyRedactions(before, options([mark(1), misplaced]), {
+        rasterize: rasterPort([
+          { width: 200, height: 300 },
+          { width: 200, height: 300 },
+        ]),
+      })
+    ).rejects.toThrow(/the marked copies of 1 term are still readable/);
   });
 
   it('streams plain-English progress for every page and the verification', async () => {

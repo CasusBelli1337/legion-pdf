@@ -99,13 +99,34 @@ export interface RedactApplyOptions {
   verifyStrings: string[];
 }
 
-/** The receipt: proof the marked strings no longer exist in the output. */
+/**
+ * One marked term's accounting — the numbers behind an honest receipt.
+ *
+ * Redaction destroys what was MARKED. A term the attorney marked once in a
+ * document that holds it five times leaves four copies standing, and that is
+ * the correct outcome, not a failure. Carrying the counts here is what lets the
+ * receipt say so out loud instead of implying the whole term is gone.
+ */
+export interface RedactedTerm {
+  /** The term as the attorney marked it. */
+  text: string;
+  /** Occurrences the source document held, counted over every encoding. */
+  before: number;
+  /** Occurrences still readable in the redacted document. */
+  remaining: number;
+  /** How many of those occurrences the attorney marked for destruction. */
+  marked: number;
+}
+
+/** The receipt: proof the MARKED copies no longer exist in the output. */
 export interface RedactVerifyResult {
   verified: boolean;
   pagesRebuilt: number[];
   instancesDestroyed: number;
-  /** Non-empty means the redaction FAILED — never present this as success. */
+  /** Terms whose marked copies did NOT all disappear — never a success. */
   survivingStrings: string[];
+  /** Per-term accounting: what was there, what was marked, what is left. */
+  terms: RedactedTerm[];
   /** Doc-store id of the adopted redacted document (always a NEW document). */
   docId?: string;
   /** Rebuilt pages that still draw text — a distinct failure from survivingStrings. */

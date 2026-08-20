@@ -10,6 +10,7 @@ import type { AppVersionInfo, CloseChoice } from '@shared/types';
 import { choiceOf, closePrompt } from '../services/close-guard';
 import { isExternalWebLink } from '../services/external-link';
 import { askConfirm } from '../services/native-dialogs';
+import { printOutcome } from '../services/print-outcome';
 import type { IpcContext } from './context';
 
 export function registerAppHandlers({ getWindow }: IpcContext): void {
@@ -18,9 +19,10 @@ export function registerAppHandlers({ getWindow }: IpcContext): void {
     if (window === null) return;
     await new Promise<void>((resolve, reject) => {
       window.webContents.print({ silent: false }, (success, failureReason) => {
-        // A user-cancelled print is a normal outcome, not an error.
-        if (success || failureReason === 'cancelled') resolve();
-        else reject(new Error(failureReason));
+        // Backing out of the print dialog is a normal outcome, not an error, and
+        // Chromium reports it through the failure arguments (F-5).
+        if (printOutcome(success, failureReason) === 'failed') reject(new Error(failureReason));
+        else resolve();
       });
     });
   });

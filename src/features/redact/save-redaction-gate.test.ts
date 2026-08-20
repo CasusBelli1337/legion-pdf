@@ -19,14 +19,14 @@ import type {
 import type { RedactionGateChoice } from './redact-consent';
 
 // pdfjs is the renderer's last proof; the proof itself is tested in
-// pdfjs-proof.test.ts. Here it only has to answer "nothing survived".
-const extractDocumentText = vi.fn(async (_bytes: Uint8Array, _pages: number[]) => ({
-  text: '',
-  charsPerPage: [0],
-}));
-vi.mock('@renderer/lib/extract-text', () => ({
-  extractDocumentText: (bytes: Uint8Array, pages: number[]) => extractDocumentText(bytes, pages),
-  NoTextLayerError: class NoTextLayerError extends Error {},
+// pdfjs-proof.test.ts. Here it only has to answer "nothing survived" — an
+// image-only rebuilt page, which is what a redaction produces.
+const readPageTextBoxes = vi.fn(async (_bytes: Uint8Array, pages: readonly number[]) =>
+  pages.map((page) => ({ page, boxes: [] }))
+);
+vi.mock('./page-text-boxes', () => ({
+  readPageTextBoxes: (bytes: Uint8Array, pages: readonly number[]) =>
+    readPageTextBoxes(bytes, pages),
 }));
 
 // The dialog is React DOM on a real document; the ANSWER is what matters here.
@@ -55,6 +55,7 @@ const RECEIPT: RedactVerifyResult = {
   pagesRebuilt: [3],
   instancesDestroyed: 2,
   survivingStrings: [],
+  terms: [{ text: 'Social Security', before: 2, remaining: 0, marked: 2 }],
   docId: REDACTED_ID,
 };
 

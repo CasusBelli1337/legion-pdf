@@ -29,6 +29,41 @@ export function describeError(error: unknown): string {
   return raw.replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '');
 }
 
+/** What an operation left behind: its receipt, or the reason it did not land. */
+export type OpOutcome = { ok: true; receipt: string } | { ok: false; message: string };
+
+/**
+ * The completion path EVERY document edit shares, without the panel state — so
+ * a caller that has no panel (the selection menu's Highlight) still lands in the
+ * same place a stamp does: the new bytes re-read into the session, which
+ * re-renders the page, carries the dirty flag over and re-enables Undo, plus a
+ * receipt in the footer scoped to the document that earned it.
+ *
+ * Calling this directly rather than `window.librarius.stamp.*` is what stops an
+ * edit from reaching the file while the screen says nothing happened (F-2).
+ */
+export async function runDocumentOp(
+  docId: string,
+  label: string,
+  work: () => Promise<string>
+): Promise<OpOutcome> {
+  const store = useAppStore.getState();
+  store.setBusy(label);
+  try {
+    const receipt = await work();
+    const refreshed = useAppStore.getState();
+    refreshed.replaceSession(await window.librarius.file.read(docId));
+    refreshed.setNotice(receipt, docId);
+    return { ok: true, receipt };
+  } catch (caught) {
+    const message = describeError(caught);
+    useAppStore.getState().setError(message, docId);
+    return { ok: false, message };
+  } finally {
+    useAppStore.getState().setBusy(null);
+  }
+}
+
 export function useStampRunner(docId: string | null): StampRunner {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,20 +86,11 @@ export function useStampRunner(docId: string | null): StampRunner {
       setError(null);
       setReceipt(null);
       setProgress(null);
-      useAppStore.getState().setBusy(label);
-      try {
-        const message = await work();
-        useAppStore.getState().replaceSession(await window.librarius.file.read(docId));
-        setReceipt(message);
-        useAppStore.getState().setNotice(message);
-      } catch (caught) {
-        setError(describeError(caught));
-        useAppStore.getState().setError(describeError(caught));
-      } finally {
-        setBusy(null);
-        setProgress(null);
-        useAppStore.getState().setBusy(null);
-      }
+      const outcome = await runDocumentOp(docId, label, work);
+      if (outcome.ok) setReceipt(outcome.receipt);
+      else setError(outcome.message);
+      setBusy(null);
+      setProgress(null);
     },
     [docId]
   );

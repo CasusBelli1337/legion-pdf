@@ -17,8 +17,10 @@ export interface RedactionPlan {
   /** Marks per page, in PDF user space. */
   marksByPage: Map<number, PdfRect[]>;
   dpi: number;
-  /** Strings the verification pass must prove absent from the output. */
+  /** Terms the verification pass must account for in the output. */
   strings: string[];
+  /** How many instances of each term were marked, keyed by the lowercased term. */
+  markedInstances: Map<string, number>;
   /** Marks placed. One search hit can be several marks — see `instanceCount`. */
   markCount: number;
   /** The "N instances destroyed" of the receipt. */
@@ -58,9 +60,9 @@ function assertPagesExist(boxes: readonly RedactionBox[], pageCount: number): vo
 }
 
 /**
- * Everything the verify pass must prove is gone: what the caller listed, plus
- * the text of every search hit that was marked. Deriving the second half here
- * is what stops a search-based redaction from being verified against nothing.
+ * Every term the verify pass must account for: what the caller listed, plus the
+ * text of every search hit that was marked. Deriving the second half here is
+ * what stops a search-based redaction from being verified against nothing.
  */
 export function verificationStrings(options: RedactApplyOptions): string[] {
   const fromMatches = options.boxes.map((box) => box.sourceMatch?.text ?? '');
@@ -91,6 +93,29 @@ export function countInstances(boxes: readonly RedactionBox[]): number {
   return hits.size + drawn;
 }
 
+/**
+ * How many INSTANCES of each term were marked, keyed by the lowercased term.
+ *
+ * This is the number that makes verification instance-scoped. The promise to
+ * the attorney is that the copies they MARKED are destroyed — copies elsewhere
+ * in the document were never part of the request, and failing the redaction
+ * over them tells them their marked text survived when it did not. Marks from
+ * the same hit count once, exactly as `countInstances` counts them.
+ */
+export function instancesByString(boxes: readonly RedactionBox[]): Map<string, number> {
+  const hits = new Map<string, Set<string>>();
+  for (const box of boxes) {
+    const match = box.sourceMatch;
+    if (match === undefined) continue;
+    const key = match.text.trim().toLowerCase();
+    if (key.length === 0) continue;
+    const seen = hits.get(key) ?? new Set<string>();
+    seen.add(`${match.page}:${match.index}`);
+    hits.set(key, seen);
+  }
+  return new Map([...hits].map(([key, seen]) => [key, seen.size]));
+}
+
 function groupByPage(boxes: readonly RedactionBox[]): Map<number, PdfRect[]> {
   const marksByPage = new Map<number, PdfRect[]>();
   for (const box of boxes) {
@@ -115,6 +140,7 @@ export function planRedactions(options: RedactApplyOptions, pageCount: number): 
     marksByPage,
     dpi: options.dpi,
     strings: verificationStrings(options),
+    markedInstances: instancesByString(options.boxes),
     markCount: options.boxes.length,
     instanceCount: countInstances(options.boxes),
   };

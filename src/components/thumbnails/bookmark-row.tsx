@@ -87,7 +87,7 @@ function RemoveConfirm({
           type="button"
           disabled={actions.disabled}
           onClick={() => actions.onRemove(path)}
-          className={`${SMALL_BUTTON} bg-danger text-text-primary hover:brightness-110 disabled:bg-armory-interactive disabled:text-text-muted`}
+          className={`${SMALL_BUTTON} bg-danger text-text-on-danger hover:brightness-110 disabled:bg-armory-interactive disabled:text-text-muted`}
         >
           Remove
         </button>

@@ -2,8 +2,8 @@
 /**
  * LANE E (redaction) — owned by the redaction agent.
  * Apply DESTROYS content: rasterize the affected pages, burn the boxes in, and
- * rebuild. The verify pass must re-extract text and prove the marked strings
- * are gone before the result is ever presented as a success.
+ * rebuild. The verify pass must re-read the saved bytes and prove the MARKED
+ * copies are gone before the result is ever presented as a success.
  *
  * Two rules this file exists to keep:
  *   - Nothing unverified escapes. `applyRedactions` throws on a failed proof,
@@ -22,7 +22,7 @@ import type {
   RedactVerifyResult,
 } from '@shared/types';
 import { applyRedactions, assertVerified, verifyRedaction } from '@core/redact';
-import type { RedactProgress } from '@core/redact';
+import type { RedactProgress, VerifyTarget } from '@core/redact';
 import type { IpcContext } from './context';
 import { reOcrBurnedPages } from './redact-reocr';
 
@@ -56,17 +56,19 @@ async function rasterizeThrough(
 
 /**
  * Re-OCR writes brand new text onto the rebuilt pages, so the proof has to be
- * repeated against the bytes the user will actually receive.
+ * repeated against the bytes the user will actually receive. The targets are
+ * the ones counted from the SOURCE before the burn — the only numbers that can
+ * still say how many copies were supposed to disappear.
  */
 async function verifyAgainAfterOcr(
   bytes: Uint8Array,
-  strings: readonly string[],
+  targets: readonly VerifyTarget[],
   pages: readonly number[],
   instancesDestroyed: number
 ): Promise<RedactVerifyResult> {
   const result = await verifyRedaction({
     bytes,
-    strings,
+    targets,
     pagesRebuilt: pages,
     expectNoTextOnRebuiltPages: false,
     instancesDestroyed,
@@ -116,7 +118,7 @@ async function handleApply(
   );
   const receipt = await verifyAgainAfterOcr(
     searchable,
-    outcome.plan.strings,
+    outcome.targets,
     outcome.plan.pages,
     outcome.plan.instanceCount
   );
@@ -131,6 +133,10 @@ async function handleApply(
 /**
  * The standalone check the panel offers on any open document: prove these
  * strings are absent. It rebuilds nothing, so it destroys nothing.
+ *
+ * Nothing was marked here, so this is the ABSOLUTE question rather than the
+ * instance-scoped one — a target with zero marked instances must not appear in
+ * the document at all.
  */
 function handleVerify(
   context: IpcContext,
@@ -139,7 +145,7 @@ function handleVerify(
 ): Promise<RedactVerifyResult> {
   return verifyRedaction({
     bytes: context.store.bytes(docId),
-    strings,
+    targets: strings.map((text) => ({ text, occurrencesBefore: 0, markedInstances: 0 })),
     pagesRebuilt: [],
     expectNoTextOnRebuiltPages: false,
     instancesDestroyed: 0,

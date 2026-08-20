@@ -76,9 +76,11 @@ function notVerifiedMessage(
 ): string {
   const parts: string[] = [];
   if (survivingStrings.length > 0) {
+    // "The copies you marked" — never "the term is still in the document",
+    // which is true of every partly-marked term and is not a failure.
     parts.push(
-      `${survivingStrings.length} marked ` +
-        `${survivingStrings.length === 1 ? 'item is' : 'items are'} still readable`
+      `the marked copies of ${survivingStrings.length} ` +
+        `${survivingStrings.length === 1 ? 'term are' : 'terms are'} still readable`
     );
   }
   if (pagesStillCarryingText.length > 0) {
@@ -94,13 +96,14 @@ function notVerifiedMessage(
 }
 
 /**
- * Thrown when the verification pass finds a marked string still readable in the
- * output, or a rebuilt page that still draws text. The bytes are abandoned:
+ * Thrown when the verification pass finds that a term's MARKED copies did not
+ * disappear, or a rebuilt page that still draws text. The bytes are abandoned:
  * nothing that fails verification is ever adopted, saved, or shown as a result.
  */
 export class RedactionNotVerifiedError extends Error {
   readonly code = 'REDACTION_NOT_VERIFIED';
   constructor(
+    /** Terms whose marked copies survived. Never terms the attorney left alone. */
     readonly survivingStrings: readonly string[],
     readonly pagesStillCarryingText: readonly number[] = []
   ) {

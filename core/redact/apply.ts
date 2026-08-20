@@ -19,7 +19,8 @@ import { rebuildWithImagePages } from './image-pages';
 import type { BurnedRaster } from './image-pages';
 import { planRedactions } from './plan';
 import type { RedactionPlan } from './plan';
-import { assertVerified, verifyRedaction } from './verify';
+import { assertVerified, censusOf, verifyRedaction } from './verify';
+import type { VerifyTarget } from './verify';
 import type { BurnedPage, PageRaster } from './types';
 
 /** Plain-English phases; the panel renders them as "Rasterizing page 3 of 7". */
@@ -43,6 +44,12 @@ export interface RedactPorts {
 export interface RedactionOutcome {
   result: OpResult<RedactVerifyResult>;
   plan: RedactionPlan;
+  /**
+   * What the SOURCE held per term, counted before anything was burned. A second
+   * verification (after re-OCR) has to reuse these: the source is gone by then,
+   * and re-counting the output against itself would prove nothing.
+   */
+  targets: VerifyTarget[];
   /**
    * The burned rasters. An optional re-OCR reads THESE, never a fresh render,
    * so the text layer it writes is derived from pixels the marks already
@@ -109,6 +116,10 @@ function toRasters(burned: readonly BurnedPage[]): BurnedRaster[] {
  * Destroy every marked region and prove it. Throws — never returns a result —
  * when the proof fails, so an unverified redaction cannot be adopted, saved, or
  * shown as a success.
+ *
+ * What is proved is that the MARKED copies are gone. Copies of the same term on
+ * pages nobody marked are none of this run's business; the receipt counts them
+ * so the attorney is told, and the document is still handed back.
  */
 export async function applyRedactions(
   bytes: Uint8Array,
@@ -117,6 +128,7 @@ export async function applyRedactions(
 ): Promise<RedactionOutcome> {
   const source = await loadPdf(bytes, 'document being redacted');
   const plan = planRedactions(options, source.getPageCount());
+  const targets = censusOf(bytes, plan.strings, plan.markedInstances);
 
   const burned = await burnPages(bytes, plan, ports);
   const rebuild = await rebuildWithImagePages(
@@ -129,7 +141,7 @@ export async function applyRedactions(
   ports.onProgress?.(PHASE_VERIFY, 1, 1);
   const verified = await verifyRedaction({
     bytes: rebuild.bytes,
-    strings: plan.strings,
+    targets,
     pagesRebuilt: plan.pages,
     expectNoTextOnRebuiltPages: true,
     instancesDestroyed: plan.instanceCount,
@@ -145,6 +157,7 @@ export async function applyRedactions(
       'redacted document'
     ),
     plan,
+    targets,
     burned,
     droppedMetadata: rebuild.droppedMetadata,
   };

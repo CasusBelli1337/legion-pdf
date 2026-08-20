@@ -108,7 +108,7 @@ export function DestroyConfirm({ count, pages, onConfirm, onCancel }: DestroyCon
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-md bg-danger px-3 py-2 text-sm font-medium text-text-primary transition-[filter] duration-150 hover:brightness-110"
+          className="rounded-md bg-danger px-3 py-2 text-sm font-medium text-text-on-danger transition-[filter] duration-150 hover:brightness-110"
         >
           {DESTROY_CONFIRM_LABEL}
         </button>
@@ -137,7 +137,7 @@ export function RedactSaveGate({ count, pages, onChoice }: RedactSaveGateProps) 
         <button
           type="button"
           onClick={() => onChoice('apply')}
-          className="rounded-md bg-danger px-3 py-2 text-sm font-medium text-text-primary transition-[filter] duration-150 hover:brightness-110"
+          className="rounded-md bg-danger px-3 py-2 text-sm font-medium text-text-on-danger transition-[filter] duration-150 hover:brightness-110"
         >
           {APPLY_NOW_LABEL}
         </button>

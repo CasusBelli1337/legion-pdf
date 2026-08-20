@@ -30,9 +30,11 @@ vi.mock('../components/viewer', () => ({
 }));
 
 // The renderer's last redaction proof. Proved on its own in pdfjs-proof.test.ts.
-vi.mock('@renderer/lib/extract-text', () => ({
-  extractDocumentText: vi.fn(async () => ({ text: '', charsPerPage: [0] })),
-  NoTextLayerError: class NoTextLayerError extends Error {},
+// Image-only rebuilt pages: nothing readable anywhere, marked areas included.
+vi.mock('../features/redact/page-text-boxes', () => ({
+  readPageTextBoxes: vi.fn(async (_bytes: Uint8Array, pages: readonly number[]) =>
+    pages.map((page) => ({ page, boxes: [] }))
+  ),
 }));
 
 const asked: string[] = [];
@@ -82,6 +84,7 @@ const RECEIPT: RedactVerifyResult = {
   pagesRebuilt: [3],
   instancesDestroyed: 1,
   survivingStrings: [],
+  terms: [],
   docId: REDACTED_ID,
 };
 

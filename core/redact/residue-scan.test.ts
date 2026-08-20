@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { makeTestPdf } from '@core/ops/test-fixtures';
 import { encodeRgbPng } from './png-encode';
-import { countOccurrences, encodingsOf, residueOf, scannableText } from './residue-scan';
+import { countEachOccurrence, encodingsOf, scannableText } from './residue-scan';
 
 const SECRET = 'SSN 545-45-6789';
 
@@ -29,36 +29,46 @@ describe('encodingsOf', () => {
   });
 });
 
-describe('residueOf', () => {
-  it('finds text pdf-lib compressed into a content stream', async () => {
-    const bytes = await makeTestPdf({ pages: [{ label: SECRET }] });
-    expect(residueOf(bytes, [SECRET])).toEqual([SECRET]);
+/**
+ * Counting is what makes verification instance-scoped: the pass compares how
+ * many copies a term had against how many it has left, so these numbers decide
+ * whether an honest redaction is accepted — and whether a leak is caught.
+ */
+describe('countEachOccurrence', () => {
+  it('counts every needle over one scan of the file', async () => {
+    const bytes = await makeTestPdf({
+      pages: [{ label: SECRET }, { label: SECRET }, { label: 'ACCT-99887766' }],
+    });
+    expect(countEachOccurrence(bytes, [SECRET, 'ACCT-99887766', 'ABSENT'])).toEqual(
+      new Map([
+        [SECRET, 2],
+        ['ACCT-99887766', 1],
+        ['ABSENT', 0],
+      ])
+    );
   });
 
-  it('finds text hidden in a bookmark title, written as UTF-16BE hex', async () => {
+  it('counts text pdf-lib compressed into a content stream', async () => {
+    const bytes = await makeTestPdf({ pages: [{ label: SECRET }] });
+    expect(countEachOccurrence(bytes, [SECRET]).get(SECRET)).toBe(1);
+  });
+
+  it('counts text hidden in a bookmark title, written as UTF-16BE hex', async () => {
     const bytes = await makeTestPdf({
       pages: [{ label: 'PUBLIC' }],
       bookmarks: [{ title: `Account ${SECRET}`, page: 1, children: [] }],
     });
-    expect(residueOf(bytes, [SECRET])).toEqual([SECRET]);
+    expect(countEachOccurrence(bytes, [SECRET]).get(SECRET)).toBe(1);
   });
 
-  it('finds text in the document information dictionary', async () => {
+  it('counts text in the document information dictionary', async () => {
     const bytes = await makeTestPdf({ pages: [{ label: 'PUBLIC' }], info: { Author: SECRET } });
-    expect(residueOf(bytes, [SECRET])).toEqual([SECRET]);
+    expect(countEachOccurrence(bytes, [SECRET]).get(SECRET)).toBe(1);
   });
 
-  it('reports nothing for a document that never contained it', async () => {
+  it('counts zero for a document that never contained it', async () => {
     const bytes = await makeTestPdf({ pages: [{ label: 'PUBLIC' }] });
-    expect(residueOf(bytes, [SECRET])).toEqual([]);
-  });
-
-  it('reports every survivor, not just the first', async () => {
-    const bytes = await makeTestPdf({ pages: [{ label: SECRET }, { label: 'ACCT-99887766' }] });
-    expect(residueOf(bytes, [SECRET, 'ACCT-99887766', 'ABSENT'])).toEqual([
-      SECRET,
-      'ACCT-99887766',
-    ]);
+    expect(countEachOccurrence(bytes, [SECRET]).get(SECRET)).toBe(0);
   });
 
   it('does NOT read image samples as text', async () => {
@@ -70,29 +80,17 @@ describe('residueOf', () => {
     const page = document.addPage([200, 200]);
     page.drawImage(image, { x: 0, y: 0, width: 200, height: 200 });
     const bytes = await document.save();
-    expect(residueOf(bytes, [SECRET])).toEqual([]);
+    expect(countEachOccurrence(bytes, [SECRET]).get(SECRET)).toBe(0);
   });
 
-  it('has nothing to say when asked about no strings', async () => {
+  it('counts zero for an empty needle rather than every gap in the file', async () => {
+    const bytes = await makeTestPdf({ pages: [{ label: 'PUBLIC' }] });
+    expect(countEachOccurrence(bytes, ['']).get('')).toBe(0);
+  });
+
+  it('has nothing to count when asked about no needles', async () => {
     const bytes = await makeTestPdf({ pages: [{ label: SECRET }] });
-    expect(residueOf(bytes, [])).toEqual([]);
-  });
-});
-
-describe('countOccurrences', () => {
-  it('counts a marker once per page it appears on', async () => {
-    const bytes = await makeTestPdf({ pages: [{ label: SECRET }, { label: SECRET }] });
-    expect(countOccurrences(bytes, SECRET)).toBeGreaterThanOrEqual(2);
-  });
-
-  it('returns zero for a string the document never held', async () => {
-    const bytes = await makeTestPdf({ pages: [{ label: 'PUBLIC' }] });
-    expect(countOccurrences(bytes, SECRET)).toBe(0);
-  });
-
-  it('returns zero for an empty needle rather than counting every gap', async () => {
-    const bytes = await makeTestPdf({ pages: [{ label: 'PUBLIC' }] });
-    expect(countOccurrences(bytes, '')).toBe(0);
+    expect(countEachOccurrence(bytes, [])).toEqual(new Map());
   });
 });
 

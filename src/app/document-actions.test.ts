@@ -9,7 +9,7 @@ vi.mock('../components/viewer', () => ({
   forgetTabView: vi.fn(),
 }));
 
-const { closeDocument } = await import('./document-actions');
+const { closeDocument, printActive } = await import('./document-actions');
 const { useAppStore } = await import('./store');
 
 const SAVE_RESULT: SaveResult = {
@@ -23,7 +23,10 @@ const file = {
   save: vi.fn(async (): Promise<SaveResult> => SAVE_RESULT),
   saveAs: vi.fn(async (): Promise<SaveResult | null> => SAVE_RESULT),
 };
-const appBridge = { confirmClose: vi.fn(async (): Promise<CloseChoice> => 'cancel') };
+const appBridge = {
+  confirmClose: vi.fn(async (): Promise<CloseChoice> => 'cancel'),
+  print: vi.fn(async (): Promise<void> => undefined),
+};
 
 vi.stubGlobal('window', { librarius: { file, app: appBridge } });
 
@@ -115,6 +118,28 @@ describe('closing a tab with unsaved changes', () => {
     await closeDocument('doc-1');
     expect(openIds()).toEqual(['doc-1']);
     expect(file.close).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * F-5, the renderer half. The main process resolves a cancelled print, so the
+ * footer must be left exactly as it was — a cancel is a non-event, and the red
+ * line is reserved for a printer that really did not work.
+ */
+describe('printing', () => {
+  it('says nothing at all when the print dialog is cancelled', async () => {
+    await printActive();
+
+    expect(appBridge.print).toHaveBeenCalledWith('doc-1');
+    expect(useAppStore.getState().error).toBeNull();
+    expect(useAppStore.getState().notice).toBeNull();
+  });
+
+  it('still explains a print that genuinely failed', async () => {
+    appBridge.print.mockRejectedValueOnce(new Error('Invalid printer settings'));
+    await printActive();
+
+    expect(useAppStore.getState().error).toBe('Could not print: Invalid printer settings');
   });
 });
 
