@@ -39,3 +39,4 @@ qa/fixtures/
 !build/icon.png
 # Legibility proofs from `npm run build:icon`; regenerate, never commit.
 build/icon-check-*.png
+src/public/pdfjs/
