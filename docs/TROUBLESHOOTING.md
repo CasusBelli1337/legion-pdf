@@ -126,3 +126,15 @@ second app).
   rejects on an already-failing path.
 - **Stretch goal (next session): true text editing with reflow** — whiteout
   and retype shipped instead; see the handoff doc.
+
+## Scanned court filings render as white pages (fixed 2026-08-19)
+
+Every Acrobat "Paper Capture" scan is JBIG2-encoded; pdf.js 6 decodes JBIG2/
+JPX via wasm it must be POINTED AT (`wasmUrl`), else: "Ensure that the
+wasmUrl API parameter is provided" → "JBig2 failed to initialize" → white
+pages while the OCR text layer still works. Fix: scripts/sync-pdfjs-assets.mjs
+copies pdfjs-dist/{wasm,cmaps,standard_fonts} → src/public/pdfjs (pre-dev/
+build hooks) and src/lib/pdfjs.ts passes wasmUrl/cMapUrl/standardFontDataUrl
+on every load. Drift-guarded by src/lib/pdfjs-assets.test.ts. QA rule: any
+viewer change gets smoke-tested against a REAL scanned court filing, not
+only generated fixtures — PNG-embedded scans never touch these decoders.

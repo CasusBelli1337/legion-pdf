@@ -17,7 +17,11 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "sync:pdfjs": "node scripts/sync-pdfjs-assets.mjs",
+    "predev": "npm run sync:pdfjs",
+    "prebuild": "npm run sync:pdfjs",
+    "prebuild:win": "npm run sync:pdfjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
