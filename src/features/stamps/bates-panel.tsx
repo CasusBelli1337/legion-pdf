@@ -10,7 +10,7 @@
  * instead of carrying another file's page numbers.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DocumentSession } from '@shared/types';
 import { useViewerApi, type PageOverlayRenderer } from '@renderer/components/viewer';
 import { useActiveSession } from '@renderer/app/store';
@@ -18,13 +18,13 @@ import { BatesFields } from './bates-form';
 import {
   batesLabelAt,
   batesReceipt,
-  DEFAULT_BATES_FORM,
   previewBates,
   toBatesOptions,
   type BatesForm,
 } from './bates-preview';
 import { CornerMark } from './mark-preview';
 import { parsePageRange } from './page-range';
+import { rememberBates, startingBatesForm } from './stamp-settings';
 import { ActionButton, EmptyPanel, Hint, Problem, RunStatus } from './stamp-views';
 import { useMarkOverlay } from './use-mark-overlay';
 import { useStampRunner, type StampRunner } from './use-stamp-runner';
@@ -93,12 +93,15 @@ function BatesActions({
 function BatesBody({ session }: { session: DocumentSession }) {
   const api = useViewerApi();
   const runner = useStampRunner(session.id);
-  const [form, setForm] = useState<BatesForm>(DEFAULT_BATES_FORM);
+  const [form, setForm] = useState<BatesForm>(startingBatesForm);
 
   const range = parsePageRange(form.range, session.pageCount);
   const preview = previewBates(form, range.pages);
   const blocked = range.error ?? preview.problem;
 
+  // The prefix, corner, and size an attorney sets are the ones he wants on the
+  // next production too — remembered whatever changed them.
+  useEffect(() => rememberBates(form), [form]);
   useMarkOverlay(api, OVERLAY_ID, useBatesOverlay(form, range.pages, blocked));
 
   const apply = (): void => {

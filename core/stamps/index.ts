@@ -14,6 +14,7 @@ export {
   ordinalToLetter,
 } from './exhibit-label';
 export { insertSlipSheet } from './slip-sheet';
+export { applyHighlight, HIGHLIGHT_YELLOW } from './highlight';
 export { applyWatermark } from './watermark';
 export { applyPageNumbers, pageNumberLabel } from './page-numbers';
 export { placeSignature } from './signature';
@@ -36,3 +37,7 @@ export {
   uprightDegrees,
 } from './geometry';
 export type { BoxSize, PageFrame } from './geometry';
+export { drawLabel, measureLabel, LABEL_PADDING, LABEL_BORDER_WIDTH } from './label-box';
+export type { LabelMetrics } from './label-box';
+export { measureInk } from './ink';
+export type { InkBox } from './ink';

@@ -2,12 +2,17 @@
  * Ctrl+F. A strip under the toolbar (it pushes the pages down, never covers
  * them) with the hit list, next/previous, and live progress while a long
  * document is searched.
+ *
+ * The keys are handled on the strip as a whole, so Up and Down walk the hits
+ * whether the cursor is still in the search box or the attorney has clicked
+ * into the result list — and each step takes the viewer to that hit's page.
  */
 
 import { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useViewerApi } from '../../components/viewer';
 import { useFind, type FindState } from './use-find';
+import { findKeyAction } from './find-keys';
 import { useFindHighlights } from './find-highlights';
 import { FindResults } from './find-results';
 
@@ -32,10 +37,6 @@ function FindControls({ find, onClose }: { find: FindState; onClose(): void }) {
         ref={inputRef}
         value={find.query}
         onChange={(event) => find.setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') find.search();
-          if (event.key === 'Escape') onClose();
-        }}
         placeholder="Find in document"
         aria-label="Find in document"
         className="h-6 w-64 rounded border border-armory-border bg-armory-base px-2 text-xs text-text-primary focus:border-armory-focus focus:outline-none"
@@ -79,8 +80,22 @@ export function FindBar({ onClose }: { onClose(): void }) {
   const find = useFind(api);
   useFindHighlights(api, find.matches, find.active);
 
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    const action = findKeyAction(event, find.matches.length > 0);
+    if (action === null) return;
+    // Stops the caret jumping and the result list scrolling under the arrows.
+    event.preventDefault();
+    if (action === 'search') find.search();
+    if (action === 'next') find.step(1);
+    if (action === 'previous') find.step(-1);
+    if (action === 'close') onClose();
+  };
+
   return (
-    <div className="flex shrink-0 flex-col border-b border-armory-border bg-armory-elevated">
+    <div
+      onKeyDown={onKeyDown}
+      className="flex shrink-0 flex-col border-b border-armory-border bg-armory-elevated"
+    >
       <FindControls find={find} onClose={onClose} />
       <FindResults matches={find.matches} active={find.active} onSelect={find.goTo} />
     </div>

@@ -37,3 +37,12 @@ export {
 export { ALL_PAGES, describePageCount, everyPage, parsePageRange } from './page-range';
 export type { PageRangeResult } from './page-range';
 export { nextExhibitLabel } from './exhibit-label';
+export {
+  batesMemory,
+  exhibitMemory,
+  rememberBates,
+  rememberExhibit,
+  startingBatesForm,
+  startingExhibitState,
+} from './stamp-settings';
+export type { BatesMemory, ExhibitMemory } from './stamp-settings';

@@ -17,6 +17,7 @@ import type {
   BatesOptions,
   ExhibitDetail,
   ExhibitOptions,
+  HighlightOptions,
   OpResult,
   PageNumberDetail,
   PageNumberOptions,
@@ -32,6 +33,7 @@ import {
   addTextBox,
   applyBates,
   applyExhibitStamp,
+  applyHighlight,
   applyPageNumbers,
   applyWatermark,
   applyWhiteout,
@@ -40,24 +42,39 @@ import {
   placeSignature,
 } from '@core/stamps';
 import type { IpcContext } from './context';
-import { registerNotImplemented } from './not-implemented';
 import { SignatureLibrary } from './stamp-signatures';
 
 /** Where the attorney's scanned signatures live. */
 export const SIGNATURE_DIRECTORY = 'signatures';
+
+/**
+ * #seam:label-undo-tag — the op tags the exhibit panel rolls its label back on.
+ * The renderer cannot import this file (main-process module), so the two sides
+ * are bound by these exact strings; `src/features/stamps/exhibit-form.ts` reads
+ * them and its test fails if either side drifts.
+ */
+export const EXHIBIT_TAG = 'exhibit:';
+export const SLIP_SHEET_TAG = 'slipsheet:';
+/** The tag every highlight carries, so undo can say what it stepped over. */
+export const HIGHLIGHT_TAG = 'highlight';
 
 function reporter(context: IpcContext, docId: string, phase: string): ProgressReporter {
   return (current, total) =>
     context.emitProgress(IPC.stamp.progress, { docId, phase, current, total });
 }
 
-/** Swaps the store's bytes for the op's output; the store marks it dirty. */
+/**
+ * Swaps the store's bytes for the op's output; the store marks it dirty. An op
+ * that passes a `tag` gets it back from the undo/redo that steps over this
+ * change, which is how the exhibit panel walks its label back with the bytes.
+ */
 async function keep<T>(
   context: IpcContext,
   docId: string,
-  result: OpResult<T>
+  result: OpResult<T>,
+  tag?: string
 ): Promise<OpResult<T>> {
-  await context.store.setBytes(docId, result.bytes);
+  await context.store.setBytes(docId, result.bytes, tag);
   return result;
 }
 
@@ -98,16 +115,15 @@ function registerNumberingHandlers(context: IpcContext): void {
 function registerMarkHandlers(context: IpcContext): void {
   ipcMain.handle(
     IPC.stamp.exhibit,
-    async (_event, docId: string, options: ExhibitOptions): Promise<OpResult<ExhibitDetail>> =>
-      keep(
-        context,
-        docId,
-        await applyExhibitStamp(
-          context.store.bytes(docId),
-          options,
-          reporter(context, docId, 'Stamping exhibits')
-        )
-      )
+    async (_event, docId: string, options: ExhibitOptions): Promise<OpResult<ExhibitDetail>> => {
+      const result = await applyExhibitStamp(
+        context.store.bytes(docId),
+        options,
+        reporter(context, docId, 'Stamping exhibits')
+      );
+      const applied = result.detail.labelsApplied[0] ?? options.label.trim();
+      return keep(context, docId, result, `${EXHIBIT_TAG}${applied}`);
+    }
   );
 
   ipcMain.handle(
@@ -127,7 +143,18 @@ function registerMarkHandlers(context: IpcContext): void {
   ipcMain.handle(
     IPC.stamp.slipSheet,
     async (_event, docId: string, options: SlipSheetOptions): Promise<OpResult> =>
-      keep(context, docId, await insertSlipSheet(context.store.bytes(docId), options))
+      keep(
+        context,
+        docId,
+        await insertSlipSheet(context.store.bytes(docId), options),
+        `${SLIP_SHEET_TAG}${options.label.trim()}`
+      )
+  );
+
+  ipcMain.handle(
+    IPC.stamp.highlight,
+    async (_event, docId: string, options: HighlightOptions): Promise<OpResult> =>
+      keep(context, docId, await applyHighlight(context.store.bytes(docId), options), HIGHLIGHT_TAG)
   );
 }
 
@@ -201,7 +228,4 @@ export function registerStampHandlers(context: IpcContext): void {
   registerMarkHandlers(context);
   registerTextHandlers(context);
   registerSignatureHandlers(context, library);
-  // The translucent-multiply drawing is the highlight lane's to build; until it
-  // lands the channel rejects loudly rather than looking like a working pen.
-  registerNotImplemented([IPC.stamp.highlight]);
 }

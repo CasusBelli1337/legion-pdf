@@ -19,8 +19,9 @@ import {
   type StampSectionProps,
 } from '@renderer/features/stamps';
 import { PlacementPanel } from './placement-controls';
-import { anchorFromCentre, sizeFor, DEFAULT_SIGNATURE_HEIGHT } from './placement-geometry';
+import { anchorFromCentre, sizeFor } from './placement-geometry';
 import { useLivePlacements, usePlacementStore, type LivePlacement } from './placement-store';
+import { placementHeight } from './signature-height';
 import { pageAtClientPoint, useSignatureDrag, type SignatureDrag } from './signature-drag';
 import { SignatureImportDialog } from './signature-import-dialog';
 import { DragGhostLayer, SignatureLibraryView } from './signature-library-view';
@@ -28,9 +29,12 @@ import { SignatureOverlay, SIGNATURE_OVERLAY_ID } from './signature-overlay';
 import { useDeleteSelectedPlacement } from './use-placement-keys';
 import { useSignatureLibrary } from './use-signature-library';
 
-/** Placing a signature drops its CENTRE where the attorney pointed. */
+/**
+ * Placing a signature drops its CENTRE where the attorney pointed — measured at
+ * the height the placement will actually take, which is the last one he set.
+ */
 function centredAnchor(signature: SignatureAsset, at: PdfPoint): PdfPoint {
-  return anchorFromCentre(at, sizeFor(signature, DEFAULT_SIGNATURE_HEIGHT));
+  return anchorFromCentre(at, sizeFor(signature, placementHeight()));
 }
 
 type DropAt = (signature: SignatureAsset, page: number, at: PdfPoint) => void;

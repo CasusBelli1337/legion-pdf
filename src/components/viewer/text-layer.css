@@ -59,3 +59,19 @@
 .textLayer ::selection {
   background: color-mix(in srgb, var(--color-brand-500) 40%, transparent);
 }
+
+/*
+ * Text that is on the page but is not the page's words: pleading line numbers
+ * down the margin, the running head, the footer's page number, the Bates
+ * stamp. An attorney dragging over a paragraph means the paragraph, so those
+ * spans are skipped by the selection and, when a stray drag does catch one,
+ * marked in a muted colour instead of the brand highlight. No classification
+ * means no attribute here, and every span behaves exactly as it always has.
+ */
+.textLayer span[data-role]:not([data-role='body']) {
+  user-select: none;
+}
+
+.textLayer span[data-role]:not([data-role='body'])::selection {
+  background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+}

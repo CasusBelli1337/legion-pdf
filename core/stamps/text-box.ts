@@ -87,6 +87,9 @@ export async function addTextBox(bytes: Uint8Array, options: TextBoxOptions): Pr
       size: options.fontSize,
       color,
       at: { x: start.x, y: start.y - index * step },
+      // Each WRAPPED line gets its own rule, as wide as that line's text —
+      // one rule across the whole box would underline the white space too.
+      underline: options.underline === true,
     });
   });
 

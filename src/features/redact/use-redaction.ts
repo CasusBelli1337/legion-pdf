@@ -13,6 +13,8 @@ import { useViewerApi } from '@renderer/components/viewer';
 import type { ViewerApi } from '@renderer/components/viewer';
 import { useActiveSession } from '@renderer/app/store';
 import { MarkOverlay, REDACT_OVERLAY_ID } from './mark-overlay';
+import { askToDestroy } from './redact-confirm-host';
+import { withDestroyConsent } from './redact-consent';
 import { pagesOf, useRedactionStore, verifyStringsOf } from './redaction-store';
 import { useMarkDrag } from './use-mark-drag';
 import type { MarkDrag } from './use-mark-drag';
@@ -103,12 +105,13 @@ export function useRedaction(): RedactionController {
     search.clear();
   }, [search, store]);
 
+  // Nothing is destroyed until the attorney has read what "cannot be undone"
+  // means here and pressed the button that says it (redact-consent.ts).
   const apply = useCallback((): void => {
-    run.apply({
-      boxes: store.marks,
-      verifyStrings: verifyStringsOf(store.marks),
-      reOcr: store.reOcr,
-    });
+    const marks = store.marks;
+    void withDestroyConsent(marks, askToDestroy, () =>
+      run.apply({ boxes: marks, verifyStrings: verifyStringsOf(marks), reOcr: store.reOcr })
+    );
   }, [run, store.marks, store.reOcr]);
 
   // The receipt belongs to the run, so the panel must not be reset by the tab

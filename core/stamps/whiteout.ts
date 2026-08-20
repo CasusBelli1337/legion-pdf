@@ -1,15 +1,18 @@
 /**
- * F-10 whiteout. A filled rectangle painted over a region of the page — the
- * pragmatic ninety percent of "edit the text", paired with the text box to
- * retype over it.
+ * F-10 whiteout. A filled rectangle painted over a region of the page, and —
+ * when `removeCoveredText` is set — the deletion of the text operators the
+ * rectangle covers, which is what makes "cover it and type over it" honest.
  *
- * This is COVER, not destruction: whatever is underneath is still in the file
- * and still extracts. Anything that must actually be gone goes through
- * redaction (F-8), which rebuilds the page from a raster. The panel says so in
- * as many words, because the difference is the whole ballgame in a production.
+ * Painting alone is COVER, not destruction: the words underneath still copy
+ * out, still feed an AI prompt, still extract for an opponent. With removal on,
+ * the covered characters stop existing on the page (core/edit proves it before
+ * returning). It is still not redaction (F-8): redaction rebuilds the page from
+ * a raster because a scan carries its words as pixels, and only that can defeat
+ * an image. The panel says so in as many words.
  */
 
 import type { OpResult, PdfRect, WhiteoutOptions } from '@shared/types';
+import { removeTextInRect } from '@core/edit';
 import { finish, loadPdf } from '../ops/pdf-io';
 import { parseHexColor, WHITE } from './color';
 import { toVisualSpace } from './geometry';
@@ -46,6 +49,13 @@ export async function applyWhiteout(
   const pagesIn = document.getPageCount();
   const rect = normalizeRect(options.rect);
   assertOptions(options, rect, pagesIn);
+
+  // Removal first, painting second: the rectangle pdf-lib draws goes into a
+  // content stream of its own, and rewriting the page's originals afterwards
+  // would have to reason about ink that was not there when the glyphs were read.
+  if (options.removeCoveredText === true) {
+    await removeTextInRect(document, { page: options.page, rect });
+  }
 
   const page = document.getPage(options.page - 1);
   const frame = pageFrame(page);

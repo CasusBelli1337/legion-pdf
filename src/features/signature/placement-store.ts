@@ -18,7 +18,8 @@ import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { PdfPoint, SignatureAsset } from '@shared/types';
 import { useAppStore } from '@renderer/app/store';
-import { DEFAULT_SIGNATURE_HEIGHT, sizeFor } from './placement-geometry';
+import { sizeFor } from './placement-geometry';
+import { placementHeight, rememberPlacementHeight } from './signature-height';
 
 /** A signature parked on a page, not yet in the document's bytes. */
 export interface LivePlacement {
@@ -87,7 +88,7 @@ export const usePlacementStore = create<PlacementState>((set) => ({
 
   place: (docId, signature, page, at) => {
     const id = nextId();
-    const size = sizeFor(signature, DEFAULT_SIGNATURE_HEIGHT);
+    const size = sizeFor(signature, placementHeight());
     set((state) => ({
       placements: [
         ...state.placements,
@@ -109,13 +110,17 @@ export const usePlacementStore = create<PlacementState>((set) => ({
 
   moveTo: (id, at) => set((state) => patch(state, id, (placement) => ({ ...placement, at }))),
 
+  // Every route to a resize — the corner handle, the height box, a future
+  // keyboard nudge — passes through here, so remembering it here is what makes
+  // "no save required" true rather than true of one control.
   resizeTo: (id, heightPt) =>
-    set((state) =>
-      patch(state, id, (placement) => ({
+    set((state) => {
+      rememberPlacementHeight(heightPt);
+      return patch(state, id, (placement) => ({
         ...placement,
         ...sizeFor(placement.signature, heightPt),
-      }))
-    ),
+      }));
+    }),
 
   setDate: (id, change) =>
     set((state) => patch(state, id, (placement) => ({ ...placement, ...change }))),

@@ -215,3 +215,18 @@ export const useRedactionStore = create<RedactionState>((set) => ({
   setDrawing: (drawing) => set({ drawing }),
   setReOcr: (reOcr) => set({ reOcr }),
 }));
+
+/**
+ * Marks drawn on this document and not applied yet — what the save gate and the
+ * close guard ask about, from outside React. Marking is scoped to ONE document
+ * at a time, so any other id is zero rather than another file's marks.
+ */
+export function pendingMarkCount(docId: string): number {
+  const state = useRedactionStore.getState();
+  return state.docId === docId ? state.marks.length : 0;
+}
+
+/** True when saving or closing this document would leave marks unapplied. */
+export function hasPendingMarks(docId: string): boolean {
+  return pendingMarkCount(docId) > 0;
+}

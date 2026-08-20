@@ -8,6 +8,7 @@
 import type { Virtualizer } from '@tanstack/react-virtual';
 import type { PageSize } from '@shared/types';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
+import type { PageRoles } from './page-classification';
 import { PageView } from './page-view';
 import type { PageSizeIndex } from './use-page-sizes';
 import type { ViewerController } from './viewer-controller';
@@ -22,9 +23,10 @@ interface PageListProps {
   sizes: PageSizeIndex;
   zoom: number;
   controller: ViewerController;
+  roles: PageRoles;
 }
 
-export function PageList({ document, virtualizer, sizes, zoom, controller }: PageListProps) {
+export function PageList({ document, virtualizer, sizes, zoom, controller, roles }: PageListProps) {
   const widest = sizes.sizeOf(1) ?? FALLBACK_SIZE;
 
   return (
@@ -50,6 +52,7 @@ export function PageList({ document, virtualizer, sizes, zoom, controller }: Pag
             size={sizes.sizeOf(item.index + 1) ?? FALLBACK_SIZE}
             zoom={zoom}
             controller={controller}
+            roles={roles.rolesFor(item.index + 1)}
           />
         </div>
       ))}

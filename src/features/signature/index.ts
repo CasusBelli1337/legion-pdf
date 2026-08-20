@@ -27,6 +27,11 @@ export {
   MIN_SIGNATURE_HEIGHT,
   MAX_SIGNATURE_HEIGHT,
 } from './placement-geometry';
+export {
+  placementHeight,
+  rememberPlacementHeight,
+  signatureHeightSetting,
+} from './signature-height';
 export { flattenSignaturesFor, hasLiveSignatures, runFlatten } from './save-flattening';
 export type { FlattenDeps, FlattenOutcome, FlattenResult } from './save-flattening';
 export { cleanSignature, cleanByDefault, DEFAULT_SENSITIVITY } from './signature-cleanup';

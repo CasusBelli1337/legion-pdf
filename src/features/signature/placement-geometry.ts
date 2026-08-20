@@ -9,8 +9,13 @@
 
 import type { PdfPoint, SignatureAsset } from '@shared/types';
 
-/** Height a freshly placed signature starts at, in PDF points. */
-export const DEFAULT_SIGNATURE_HEIGHT = 42;
+/**
+ * Height a freshly placed signature starts at, in PDF points — a shade under an
+ * inch, which is what a signature block on a pleading actually measures. The
+ * old 42pt landed them "very small" (the owner's word), so every placement
+ * began with a resize.
+ */
+export const DEFAULT_SIGNATURE_HEIGHT = 68;
 export const MIN_SIGNATURE_HEIGHT = 8;
 export const MAX_SIGNATURE_HEIGHT = 400;
 

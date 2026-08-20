@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WhiteoutOptions } from '@shared/types';
+import { extractTextItems } from '../ocr/pdfjs-extract.testkit';
+import { makeTextPdf } from '../edit/edit-testkit';
 import { makeTestPdf } from '../ops/test-fixtures';
 import { frameOf, toUserSpace } from './geometry';
 import { addTextBox } from './text-box';
@@ -113,6 +115,59 @@ describe('applyWhiteout', () => {
     expect((await textMarksOnPage(retyped.bytes, 1)).map((m) => m.text)).toContain(
       'Rothrock Legal'
     );
+  });
+
+  /**
+   * The tool the owner actually reaches for: cover a phrase, type the new one,
+   * and have the old phrase stop existing. Everything here reads the result
+   * back with pdfjs — a real PDF reader — rather than trusting our own writer.
+   */
+  describe('cover it and type over it', () => {
+    const OVER: WhiteoutOptions['rect'] = { x: 40, y: 190, width: 240, height: 30 };
+
+    async function covered(remove: boolean): Promise<Uint8Array> {
+      const bytes = await makeTextPdf({
+        lines: [
+          { text: 'PAYMENT OF 250000 DOLLARS', x: 50, y: 200 },
+          { text: 'THIS LINE MUST SURVIVE', x: 50, y: 100 },
+        ],
+      });
+      const result = await applyWhiteout(bytes, {
+        page: 1,
+        rect: OVER,
+        ...(remove ? { removeCoveredText: true } : {}),
+      });
+      return result.bytes;
+    }
+
+    it('still only paints when removal is not asked for', async () => {
+      const text = (await extractTextItems(await covered(false), 1)).map((item) => item.str);
+      expect(text.join(' ')).toContain('250000');
+    });
+
+    it('deletes the covered words so they no longer extract', async () => {
+      const bytes = await covered(true);
+      const text = (await extractTextItems(bytes, 1)).map((item) => item.str).join(' ');
+      expect(text).not.toContain('250000');
+      expect(text).not.toContain('PAYMENT');
+      expect(text).toContain('THIS LINE MUST SURVIVE');
+      expect(await coversOnPage(bytes, 1)).toHaveLength(1);
+    });
+
+    it('shows ONLY the new words in the covered band after typing over it', async () => {
+      const bytes = await covered(true);
+      const retyped = await addTextBox(bytes, {
+        page: 1,
+        at: { x: 50, y: 196 },
+        text: 'PAYMENT OF 1 DOLLAR',
+        fontSize: 12,
+        color: '#000000',
+      });
+      const band = (await extractTextItems(retyped.bytes, 1)).filter(
+        (item) => item.y >= OVER.y && item.y <= OVER.y + OVER.height
+      );
+      expect(band.map((item) => item.str.trim())).toEqual(['PAYMENT OF 1 DOLLAR']);
+    });
   });
 
   describe('refusals', () => {

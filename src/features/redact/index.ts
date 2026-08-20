@@ -5,4 +5,4 @@
 
 export { RedactPanel } from './redact-panel';
 export { REDACT_OVERLAY_ID } from './mark-overlay';
-export { REDACT_DPI } from './use-redact-apply';
+export { REDACT_DPI } from './apply-redaction';

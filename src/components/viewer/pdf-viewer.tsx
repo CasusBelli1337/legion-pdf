@@ -10,6 +10,7 @@ import { FindBar } from '../../features/find';
 import { CoordinateHarness } from './coordinate-harness';
 import { PageList } from './page-list';
 import { PrintSheet } from './print-sheet';
+import { SelectionMenuHost } from './selection-menu-host';
 import { useFindShortcut, useViewerState } from './use-viewer-state';
 import { ViewerToolbar } from './viewer-toolbar';
 
@@ -22,6 +23,44 @@ function ViewerNotice({ message, isError }: { message: string; isError: boolean 
     <div className="flex h-full items-center justify-center gap-2">
       {!isError && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />}
       <p className={`readout ${isError ? 'text-danger' : 'text-text-secondary'}`}>{message}</p>
+    </div>
+  );
+}
+
+/**
+ * The scrolling page run. The gutter is reserved whether or not the run is
+ * currently long enough to scroll: without that, a document whose height sits
+ * right on the boundary adds a scrollbar, which narrows fit-width, which
+ * shortens the run, which removes the scrollbar — and the page oscillates,
+ * restarting its render every time.
+ */
+function ViewerBody({
+  view,
+  scrollRef,
+}: {
+  view: ReturnType<typeof useViewerState>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div
+      ref={scrollRef}
+      className="relative min-h-0 flex-1 overflow-auto"
+      style={{ scrollbarGutter: 'stable' }}
+    >
+      {view.error !== null && <ViewerNotice message={view.error} isError />}
+      {view.error === null && !view.isReady && (
+        <ViewerNotice message="Opening document" isError={false} />
+      )}
+      {view.isReady && (
+        <PageList
+          document={view.document}
+          virtualizer={view.virtualizer}
+          sizes={view.sizes}
+          zoom={view.zoom}
+          controller={view.controller}
+          roles={view.roles}
+        />
+      )}
     </div>
   );
 }
@@ -54,21 +93,8 @@ export function PdfViewer({ session }: PdfViewerProps) {
       {isHarnessOpen && <CoordinateHarness onClose={() => setHarnessOpen(false)} />}
       {/* No padding here: the page list adds the gutter itself, so a fitted
           page never overflows into a horizontal scrollbar. */}
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto">
-        {view.error !== null && <ViewerNotice message={view.error} isError />}
-        {view.error === null && view.isLoading && (
-          <ViewerNotice message="Opening document" isError={false} />
-        )}
-        {view.isReady && (
-          <PageList
-            document={view.document}
-            virtualizer={view.virtualizer}
-            sizes={view.sizes}
-            zoom={view.zoom}
-            controller={view.controller}
-          />
-        )}
-      </div>
+      <ViewerBody view={view} scrollRef={scrollRef} />
+      <SelectionMenuHost scrollRef={scrollRef} />
       <PrintSheet />
     </div>
   );
