@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { containsText, makeTestPdf, pageWidths } from '../ops/test-fixtures';
 import { insertSlipSheet } from './slip-sheet';
-import { textMarksOnPage } from './stamp-testkit';
+import { marksOnPage, pageContent, place, textMarksOnPage } from './stamp-testkit';
+
+/** Where the label's baseline landed on the new sheet, in the sheet's own space. */
+async function labelAt(bytes: Uint8Array, page = 1) {
+  const mark = (await textMarksOnPage(bytes, page)).at(0);
+  if (mark === undefined) throw new Error('The sheet carries no label.');
+  return place(mark.matrix, { x: 0, y: 0 });
+}
+
+async function rectsOn(bytes: Uint8Array, page: number) {
+  return (await marksOnPage(bytes, page)).filter((mark) => mark.kind === 'rect');
+}
 
 function pages(count: number, rotation?: number) {
   return Array.from({ length: count }, (_unused, index) => ({
@@ -61,6 +72,84 @@ describe('insertSlipSheet', () => {
     expect(mark?.matrix[4] ?? -1).toBeGreaterThanOrEqual(0);
   });
 
+  /**
+   * The owner's report: the slip sheet ignored the size, border, and placement
+   * he had set, so a divider page never matched the stamps around it.
+   */
+  describe('honouring the settings', () => {
+    it('draws the label at the size asked for', async () => {
+      const bytes = await makeTestPdf({ pages: [{ label: 'P', width: 612, height: 792 }] });
+      const sizeOn = async (fontSize?: number) => {
+        const options = fontSize === undefined ? {} : { fontSize };
+        const sheet = await insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1, ...options });
+        // The size rides on the Tf operator, not on the text matrix.
+        return /(\d+(?:\.\d+)?) Tf/.exec(await pageContent(sheet.bytes, 1))?.[1];
+      };
+
+      expect(await sizeOn(12)).toBe('12');
+      expect(await sizeOn(60)).toBe('60');
+      expect(await sizeOn()).toBe('36');
+    });
+
+    it('draws the classic bordered box when asked, and nothing when not', async () => {
+      const bytes = await makeTestPdf({ pages: [{ label: 'P', width: 612, height: 792 }] });
+      const plain = await insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1 });
+      const boxed = await insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1, bordered: true });
+      expect(await rectsOn(plain.bytes, 1)).toHaveLength(0);
+      const box = (await rectsOn(boxed.bytes, 1)).at(-1);
+      expect(box?.width).toBeGreaterThan(0);
+      expect(box?.height).toBeCloseTo(0.718 * 36 + 16, 4);
+    });
+
+    it('centres the label by default, exactly as every sheet did before', async () => {
+      const bytes = await makeTestPdf({ pages: [{ label: 'P', width: 612, height: 792 }] });
+      const defaulted = await insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1 });
+      const asked = await insertSlipSheet(bytes, {
+        label: 'Exhibit A',
+        atPage: 1,
+        position: 'center',
+      });
+      const at = await labelAt(defaulted.bytes);
+      expect(at).toEqual(await labelAt(asked.bytes));
+      expect(at.x).toBeGreaterThan(150);
+      expect(at.y).toBeGreaterThan(300);
+      expect(at.y).toBeLessThan(450);
+    });
+
+    it('parks the label in the corner it was given instead', async () => {
+      const bytes = await makeTestPdf({ pages: [{ label: 'P', width: 612, height: 792 }] });
+      const sheet = (position: 'top-left' | 'bottom-right' | 'bottom-center') =>
+        insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1, position });
+
+      const topLeft = await labelAt((await sheet('top-left')).bytes);
+      const bottomRight = await labelAt((await sheet('bottom-right')).bytes);
+      const bottomCentre = await labelAt((await sheet('bottom-center')).bytes);
+
+      expect(topLeft.x).toBeCloseTo(54, 6);
+      expect(topLeft.y).toBeGreaterThan(700);
+      expect(bottomRight.y).toBeCloseTo(54, 6);
+      expect(bottomRight.x).toBeGreaterThan(topLeft.x);
+      expect(bottomCentre.y).toBeCloseTo(bottomRight.y, 6);
+      expect(bottomCentre.x).toBeGreaterThan(topLeft.x);
+      expect(bottomCentre.x).toBeLessThan(bottomRight.x);
+    });
+
+    it('still shrinks an oversized label, border padding counted in', async () => {
+      const bytes = await makeTestPdf({ pages: [{ label: 'P', width: 612, height: 792 }] });
+      const long = 'EXHIBIT AA - DEPOSITION OF ARTHUR ROTHROCK';
+      const result = await insertSlipSheet(bytes, {
+        label: long,
+        atPage: 1,
+        fontSize: 72,
+        bordered: true,
+      });
+      const box = (await rectsOn(result.bytes, 1)).at(-1);
+      const at = await labelAt(result.bytes);
+      expect(box?.width).toBeLessThanOrEqual(612 - 2 * 54);
+      expect(at.x).toBeGreaterThan(0);
+    });
+  });
+
   describe('refusals', () => {
     it('refuses a position outside the document', async () => {
       const bytes = await makeTestPdf({ pages: pages(2) });
@@ -77,6 +166,13 @@ describe('insertSlipSheet', () => {
       await expect(insertSlipSheet(bytes, { label: '', atPage: 1 })).rejects.toThrow(
         /needs a label/
       );
+    });
+
+    it('refuses a text size of zero rather than drawing nothing', async () => {
+      const bytes = await makeTestPdf({ pages: pages(1) });
+      await expect(
+        insertSlipSheet(bytes, { label: 'Exhibit A', atPage: 1, fontSize: 0 })
+      ).rejects.toThrow(/size must be above zero/);
     });
   });
 });

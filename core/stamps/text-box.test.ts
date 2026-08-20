@@ -4,9 +4,9 @@ import type { PDFFont } from 'pdf-lib';
 import type { TextBoxOptions } from '@shared/types';
 import { containsText, makeTestPdf } from '../ops/test-fixtures';
 import { frameOf, toUserSpace } from './geometry';
-import { standardFontFor } from './ink';
+import { DEFAULT_UNDERLINE_OFFSET, DEFAULT_UNDERLINE_THICKNESS, standardFontFor } from './ink';
 import { addTextBox, layoutLines } from './text-box';
-import { angleOf, place, textMarksOnPage } from './stamp-testkit';
+import { angleOf, marksOnPage, place, textMarksOnPage } from './stamp-testkit';
 
 const PAGE = { width: 612, height: 792 };
 
@@ -61,8 +61,8 @@ describe('layoutLines', () => {
 });
 
 describe('standardFontFor', () => {
-  it('falls back to the body font when no font is chosen', () => {
-    expect(standardFontFor()).toBe(StandardFonts.Helvetica);
+  it('falls back to Times, the default a court filing expects', () => {
+    expect(standardFontFor()).toBe(StandardFonts.TimesRoman);
     expect(standardFontFor({ family: 'helvetica' })).toBe(StandardFonts.Helvetica);
   });
 
@@ -131,6 +131,59 @@ describe('addTextBox', () => {
     );
     const drawn = (await textMarksOnPage(result.bytes, 1)).filter((m) => m.text !== 'PAGE-1');
     expect(drawn).toHaveLength(wide);
+  });
+
+  describe('underline', () => {
+    const RULED = 'the quick brown fox jumps over the lazy dog';
+
+    async function ruled(overrides: Partial<TextBoxOptions> = {}) {
+      const bytes = await makeTestPdf({ pages: pages(1) });
+      const result = await addTextBox(
+        bytes,
+        options({ text: RULED, maxWidthPt: 100, underline: true, ...overrides })
+      );
+      const marks = await marksOnPage(result.bytes, 1);
+      return {
+        lines: marks.filter((mark) => mark.kind === 'text' && mark.text !== 'PAGE-1'),
+        rules: marks.filter((mark) => mark.kind === 'rect'),
+      };
+    }
+
+    it('draws one rule per WRAPPED line, not one across the box', async () => {
+      const { lines, rules } = await ruled();
+      expect(lines.length).toBeGreaterThan(1);
+      expect(rules).toHaveLength(lines.length);
+    });
+
+    it('draws no rule at all when it was not asked for', async () => {
+      const { rules } = await ruled({ underline: false });
+      expect(rules).toHaveLength(0);
+    });
+
+    it('sizes each rule to its own line and sits it just below the baseline', async () => {
+      // No `font` in the options, so this is the Times default the box now uses.
+      const font = await standardFont(StandardFonts.TimesRoman);
+      const { lines, rules } = await ruled();
+      const size = 12;
+      for (const [index, rule] of rules.entries()) {
+        const line = lines[index];
+        const baseline = place(line?.matrix ?? [1, 0, 0, 1, 0, 0], { x: 0, y: 0 });
+        const origin = place(rule.matrix, { x: 0, y: 0 });
+        expect(rule.width).toBeCloseTo(font.widthOfTextAtSize(line?.text ?? '', size), 4);
+        expect(rule.height).toBeCloseTo(size * DEFAULT_UNDERLINE_THICKNESS, 6);
+        expect(origin.x).toBeCloseTo(baseline.x, 4);
+        expect(baseline.y - origin.y).toBeCloseTo(
+          size * (DEFAULT_UNDERLINE_OFFSET + DEFAULT_UNDERLINE_THICKNESS),
+          6
+        );
+      }
+    });
+
+    it('scales the rule with the text size', async () => {
+      const { rules } = await ruled({ fontSize: 24, maxWidthPt: 200 });
+      for (const rule of rules)
+        expect(rule.height).toBeCloseTo(24 * DEFAULT_UNDERLINE_THICKNESS, 6);
+    });
   });
 
   it('honours the requested colour', async () => {

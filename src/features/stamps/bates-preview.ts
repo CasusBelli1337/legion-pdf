@@ -29,6 +29,14 @@ export interface BatesForm {
  */
 export const BATES_PREFIX_PLACEHOLDER = 'PLAINTIFF';
 
+/** The corners a Bates number can sit in, in the order the panel offers them. */
+export const BATES_CORNERS: readonly Corner[] = [
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+];
+
 export const DEFAULT_BATES_FORM: BatesForm = {
   prefix: '',
   startNumber: 1,

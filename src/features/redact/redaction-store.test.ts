@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RedactionBox, TextMatch } from '@shared/types';
 import {
+  hasPendingMarks,
+  pendingMarkCount,
   SEARCHABLE_BY_DEFAULT,
   pagesOf,
   useRedactionStore,
@@ -202,5 +204,39 @@ describe('the searchable-output default', () => {
   it('starts ticked, so a redacted production is searchable unless it is turned off', () => {
     expect(SEARCHABLE_BY_DEFAULT).toBe(true);
     expect(useRedactionStore.getInitialState().reOcr).toBe(true);
+  });
+});
+
+/**
+ * What the save gate and the close guard ask the store, from outside React.
+ * Marks are the one kind of unsaved work `session.dirty` cannot see — the file's
+ * bytes have not changed — so both guards read the count from here.
+ */
+describe('pending marks, seen from outside React', () => {
+  it('counts the marks waiting on this document', () => {
+    expect(hasPendingMarks('doc-1')).toBe(false);
+    state().addMark(2, RECT);
+    state().addMark(5, RECT);
+    expect(pendingMarkCount('doc-1')).toBe(2);
+    expect(hasPendingMarks('doc-1')).toBe(true);
+  });
+
+  // Marking is scoped to one document; another file's save must never be
+  // stopped by marks that do not belong to it.
+  it('counts nothing for any other document', () => {
+    state().addMark(2, RECT);
+    expect(pendingMarkCount('doc-2')).toBe(0);
+    expect(hasPendingMarks('doc-2')).toBe(false);
+  });
+
+  it('drops to nothing once the marks have been applied', () => {
+    state().addMark(2, RECT);
+    state().finishRun({
+      verified: true,
+      pagesRebuilt: [2],
+      instancesDestroyed: 1,
+      survivingStrings: [],
+    });
+    expect(hasPendingMarks('doc-1')).toBe(false);
   });
 });

@@ -8,6 +8,7 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { condensedTranscript, pleadingFixture } from './selection-fixtures.mjs';
 
 const OUT = path.join(import.meta.dirname, 'fixtures');
 const manifest = {};
@@ -180,13 +181,15 @@ await scannedDeposition();
 await exhibitParts();
 await redactTarget();
 await metadataLaden();
+await pleadingFixture(OUT, manifest);
+await condensedTranscript(OUT, manifest);
 await writeFile(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
 // Count-verification gate (house rule: no silent under-production)
 const { readdir, stat } = await import('node:fs/promises');
 const files = await readdir(OUT);
-if (files.length !== 8)
-  throw new Error(`Expected 8 fixture files, got ${files.length}: ${files.join(', ')}`);
+if (files.length !== 10)
+  throw new Error(`Expected 10 fixture files, got ${files.length}: ${files.join(', ')}`);
 for (const f of files) {
   const s = await stat(path.join(OUT, f));
   if (s.size === 0) throw new Error(`Empty fixture: ${f}`);

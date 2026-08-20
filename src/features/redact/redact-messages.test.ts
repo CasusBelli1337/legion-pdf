@@ -1,17 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import type { RedactVerifyResult, TextMatch } from '@shared/types';
 import {
+  APPLY_NOW_LABEL,
   applyButtonLabel,
+  applyNowExplanation,
+  DESTROY_CANCEL_NOTE,
+  DESTROY_CONFIRM_LABEL,
+  DESTROY_HEADING,
+  destroyQuestion,
   DESTRUCTION_WARNING,
   failureText,
   markAllLabel,
   markLabel,
   markSummary,
+  pendingMarksHeading,
   percentComplete,
   plainError,
   progressLabel,
   proofText,
   receiptText,
+  REDACTED_COPY_NOT_SAVED,
+  redactedCopySaved,
+  REDACTION_GATE_CANCEL_NOTE,
+  REDACTION_NOT_APPLIED_AT_SAVE,
+  SAVE_WITHOUT_REDACTING_EXPLANATION,
+  SAVE_WITHOUT_REDACTING_LABEL,
   SEARCHABLE_HINT,
   SEARCHABLE_LABEL,
   searchSummary,
@@ -180,5 +193,86 @@ describe('the searchable-output copy', () => {
 
   it('promises the destruction either way', () => {
     expect(SEARCHABLE_HINT).toContain('the marked text is destroyed and cannot come back');
+  });
+});
+
+/**
+ * The consent copy, pinned word for word. These are the sentences an attorney
+ * reads immediately before content stops existing, and the only place the app
+ * tells them WHICH FILE ends up where — so they are tested, not eyeballed.
+ */
+describe('the panel confirmation', () => {
+  it('asks the question as a question', () => {
+    expect(DESTROY_HEADING).toBe('Permanently destroy the marked content?');
+    expect(DESTROY_CONFIRM_LABEL).toBe('Destroy and redact');
+  });
+
+  it('counts the marks and the pages, and says undo will not save them', () => {
+    expect(destroyQuestion(3, 2)).toBe(
+      '3 marked areas on 2 pages will be blacked out and destroyed. This cannot be undone — not ' +
+        'even with Undo.'
+    );
+  });
+
+  it('counts one mark on one page as one of each', () => {
+    expect(destroyQuestion(1, 1)).toContain('1 marked area on 1 page will be');
+  });
+
+  it('says what backing out means', () => {
+    expect(DESTROY_CANCEL_NOTE).toContain('destroys nothing');
+  });
+});
+
+describe('the save-time gate copy', () => {
+  it('states the plain fact that stopped the save', () => {
+    expect(pendingMarksHeading(4)).toBe(
+      'This document has 4 redaction marks that have not been applied.'
+    );
+    expect(pendingMarksHeading(1)).toBe(
+      'This document has 1 redaction mark that has not been applied.'
+    );
+  });
+
+  it('labels all three answers in plain English', () => {
+    expect(APPLY_NOW_LABEL).toBe('Apply redactions now');
+    expect(SAVE_WITHOUT_REDACTING_LABEL).toBe('Save without redacting');
+    expect(REDACTION_GATE_CANCEL_NOTE).toContain('saves nothing');
+  });
+
+  /**
+   * The sentence that decides whether an attorney knows what left the building.
+   * Applying at save time saves the redacted COPY; the source stays open and
+   * unredacted. If this line ever drifts, the dialog starts lying.
+   */
+  it('says which file gets saved and which one does not', () => {
+    const text = applyNowExplanation(2, 1);
+    expect(text).toContain('2 marked areas on 1 page will be blacked out and destroyed');
+    expect(text).toContain('you will be asked where to save the redacted copy');
+    expect(text).toContain('This cannot be undone — not even with Undo.');
+    expect(text).toContain('The redacted copy will be saved; your original stays open unredacted.');
+  });
+
+  it('says that saving without redacting destroys nothing and keeps the marks', () => {
+    expect(SAVE_WITHOUT_REDACTING_EXPLANATION).toContain('saved exactly as it looks now');
+    expect(SAVE_WITHOUT_REDACTING_EXPLANATION).toContain('marks stay where they are');
+    expect(SAVE_WITHOUT_REDACTING_EXPLANATION).toContain('nothing is destroyed');
+  });
+});
+
+describe('what the attorney is told afterwards', () => {
+  it('names the redacted copy and says the original was not saved', () => {
+    const notice = redactedCopySaved('C:\\Matters\\Smith\\Depo (redacted).pdf');
+    expect(notice).toContain('saved as Depo (redacted).pdf');
+    expect(notice).toContain('still open, unredacted, and was not saved');
+  });
+
+  it('is loud when the location dialog is backed out of', () => {
+    expect(REDACTED_COPY_NOT_SAVED).toContain('has not been saved anywhere yet');
+    expect(REDACTED_COPY_NOT_SAVED).toContain('original document was not saved either');
+  });
+
+  it('never softens a redaction that failed on the way to a save', () => {
+    expect(REDACTION_NOT_APPLIED_AT_SAVE).toContain('nothing was saved');
+    expect(REDACTION_NOT_APPLIED_AT_SAVE).toContain('document was not changed');
   });
 });

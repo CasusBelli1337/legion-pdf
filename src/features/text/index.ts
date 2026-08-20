@@ -2,7 +2,7 @@
 
 export { InPlaceEditor } from './in-place-editor';
 export type { InPlaceEditorProps } from './in-place-editor';
-export { DEFAULT_DRAFT } from './editor-state';
+export { DEFAULT_DRAFT, textDecorationFor } from './editor-state';
 export type { TextDraft } from './editor-state';
 export { matchDocumentFont, NO_TEXT_TO_MATCH } from './font-match';
 export type { FontMatch, SampledFont } from './font-match';

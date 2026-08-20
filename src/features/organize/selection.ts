@@ -53,6 +53,24 @@ export function rowOfPage(page: number, columns: number): number {
   return Math.max(0, Math.ceil(Math.max(1, Math.trunc(page)) / columns) - 1);
 }
 
+/**
+ * How tall a grid row is at the panel's current width. The panel is resizable
+ * and the cells keep a page's proportions, so the row follows the column width
+ * rather than a fixed number — dragging the dock wider is what makes the
+ * previews readable.
+ */
+export function cellHeight(
+  panelWidth: number,
+  columns: number,
+  gap: number,
+  padding: number
+): number {
+  const usable = panelWidth - padding - gap * (columns - 1);
+  const column = Math.max(96, usable / Math.max(1, columns));
+  // US Letter proportions plus the page-number caption under the picture.
+  return Math.round(column * 1.294) + 26;
+}
+
 /** Scroll offset that brings a page's row into the middle of the grid. */
 export function gridScrollTop(
   page: number,

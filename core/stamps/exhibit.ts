@@ -11,13 +11,10 @@
 import type { ExhibitDetail, ExhibitOptions, OpResult } from '@shared/types';
 import { normalizePages } from '../ops/page-selection';
 import { finish, loadPdf, type ProgressReporter } from '../ops/pdf-io';
-import { BLACK, WHITE } from './color';
-import { stampAnchor, type BoxSize } from './geometry';
-import { drawRect, drawText, embedFont, measureText, pageFrame, STAMP_FONT } from './ink';
+import { stampAnchor } from './geometry';
+import { embedFont, pageFrame, STAMP_FONT } from './ink';
+import { drawLabel, measureLabel } from './label-box';
 
-/** Breathing room between the label and its border, in points. */
-const PADDING = 8;
-const BORDER_WIDTH = 1.5;
 const MAX_LABEL = 64;
 
 function assertOptions(options: ExhibitOptions): void {
@@ -32,11 +29,6 @@ function assertOptions(options: ExhibitOptions): void {
       'The exhibit font size must be above zero and the margin cannot be negative.'
     );
   }
-}
-
-function stampSize(text: BoxSize, bordered: boolean): BoxSize {
-  if (!bordered) return text;
-  return { width: text.width + 2 * PADDING, height: text.height + 2 * PADDING };
 }
 
 export async function applyExhibitStamp(
@@ -55,25 +47,17 @@ export async function applyExhibitStamp(
   pages.forEach((pageNumber, index) => {
     const page = document.getPage(pageNumber - 1);
     const frame = pageFrame(page);
-    const text = measureText(font, label, options.fontSize);
-    const box = stampSize(text, options.bordered);
-    const at = stampAnchor(options.position, frame.visual, box, options.margin);
+    const metrics = measureLabel(font, label, options.fontSize, options.bordered);
+    const at = stampAnchor(options.position, frame.visual, metrics.box, options.margin);
 
-    if (options.bordered) {
-      drawRect(page, frame, {
-        at,
-        size: box,
-        fill: WHITE,
-        border: BLACK,
-        borderWidth: BORDER_WIDTH,
-      });
-    }
-    drawText(page, frame, {
+    drawLabel(page, frame, {
       text: label,
       font,
       size: options.fontSize,
-      color: BLACK,
-      at: options.bordered ? { x: at.x + PADDING, y: at.y + PADDING } : at,
+      bordered: options.bordered,
+      metrics,
+      at,
+      label: 'exhibit label',
     });
 
     labelsApplied.push(label);

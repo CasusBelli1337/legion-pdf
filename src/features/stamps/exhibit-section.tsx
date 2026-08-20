@@ -10,11 +10,12 @@
  * (see ./exhibit-form, which owns that rule and is tested on it).
  */
 
-import { useMemo, useState } from 'react';
-import type { DocumentSession, ExhibitPosition } from '@shared/types';
+import { useEffect, useMemo, useState } from 'react';
+import type { DocumentSession, ExhibitPosition, SlipSheetPosition } from '@shared/types';
 import { useViewerApi, type PageOverlayRenderer } from '@renderer/components/viewer';
 import {
-  EXHIBIT_START,
+  EXHIBIT_POSITIONS,
+  SLIP_SHEET_POSITIONS,
   afterExhibitStamp,
   editExhibit,
   slipSheetIndex,
@@ -25,6 +26,7 @@ import {
 } from './exhibit-form';
 import { StampMark } from './mark-preview';
 import { describePageCount, parsePageRange } from './page-range';
+import { rememberExhibit, startingExhibitState } from './stamp-settings';
 import {
   ActionButton,
   ChoiceField,
@@ -34,13 +36,15 @@ import {
   TextField,
   Toggle,
 } from './stamp-views';
+import { useLabelHistory } from './use-label-history';
 import { useMarkOverlay } from './use-mark-overlay';
 import type { StampRunner } from './use-stamp-runner';
 
 const OVERLAY_ID = 'exhibit-preview';
 
 /** Every placement core can stamp, each with the words an attorney would use. */
-const POSITION_LABELS: Record<ExhibitPosition, string> = {
+const POSITION_LABELS: Record<SlipSheetPosition, string> = {
+  center: 'Middle of the sheet',
   'top-left': 'Top left',
   'top-right': 'Top right',
   'bottom-left': 'Bottom left',
@@ -48,10 +52,12 @@ const POSITION_LABELS: Record<ExhibitPosition, string> = {
   'bottom-center': 'Bottom center',
 };
 
-const POSITIONS = Object.entries(POSITION_LABELS).map(([value, label]) => ({
-  value: value as ExhibitPosition,
-  label,
-}));
+function choices<T extends SlipSheetPosition>(values: readonly T[]) {
+  return values.map((value) => ({ value, label: POSITION_LABELS[value] }));
+}
+
+const POSITIONS = choices<ExhibitPosition>(EXHIBIT_POSITIONS);
+const SHEET_POSITIONS = choices<SlipSheetPosition>(SLIP_SHEET_POSITIONS);
 
 const SLIP_SHEET_PLACEMENTS: readonly { value: SlipSheetPlacement; label: string }[] = [
   { value: 'before', label: 'Before this page' },
@@ -158,8 +164,24 @@ function SlipSheetFields({
           onChange={(slipSheetAt) => onChange({ slipSheetAt })}
         />
       )}
+      <ChoiceField
+        label="Label on the sheet"
+        value={form.slipSheetPosition}
+        options={SHEET_POSITIONS}
+        onChange={(slipSheetPosition) => onChange({ slipSheetPosition })}
+      />
+      <NumberField
+        label="Label size on the sheet"
+        value={form.slipSheetFontSize}
+        min={4}
+        max={72}
+        onChange={(slipSheetFontSize) => onChange({ slipSheetFontSize })}
+      />
       <ActionButton label="Insert slip sheet" variant="quiet" disabled={busy} onClick={onInsert} />
-      <Hint>A divider page carrying the label above, added to this document as page {index}.</Hint>
+      <Hint>
+        A divider page carrying the label above at its own size, added to this document as page{' '}
+        {index}. The label then moves on, just as it does after a stamp.
+      </Hint>
     </div>
   );
 }
@@ -206,11 +228,18 @@ function exhibitActions({
 
   const slipSheet = (): void => {
     void runner.run('Inserting the slip sheet', async () => {
+      const label = form.label.trim();
       await window.librarius.stamp.slipSheet(session.id, {
-        label: form.label,
+        label,
         atPage: slipSheetAt,
+        fontSize: form.slipSheetFontSize,
+        bordered: form.bordered,
+        position: form.slipSheetPosition,
       });
-      return slipSheetReceipt(form.label, slipSheetAt);
+      // A divider page spends a label exactly as a stamp does, so the sequence
+      // moves on: A used on a sheet means the next exhibit is B.
+      onStamped(label);
+      return slipSheetReceipt(label, slipSheetAt);
     });
   };
 
@@ -240,11 +269,16 @@ interface ExhibitSectionProps {
 
 export function ExhibitSection({ session, runner }: ExhibitSectionProps) {
   const api = useViewerApi();
-  const [state, setState] = useState<ExhibitPanelState>(EXHIBIT_START);
+  const [state, setState] = useState<ExhibitPanelState>(startingExhibitState);
   const { form } = state;
   const range = parsePageRange(form.range, session.pageCount);
   const currentPage = api?.currentPage ?? 1;
   const change: Change = (patch) => setState((current) => editExhibit(current, patch));
+
+  // Every route to a new form — typing, a stamp advancing the label, an undo
+  // walking it back — is remembered from the one place they all end up.
+  useEffect(() => rememberExhibit(form), [form]);
+  useLabelHistory(session.id, setState);
 
   useMarkOverlay(
     api,

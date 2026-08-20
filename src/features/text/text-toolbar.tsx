@@ -48,20 +48,26 @@ function FamilyChips({
   );
 }
 
+/**
+ * Bold and italic pick a different FACE; underline draws a rule, because none
+ * of the built-in faces has an underlined cut. The attorney should not have to
+ * know that, so the three sit together and behave the same.
+ */
 function StyleChips({
-  font,
+  draft,
   onChange,
 }: {
-  font: TextFontChoice;
-  onChange(font: TextFontChoice): void;
+  draft: TextDraft;
+  onChange(patch: Partial<TextDraft>): void;
 }) {
+  const font = draft.font;
   return (
     <div className="flex items-center gap-0.5">
       <button
         type="button"
         aria-label="Bold"
         aria-pressed={font.bold === true}
-        onClick={() => onChange({ ...font, bold: font.bold !== true })}
+        onClick={() => onChange({ font: { ...font, bold: font.bold !== true } })}
         className={`${CHIP} font-bold ${font.bold === true ? ON : IDLE}`}
       >
         B
@@ -70,10 +76,19 @@ function StyleChips({
         type="button"
         aria-label="Italic"
         aria-pressed={font.italic === true}
-        onClick={() => onChange({ ...font, italic: font.italic !== true })}
+        onClick={() => onChange({ font: { ...font, italic: font.italic !== true } })}
         className={`${CHIP} italic ${font.italic === true ? ON : IDLE}`}
       >
         I
+      </button>
+      <button
+        type="button"
+        aria-label="Underline"
+        aria-pressed={draft.underline}
+        onClick={() => onChange({ underline: !draft.underline })}
+        className={`${CHIP} underline ${draft.underline ? ON : IDLE}`}
+      >
+        U
       </button>
     </div>
   );
@@ -125,7 +140,7 @@ export function TextToolbar({ draft, note, matching, onChange, onMatch }: TextTo
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <FamilyChips font={draft.font} onChange={(font) => onChange({ font })} />
-        <StyleChips font={draft.font} onChange={(font) => onChange({ font })} />
+        <StyleChips draft={draft} onChange={onChange} />
         <SizeAndColour draft={draft} onChange={onChange} />
         <button
           type="button"

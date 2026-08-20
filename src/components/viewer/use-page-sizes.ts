@@ -3,6 +3,12 @@
  * every page before it has drawn any of them, and ViewerApi.pageSize() must
  * answer for pages that are nowhere near the viewport, so the sizes are pulled
  * in chunks right after the document opens and cached in the controller.
+ *
+ * Sizes learned from the PREVIOUS generation of a document are kept while the
+ * next one is read. Dropping them meant every edit briefly re-measured the run
+ * at US Letter, which jumped every page on screen and then jumped it back; the
+ * new chunks overwrite the old numbers as they land, so a rotation still
+ * re-measures correctly, just without the lurch.
  */
 
 import { useEffect, useState } from 'react';
@@ -15,14 +21,17 @@ const CHUNK = 16;
 export interface PageSizeIndex {
   /** A page's size in PDF points, falling back to page 1 until it is known. */
   sizeOf(page: number): PageSize | null;
-  /** Grows as sizes land, so the virtualizer knows to re-estimate. */
+  /** Steps on every batch of sizes, so the virtualizer knows to re-estimate. */
   version: number;
 }
 
 interface SizeState {
-  document: PDFDocumentProxy | null;
+  /** 0 until the first batch lands; then one step per batch. */
+  version: number;
   sizes: ReadonlyMap<number, PageSize>;
 }
+
+const NO_SIZES: SizeState = { version: 0, sizes: new Map() };
 
 async function readChunk(
   document: PDFDocumentProxy,
@@ -44,23 +53,30 @@ export function usePageSizes(
   document: PDFDocumentProxy | null,
   controller: ViewerController
 ): PageSizeIndex {
-  const [state, setState] = useState<SizeState>({ document: null, sizes: new Map() });
+  const [state, setState] = useState<SizeState>(NO_SIZES);
 
   useEffect(() => {
     if (document === null) return;
     let cancelled = false;
 
+    // Each batch is merged onto whatever is already known, so the sizes learned
+    // from the generation an edit just replaced carry the run until the new
+    // numbers land on top of them.
+    function absorb(chunk: Array<[number, PageSize]>): void {
+      setState((current) => {
+        const sizes = new Map(current.sizes);
+        for (const [page, size] of chunk) sizes.set(page, size);
+        return { version: current.version + 1, sizes };
+      });
+    }
+
     async function load(pdf: PDFDocumentProxy): Promise<void> {
-      const sizes = new Map<number, PageSize>();
       for (let first = 1; first <= pdf.numPages; first += CHUNK) {
         if (cancelled) return;
         const chunk = await readChunk(pdf, first, Math.min(first + CHUNK - 1, pdf.numPages));
         if (cancelled) return;
-        for (const [page, size] of chunk) {
-          sizes.set(page, size);
-          controller.setSize(page, size);
-        }
-        setState({ document: pdf, sizes: new Map(sizes) });
+        for (const [page, size] of chunk) controller.setSize(page, size);
+        absorb(chunk);
       }
     }
 
@@ -70,9 +86,8 @@ export function usePageSizes(
     };
   }, [controller, document]);
 
-  const known = state.document === document ? state.sizes : null;
   return {
-    version: known?.size ?? 0,
-    sizeOf: (page) => known?.get(page) ?? known?.get(1) ?? null,
+    version: state.version,
+    sizeOf: (page) => state.sizes.get(page) ?? state.sizes.get(1) ?? null,
   };
 }

@@ -8,12 +8,18 @@
  * placement that produced it because the cover op clears the placement on its
  * way through.
  *
+ * COVERING IS TYPING OVER. Letting go of a cover drag runs the whiteout and
+ * opens the editor in the same motion — there is no second screen asking which
+ * kind of cover this is. Committing nothing leaves a plain white patch, which
+ * is the old "just cover it" outcome, reached by typing nothing instead of by
+ * choosing a mode.
+ *
  * Cover-then-retype stays two calls, not one clever one: each proves its own
  * page count on the main side before the next begins, so a failure halfway
  * leaves a document that is exactly one verified step further on.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DocumentSession, PdfRect, TextBoxOptions } from '@shared/types';
 import {
   DEFAULT_DRAFT,
@@ -26,38 +32,36 @@ import {
 import { usePlacement, type PlacedRect, type Placement, type PlacementMode } from './use-placement';
 import type { StampRunner } from './use-stamp-runner';
 
-/** Off, drawing a box to type in, or drawing a box to cover. */
+/** Off, drawing a box to type in, or drawing a box to cover and type over. */
 export type TextTool = 'off' | 'text' | 'cover';
 
 interface TextOps {
-  cover(retype: boolean): void;
+  cover(area: PlacedRect): Promise<void>;
   commit(options: TextBoxOptions, draft: TextDraft): Promise<boolean>;
 }
 
 interface OpOutcome {
-  covered(area: PlacedRect, retype: boolean): void;
+  covered(area: PlacedRect): void;
+  failed(): void;
   committed(draft: TextDraft): void;
 }
 
-function useTextOps(
-  session: DocumentSession,
-  runner: StampRunner,
-  placement: Placement,
-  outcome: OpOutcome
-): TextOps {
-  const cover = (retype: boolean): void => {
-    const area = placement.rect;
-    if (area === null) return;
-    void runner
-      .run(retype ? 'Covering the area to type over' : 'Covering the area', async () => {
-        await window.librarius.stamp.whiteout(session.id, {
-          page: area.page,
-          rect: toWhiteoutRect(area.rect),
-        });
-        const next = retype ? 'Now type over it.' : 'Save the document to keep it.';
-        return `Covered an area on page ${area.page}. ${next}`;
-      })
-      .then(() => outcome.covered(area, retype));
+function useTextOps(session: DocumentSession, runner: StampRunner, outcome: OpOutcome): TextOps {
+  const cover = async (area: PlacedRect): Promise<void> => {
+    let landed = false;
+    await runner.run('Covering the area to type over', async () => {
+      await window.librarius.stamp.whiteout(session.id, {
+        page: area.page,
+        rect: toWhiteoutRect(area.rect),
+        // The whole point of the new flow: the words under the box stop
+        // existing, so they cannot be copied, extracted, or read by Centurion.
+        removeCoveredText: true,
+      });
+      landed = true;
+      return `Covered an area on page ${area.page} and removed the text under it. Now type over it.`;
+    });
+    if (landed) outcome.covered(area);
+    else outcome.failed();
   };
 
   const commit = async (options: TextBoxOptions, draft: TextDraft): Promise<boolean> => {
@@ -74,7 +78,8 @@ function useTextOps(
   return { cover, commit };
 }
 
-export interface TextEditing extends TextOps {
+export interface TextEditing {
+  commit(options: TextBoxOptions, draft: TextDraft): Promise<boolean>;
   tool: TextTool;
   arm(tool: TextTool): void;
   placement: Placement;
@@ -86,6 +91,17 @@ export interface TextEditing extends TextOps {
   seed: TextDraft;
   cancel(): void;
   sampleFont(page: number, rect: PdfRect): Promise<SampledFont | null>;
+}
+
+/** Fires `cover` once for each finished cover drag, and never during a render. */
+function useAutoCover(area: PlacedRect | null, cover: (area: PlacedRect) => Promise<void>): void {
+  const latest = useRef(cover);
+  useEffect(() => {
+    latest.current = cover;
+  });
+  useEffect(() => {
+    if (area !== null) void latest.current(area);
+  }, [area]);
 }
 
 export function useTextEditing(session: DocumentSession, runner: StampRunner): TextEditing {
@@ -104,21 +120,25 @@ export function useTextEditing(session: DocumentSession, runner: StampRunner): T
     clear();
   }, [clear]);
 
-  const ops = useTextOps(session, runner, placement, {
-    covered: (area, retype) => {
+  const ops = useTextOps(session, runner, {
+    covered: (area) => {
       clear();
-      if (!retype) return;
       setTool('off');
       setRetyping(area);
     },
+    // A refused cover (text inside a reusable graphic, say) must not leave the
+    // drag parked, or the effect below would run it again on the next render.
+    failed: () => clear(),
     committed: (draft) => {
       setSeed({ ...draft, text: '' });
       cancel();
     },
   });
 
+  useAutoCover(tool === 'cover' ? drawn : null, ops.cover);
+
   return {
-    ...ops,
+    commit: ops.commit,
     tool,
     placement,
     seed,

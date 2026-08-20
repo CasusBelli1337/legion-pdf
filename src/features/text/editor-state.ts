@@ -17,13 +17,26 @@ export interface TextDraft {
   /** Hex, e.g. "#000000". */
   color: string;
   font: TextFontChoice;
+  /**
+   * A drawn rule under each line. Kept beside the face rather than inside it
+   * because it is NOT a font variant — none of the built-in faces has an
+   * underlined cut, so bold and italic pick a face and this draws a line.
+   */
+  underline: boolean;
 }
 
+/**
+ * Times, because a note typed onto a pleading should look like the pleading.
+ * "Times" is the face every PDF reader has built in — it shares Times New
+ * Roman's advance widths, which is what makes the on-screen preview wrap where
+ * the engine wraps, but it is Adobe's outline, not Monotype's file.
+ */
 export const DEFAULT_DRAFT: TextDraft = {
   text: '',
   fontSize: 12,
   color: '#000000',
-  font: { family: 'helvetica' },
+  font: { family: 'times' },
+  underline: false,
 };
 
 export interface EditorState {
@@ -84,6 +97,11 @@ export function editorReducer(state: EditorState, event: EditorEvent): EditorSta
     case 'commitFailed':
       return { ...state, phase: 'typing' };
   }
+}
+
+/** What the typing surface sets `text-decoration` to, so the preview rules too. */
+export function textDecorationFor(draft: TextDraft): 'underline' | 'none' {
+  return draft.underline ? 'underline' : 'none';
 }
 
 /** Nothing but whitespace is nothing to stamp — the engine refuses it too. */

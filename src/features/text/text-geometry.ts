@@ -133,6 +133,7 @@ export interface TextBoxRequest {
   color: string;
   font: TextFontChoice;
   wrapWidthPt: number;
+  underline: boolean;
 }
 
 /** The exact options `stamp:textBox` is called with. One place, one shape. */
@@ -145,6 +146,7 @@ export function toTextBoxOptions(request: TextBoxRequest): TextBoxOptions {
     color: request.color,
     maxWidthPt: request.wrapWidthPt,
     font: request.font,
+    underline: request.underline,
   };
 }
 

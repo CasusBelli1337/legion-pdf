@@ -13,14 +13,23 @@
  */
 
 import { degrees, StandardFonts } from 'pdf-lib';
-import type { PDFDocument, PDFFont, PDFImage, PDFPage, RGB } from 'pdf-lib';
+import type { BlendMode, PDFDocument, PDFFont, PDFImage, PDFPage, RGB } from 'pdf-lib';
 import type { PdfPoint, TextFontChoice } from '@shared/types';
 import { frameOf, toUserSpace, uprightDegrees, type BoxSize, type PageFrame } from './geometry';
 
 /** Stamps use Helvetica-Bold: it survives photocopying, which Bates numbers must. */
 export const STAMP_FONT = StandardFonts.HelveticaBold;
-/** Body text (text boxes, whiteout retype) reads better in the regular weight. */
-export const BODY_FONT = StandardFonts.Helvetica;
+/**
+ * Body text (text boxes, whiteout retype) defaults to Times: court filings are
+ * set in a serif face, so a note typed onto a pleading matches the page it
+ * lands on instead of announcing itself in Helvetica.
+ *
+ * This is the built-in Times face every PDF reader carries, not the Monotype
+ * Times New Roman file — the two share their advance widths, which is what
+ * lets the on-screen preview wrap where the engine wraps, but the outlines are
+ * Adobe's. The toolbar labels it "Times" for exactly that reason.
+ */
+export const BODY_FONT = StandardFonts.TimesRoman;
 
 type FontStyle = 'regular' | 'bold' | 'italic' | 'boldItalic';
 
@@ -74,6 +83,38 @@ export function baselineOffset(font: PDFFont, size: number): number {
   return font.heightAtSize(size) - font.heightAtSize(size, { descender: false });
 }
 
+/**
+ * Characters that paint materially below the baseline in the built-in faces.
+ * The small tails on Q and J are a couple of percent of the em — they sit well
+ * inside a stamp's padding — so they are deliberately not counted.
+ */
+const DESCENDING = /[gjpqyçþýÿµ¶,;()[\]{}@/\\|_]/;
+
+/** A measured box, plus where the text baseline sits inside it. */
+export interface InkBox extends BoxSize {
+  /** How far the baseline sits above the box's bottom edge. */
+  baseline: number;
+}
+
+/**
+ * The box the glyphs ACTUALLY paint in — which is what a border has to be
+ * centred on.
+ *
+ * `measureText` reports the font's full line box, ascent to descent. An exhibit
+ * label is caps and digits, so nothing is drawn in that descent, and a border
+ * measured from it carries the whole descent (0.207 em in Helvetica — 13.5pt at
+ * 65pt) as dead white space under the label. Here the descent is reserved only
+ * when the text has a glyph that uses it, so the band is the ink.
+ */
+export function measureInk(font: PDFFont, text: string, size: number): InkBox {
+  const baseline = DESCENDING.test(text) ? baselineOffset(font, size) : 0;
+  return {
+    width: font.widthOfTextAtSize(text, size),
+    height: font.heightAtSize(size, { descender: false }) + baseline,
+    baseline,
+  };
+}
+
 function firstUnprintable(font: PDFFont, text: string): string | undefined {
   for (const character of text) {
     try {
@@ -115,19 +156,54 @@ export interface TextInk {
   opacity?: number;
   /** What to call this text if it cannot be printed, e.g. "Bates prefix". */
   label?: string;
+  /**
+   * How far above `at` the baseline sits. Defaults to the font's full descent,
+   * which is what `measureText` boxes; pass `measureInk(...).baseline` when the
+   * anchor is the bottom of the INK rather than of the line box.
+   */
+  baseline?: number;
+  /** Rule this line. Drawn, not a font variant — see DEFAULT_UNDERLINE_*. */
+  underline?: boolean;
+}
+
+/**
+ * Underline metrics, as a share of the text size. None of the fourteen built-in
+ * faces has an underlined cut, so an underline is a drawn rule and these two
+ * numbers are what make it look like type rather than a border: a hairline at
+ * 1/14 em, dropped 1/10 em below the baseline so it clears the descenders in
+ * "judgment" without floating off the word.
+ */
+export const DEFAULT_UNDERLINE_THICKNESS = 1 / 14;
+export const DEFAULT_UNDERLINE_OFFSET = 1 / 10;
+
+/** A point `distance` above `at` in the ink's own turned frame, in visual space. */
+function above(at: PdfPoint, spin: number, distance: number): PdfPoint {
+  const radians = (spin * Math.PI) / 180;
+  return {
+    x: at.x - distance * Math.sin(radians),
+    y: at.y + distance * Math.cos(radians),
+  };
+}
+
+/** The rule under one line: as wide as the TEXT, never as wide as its box. */
+function drawUnderline(page: PDFPage, frame: PageFrame, ink: TextInk, lift: number): void {
+  const thickness = ink.size * DEFAULT_UNDERLINE_THICKNESS;
+  const drop = ink.size * DEFAULT_UNDERLINE_OFFSET;
+  drawRect(page, frame, {
+    at: above(ink.at, ink.spin ?? 0, lift - drop - thickness),
+    size: { width: ink.font.widthOfTextAtSize(ink.text, ink.size), height: thickness },
+    fill: ink.color,
+    ...(ink.spin === undefined ? {} : { spin: ink.spin }),
+    ...(ink.opacity === undefined ? {} : { opacity: ink.opacity }),
+  });
 }
 
 /** Draws one line of text upright on the displayed page. */
 export function drawText(page: PDFPage, frame: PageFrame, ink: TextInk): void {
   assertPrintable(ink.font, ink.text, ink.label);
   const spin = ink.spin ?? 0;
-  const lift = baselineOffset(ink.font, ink.size);
-  const radians = (spin * Math.PI) / 180;
-  const baseline = {
-    x: ink.at.x - lift * Math.sin(radians),
-    y: ink.at.y + lift * Math.cos(radians),
-  };
-  const origin = toUserSpace(frame, baseline);
+  const lift = ink.baseline ?? baselineOffset(ink.font, ink.size);
+  const origin = toUserSpace(frame, above(ink.at, spin, lift));
   page.drawText(ink.text, {
     x: origin.x,
     y: origin.y,
@@ -137,6 +213,7 @@ export function drawText(page: PDFPage, frame: PageFrame, ink: TextInk): void {
     rotate: degrees(uprightDegrees(frame) + spin),
     ...(ink.opacity === undefined ? {} : { opacity: ink.opacity }),
   });
+  if (ink.underline === true) drawUnderline(page, frame, ink, lift);
 }
 
 export interface RectInk {
@@ -148,6 +225,11 @@ export interface RectInk {
   borderWidth?: number;
   spin?: number;
   opacity?: number;
+  /**
+   * How the fill combines with the page under it. Highlights use Multiply, so
+   * black text stays black instead of being veiled by the marker.
+   */
+  blendMode?: BlendMode;
 }
 
 /** Draws a rectangle upright on the displayed page (backing boxes, borders). */
@@ -163,6 +245,7 @@ export function drawRect(page: PDFPage, frame: PageFrame, ink: RectInk): void {
     ...(ink.fill === undefined ? {} : { color: ink.fill }),
     ...(ink.border === undefined ? {} : { borderColor: ink.border }),
     ...(ink.opacity === undefined ? {} : { opacity: ink.opacity }),
+    ...(ink.blendMode === undefined ? {} : { blendMode: ink.blendMode }),
   });
 }
 

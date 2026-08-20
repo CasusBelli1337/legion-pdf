@@ -7,7 +7,7 @@
  * step, which is what makes a line that wraps here wrap there.
  */
 
-import type { TextDraft } from './editor-state';
+import { textDecorationFor, type TextDraft } from './editor-state';
 import { cssFontStack } from './font-metrics';
 import type { EditorLayout } from './text-geometry';
 
@@ -72,6 +72,7 @@ export function TypingSurface({
         lineHeight: `${layout.lineHeightPx}px`,
         fontWeight: draft.font.bold === true ? 700 : 400,
         fontStyle: draft.font.italic === true ? 'italic' : 'normal',
+        textDecoration: textDecorationFor(draft),
         color: draft.color,
         caretColor: draft.color,
       }}

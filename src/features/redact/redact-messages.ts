@@ -99,6 +99,73 @@ export function failureText(
   );
 }
 
+/* ── consent: the words between a mark and destruction ───────────────── */
+
+/** The heading on the panel's confirmation. A question, so "Cancel" is an answer. */
+export const DESTROY_HEADING = 'Permanently destroy the marked content?';
+
+/** Exactly what is about to happen, counted, in the attorney's own terms. */
+export function destroyQuestion(count: number, pages: number): string {
+  return (
+    `${groupDigits(count)} marked ${plural(count, 'area')} on ${groupDigits(pages)} ` +
+    `${plural(pages, 'page')} will be blacked out and destroyed. This cannot be undone — not ` +
+    'even with Undo.'
+  );
+}
+
+export const DESTROY_CONFIRM_LABEL = 'Destroy and redact';
+
+/** What Cancel means, said plainly so nobody has to guess. */
+export const DESTROY_CANCEL_NOTE =
+  'Cancel keeps every mark exactly where it is, and destroys nothing.';
+
+/** The save-time gate's heading: the plain fact that stopped the save. */
+export function pendingMarksHeading(count: number): string {
+  const marks = `${groupDigits(count)} redaction ${plural(count, 'mark')}`;
+  const clause = count === 1 ? 'that has not been applied' : 'that have not been applied';
+  return `This document has ${marks} ${clause}.`;
+}
+
+/**
+ * What "Apply redactions now" does — including WHICH FILE ENDS UP WHERE, which
+ * is the one thing on this dialog an attorney cannot afford to misread.
+ */
+export function applyNowExplanation(count: number, pages: number): string {
+  return (
+    `Apply redactions now: the ${groupDigits(count)} marked ${plural(count, 'area')} on ` +
+    `${groupDigits(pages)} ${plural(pages, 'page')} will be blacked out and destroyed, and you ` +
+    'will be asked where to save the redacted copy. This cannot be undone — not even with Undo. ' +
+    'The redacted copy will be saved; your original stays open unredacted.'
+  );
+}
+
+export const SAVE_WITHOUT_REDACTING_EXPLANATION =
+  'Save without redacting: the document is saved exactly as it looks now. The marks stay where ' +
+  'they are, ready to apply later, and nothing is destroyed.';
+
+export const REDACTION_GATE_CANCEL_NOTE = 'Cancel goes back to the document and saves nothing.';
+
+export const APPLY_NOW_LABEL = 'Apply redactions now';
+export const SAVE_WITHOUT_REDACTING_LABEL = 'Save without redacting';
+
+/** Said once the redacted copy is on disk: two documents are open, only one saved. */
+export function redactedCopySaved(filePath: string): string {
+  const name = filePath.split(/[\\/]/).pop() ?? filePath;
+  return (
+    `The redacted copy is saved as ${name}. Your original document is still open, unredacted, ` +
+    'and was not saved.'
+  );
+}
+
+/** Backing out of the location dialog leaves the redacted document unsaved, loudly. */
+export const REDACTED_COPY_NOT_SAVED =
+  'The redacted document is open in a new tab and has not been saved anywhere yet. Your original ' +
+  'document was not saved either.';
+
+/** A redaction that failed on the way to a save. Never softened, never silent. */
+export const REDACTION_NOT_APPLIED_AT_SAVE =
+  'The redaction could not be applied, so nothing was saved. Your document was not changed.';
+
 export function markSummary(count: number): string {
   if (count === 0) return 'Nothing is marked yet.';
   return `${groupDigits(count)} ${plural(count, 'mark')} ready to destroy.`;

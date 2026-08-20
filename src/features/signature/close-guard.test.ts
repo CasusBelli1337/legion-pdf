@@ -33,6 +33,7 @@ vi.mock('./flatten-confirm-host', () => ({
 const { closeDocument, saveActive } = await import('@renderer/app/document-actions');
 const { useAppStore } = await import('@renderer/app/store');
 const { usePlacementStore } = await import('./placement-store');
+const { DEFAULT_SIGNATURE_HEIGHT } = await import('./placement-geometry');
 
 const SIGNATURE: SignatureAsset = {
   id: 'sig-1',
@@ -103,8 +104,9 @@ describe('saving a document that carries live signatures', () => {
       expect.objectContaining({
         signatureId: 'sig-1',
         page: 2,
-        widthPt: 126,
-        heightPt: 42,
+        // Whatever the placement height is, the aspect ratio comes with it.
+        widthPt: DEFAULT_SIGNATURE_HEIGHT * 3,
+        heightPt: DEFAULT_SIGNATURE_HEIGHT,
       })
     );
     expect(file.save).toHaveBeenCalledWith('doc-1');

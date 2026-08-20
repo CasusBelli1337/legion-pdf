@@ -5,11 +5,13 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_DRAFT,
   decideCommit,
   decideKey,
   editorReducer,
   hasText,
   INITIAL_EDITOR,
+  textDecorationFor,
   type EditorState,
 } from './editor-state';
 import type { FontMatch } from './font-match';
@@ -39,7 +41,25 @@ describe('typing', () => {
       fontSize: 14,
       color: '#000000',
       font: { family: 'courier' },
+      underline: false,
     });
+  });
+
+  it('starts a new box in Times, the face a court filing is set in', () => {
+    expect(DEFAULT_DRAFT.font).toEqual({ family: 'times' });
+    expect(INITIAL_EDITOR.draft.font.family).toBe('times');
+  });
+
+  it('turns the underline on without changing the face', () => {
+    const state = editorReducer(typed('Objection'), { type: 'style', patch: { underline: true } });
+    expect(state.draft.underline).toBe(true);
+    expect(state.draft.font).toEqual(DEFAULT_DRAFT.font);
+    expect(state.draft.text).toBe('Objection');
+  });
+
+  it('rules the preview whenever the stamp will be ruled', () => {
+    expect(textDecorationFor(DEFAULT_DRAFT)).toBe('none');
+    expect(textDecorationFor({ ...DEFAULT_DRAFT, underline: true })).toBe('underline');
   });
 });
 

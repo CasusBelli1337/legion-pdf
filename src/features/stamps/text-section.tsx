@@ -39,31 +39,11 @@ function ToolButtons({ tool, onArm }: { tool: TextTool; onArm(next: TextTool): v
         onClick={() => onArm('text')}
       />
       <ActionButton
-        label={tool === 'cover' ? ARMED_LABEL.cover : 'Cover an area'}
+        label={tool === 'cover' ? ARMED_LABEL.cover : 'Cover and retype'}
         variant={tool === 'cover' ? 'primary' : 'quiet'}
         onClick={() => onArm('cover')}
       />
     </div>
-  );
-}
-
-function CoverActions({ editing, busy }: { editing: TextEditing; busy: boolean }) {
-  const area = editing.placement.rect;
-  if (editing.tool !== 'cover' || area === null) return null;
-  return (
-    <>
-      <ActionButton
-        label={`Cover this area on page ${area.page}`}
-        disabled={busy}
-        onClick={() => editing.cover(false)}
-      />
-      <ActionButton
-        label="Cover it and type over it"
-        variant="quiet"
-        disabled={busy}
-        onClick={() => editing.cover(true)}
-      />
-    </>
   );
 }
 
@@ -72,15 +52,20 @@ function Instructions({ editing }: { editing: TextEditing }) {
     return (
       <Hint>
         Type in the box on the page. Ctrl+Enter places it, Esc throws it away, and the little
-        toolbar beside it sets the font.
+        toolbar beside it sets the font. Leaving it empty just leaves the area blank.
       </Hint>
     );
   }
   if (editing.tool === 'text') {
     return <Hint>Draw a box on the page and type. The text is set in the box you draw.</Hint>;
   }
-  if (editing.tool === 'cover' && editing.placement.rect === null) {
-    return <Hint>Drag a box over what to cover.</Hint>;
+  if (editing.tool === 'cover') {
+    return (
+      <Hint>
+        Drag a box over the words to replace. Legion PDF blanks the area, deletes the text under it,
+        and opens a cursor there so you can type the replacement.
+      </Hint>
+    );
   }
   return null;
 }
@@ -111,10 +96,9 @@ export function TextSection({
     <div className="flex flex-col gap-2">
       <ToolButtons tool={editing.tool} onArm={editing.arm} />
       <Instructions editing={editing} />
-      <CoverActions editing={editing} busy={runner.busy !== null} />
       <Caution>
-        Covering hides content, it does not destroy it. Use Redaction for anything that must be gone
-        from the file.
+        Covering deletes the words under the box, so they no longer copy out. It does not touch text
+        inside a scanned image. Use Redaction for anything that must be provably gone.
       </Caution>
     </div>
   );

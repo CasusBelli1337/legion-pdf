@@ -7,6 +7,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { TextMatch } from '@shared/types';
 import type { ViewerApi } from '../../components/viewer';
+import { stepIndex } from './find-keys';
 
 export interface FindState {
   query: string;
@@ -69,9 +70,8 @@ export function useFind(api: ViewerApi | null): FindState {
 
   const step = useCallback(
     (direction: 1 | -1) => {
-      if (matches.length === 0) return;
-      const next = (active + direction + matches.length) % matches.length;
-      goTo(next);
+      const next = stepIndex(active, direction, matches.length);
+      if (next >= 0) goTo(next);
     },
     [active, goTo, matches.length]
   );

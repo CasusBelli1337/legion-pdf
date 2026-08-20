@@ -3,8 +3,10 @@
  * same `stamp:textBox` options whatever the zoom, and the typing surface's
  * first baseline lands on the engine's first baseline.
  *
- * The viewer's transform is rebuilt here exactly as pdfjs builds it (upright
- * and quarter-turned) so the round trip under test is the real one.
+ * The viewer's transform is rebuilt by ./viewer-transform.testkit exactly as
+ * pdfjs builds it (upright and quarter-turned) so the round trip under test is
+ * the real one. What lands in a real FILE at the end of that round trip is
+ * proved separately, in ./wysiwyg-wrap.test.ts.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,49 +22,22 @@ import {
   wrapWidthPt,
   type FontBox,
 } from './text-geometry';
-
-type Matrix = [number, number, number, number, number, number];
-
-/** pdfjs PageViewport.transform for an upright page. */
-const upright = (scale: number, pageHeightPt: number): Matrix => [
-  scale,
-  0,
-  0,
-  -scale,
-  0,
-  pageHeightPt * scale,
-];
-
-/** pdfjs PageViewport.transform for a page with /Rotate 90. */
-const quarterTurned = (scale: number): Matrix => [0, scale, scale, 0, 0, 0];
-
-function apply(transform: Matrix, point: { x: number; y: number }) {
-  const [a, b, c, d, e, f] = transform;
-  return { x: a * point.x + c * point.y + e, y: b * point.x + d * point.y + f };
-}
-
-function applyInverse(transform: Matrix, point: { x: number; y: number }) {
-  const [a, b, c, d, e, f] = transform;
-  const determinant = a * d - b * c;
-  const x = point.x - e;
-  const y = point.y - f;
-  return { x: (x * d - y * c) / determinant, y: (y * a - x * b) / determinant };
-}
-
-/** The viewer's `toLocalBox`, and the page canvas parked at the origin. */
-function localBox(transform: Matrix, rect: PdfRect) {
-  const first = apply(transform, { x: rect.x, y: rect.y });
-  const second = apply(transform, { x: rect.x + rect.width, y: rect.y + rect.height });
-  return {
-    left: Math.min(first.x, second.x),
-    top: Math.min(first.y, second.y),
-    width: Math.abs(second.x - first.x),
-    height: Math.abs(second.y - first.y),
-  };
-}
+import {
+  applyInverse,
+  localBox,
+  quarterTurned,
+  upright,
+  type Matrix,
+} from './viewer-transform.testkit';
 
 const FONT: TextFontChoice = { family: 'helvetica' };
-const DRAFT = { text: 'Objection sustained.', fontSize: 12, color: '#000000', font: FONT };
+const DRAFT = {
+  text: 'Objection sustained.',
+  fontSize: 12,
+  color: '#000000',
+  font: FONT,
+  underline: false,
+};
 const RECT: PdfRect = { x: 100, y: 600, width: 200, height: 50 };
 
 /** The whole commit path: drawn rect → screen → back through clientToPdf. */
@@ -104,6 +79,12 @@ describe('the drawn box becomes text-box options', () => {
     expect(options.font).toEqual({ family: 'times', bold: true, italic: true });
     expect(options.color).toBe('#7C3AED');
     expect(options.text).toBe('Objection sustained.');
+  });
+
+  it('carries the underline choice through to the engine', () => {
+    const request = { ...DRAFT, page: 1, at: { x: 0, y: 0 }, wrapWidthPt: 100 };
+    expect(toTextBoxOptions(request).underline).toBe(false);
+    expect(toTextBoxOptions({ ...request, underline: true }).underline).toBe(true);
   });
 
   it('is independent of zoom — 50% and 400% produce the same options', () => {
@@ -203,9 +184,18 @@ describe('the typing surface', () => {
     expect(layout.fontSizePx).toBeCloseTo(28, 6);
   });
 
-  it('is the wrap width, so a line that wraps on screen wraps in the file', () => {
-    const layout = editorLayout(box, 1, FONT, 12, null);
-    expect(layout.width).toBeCloseTo(wrapWidthPt(box, 1), 6);
+  /**
+   * The surface's CSS width and the engine's `maxWidthPt` are computed by
+   * different code. They have to say the same thing at EVERY zoom, or the
+   * preview wraps in one place and the file wraps in another — which is the
+   * whole bug core/stamps/text-box-wrap.test.ts stamps a page to catch.
+   */
+  it('is the wrap width at every zoom, so screen and file break in the same place', () => {
+    for (const scale of [0.25, 0.5, 1, 1.32, 2, 4, 8]) {
+      const drawn = localBox(upright(scale, 792), RECT);
+      const layout = editorLayout(drawn, scale, FONT, 12, null);
+      expect(layout.width / scale).toBeCloseTo(wrapWidthPt(drawn, scale), 6);
+    }
   });
 
   it('never collapses below one line, whatever was dragged', () => {

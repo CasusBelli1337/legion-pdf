@@ -18,6 +18,16 @@ import type { PageOverlayContext } from '@renderer/components/viewer';
 /** The screen stand-in for the PDF base fonts the stamps are drawn in. */
 const PREVIEW_FONT = "Helvetica, Arial, 'Liberation Sans', sans-serif";
 const PENDING_OUTLINE = 'outline outline-1 outline-dashed outline-brand-400/70';
+/**
+ * Helvetica's cap height as a fraction of the em (718/1000). A bordered stamp
+ * is boxed on the CAP BAND in core/stamps/label-box.ts, not on the font's line
+ * box, so the preview's line box is squeezed to the same band — otherwise the
+ * dashed box on screen would sit a descender lower than the ink that follows it
+ * (13pt at 65pt, which is exactly the unevenness the box fix removed).
+ */
+const CAP_HEIGHT = 0.718;
+/** Padding inside the border, in points — `LABEL_PADDING` on the core side. */
+const BORDER_PADDING = 8;
 
 export interface MarkText {
   text: string;
@@ -34,18 +44,22 @@ export interface MarkText {
 }
 
 function textStyle(mark: MarkText, scale: number): CSSProperties {
+  const bordered = mark.bordered === true;
   return {
     fontFamily: PREVIEW_FONT,
     fontSize: `${mark.fontSize * scale}px`,
-    lineHeight: 1.15,
+    lineHeight: bordered ? CAP_HEIGHT : 1.15,
     fontWeight: mark.bold === false ? 400 : 700,
     color: mark.color ?? '#111114',
     opacity: mark.opacity ?? 1,
     whiteSpace: 'pre',
-    backgroundColor: mark.backing === true || mark.bordered === true ? '#ffffff' : 'transparent',
-    border: mark.bordered === true ? `${Math.max(1, scale)}px solid #000000` : undefined,
-    padding:
-      mark.bordered === true ? `${8 * scale}px` : mark.backing === true ? `${3 * scale}px` : 0,
+    backgroundColor: mark.backing === true || bordered ? '#ffffff' : 'transparent',
+    border: bordered ? `${Math.max(1, scale)}px solid #000000` : undefined,
+    padding: bordered
+      ? `${BORDER_PADDING * scale}px`
+      : mark.backing === true
+        ? `${3 * scale}px`
+        : 0,
   };
 }
 

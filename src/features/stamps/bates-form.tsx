@@ -6,15 +6,17 @@
 import type { Corner } from '@shared/types';
 import { describePageCount } from './page-range';
 import { ChoiceField, NumberField, RangeField, TextField, Toggle } from './stamp-views';
-import { BATES_PREFIX_PLACEHOLDER } from './bates-preview';
+import { BATES_CORNERS, BATES_PREFIX_PLACEHOLDER } from './bates-preview';
 import type { BatesForm } from './bates-preview';
 
-const CORNERS: readonly { value: Corner; label: string }[] = [
-  { value: 'top-left', label: 'Top left' },
-  { value: 'top-right', label: 'Top right' },
-  { value: 'bottom-left', label: 'Bottom left' },
-  { value: 'bottom-right', label: 'Bottom right' },
-];
+const CORNER_LABELS: Record<Corner, string> = {
+  'top-left': 'Top left',
+  'top-right': 'Top right',
+  'bottom-left': 'Bottom left',
+  'bottom-right': 'Bottom right',
+};
+
+const CORNERS = BATES_CORNERS.map((value) => ({ value, label: CORNER_LABELS[value] }));
 
 type Change = (patch: Partial<BatesForm>) => void;
 

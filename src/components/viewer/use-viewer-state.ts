@@ -10,6 +10,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { DocumentSession } from '@shared/types';
 import { useAppStore } from '../../app/store';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
+import { usePageRoles, type PageRoles } from './page-classification';
 import { usePdfDocument } from './pdf-document-cache';
 import type { FitMode } from './tab-view-state';
 import { useDocumentSearch } from './use-document-search';
@@ -24,8 +25,15 @@ export interface ViewerState {
   document: PDFDocumentProxy | null;
   error: string | null;
   isLoading: boolean;
-  /** True only when the page run is mounted — nothing to show while bytes load. */
+  /**
+   * True whenever there is a document to draw — including the generation an
+   * edit has just superseded, which stays on screen until its replacement has
+   * rendered. The page run is mounted for exactly this long, so an edit never
+   * unmounts it and the pages never blank.
+   */
   isReady: boolean;
+  /** Text roles for the pages, when the selection lane has classified them. */
+  roles: PageRoles;
   sizes: PageSizeIndex;
   zoom: number;
   fitMode: FitMode;
@@ -42,9 +50,10 @@ export function useViewerState(
   scrollRef: RefObject<HTMLDivElement | null>
 ): ViewerState {
   const controller = useViewerController();
-  const { document, error, isLoading } = usePdfDocument(session.bytes);
-  const isReady = error === null && !isLoading;
+  const { document, error, isLoading } = usePdfDocument(session.bytes, session.id);
+  const isReady = error === null && document !== null;
   const sizes = usePageSizes(document, controller);
+  const roles = usePageRoles(document, session.id);
   const zoomControls = useZoomControls(session.id, scrollRef, sizes.sizeOf(1));
   const navigation = usePageNavigation({
     docId: session.id,
@@ -64,6 +73,7 @@ export function useViewerState(
     error,
     isLoading,
     isReady,
+    roles,
     sizes,
     currentPage,
     ...zoomControls,

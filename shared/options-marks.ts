@@ -150,7 +150,7 @@ export interface TextBoxOptions {
   color: string;
   /** Wrap width in points; omit for single-line. */
   maxWidthPt?: number;
-  /** Omit for Helvetica regular, which is what every text box drew before. */
+  /** Omit for Times regular — the serif default a court filing expects. */
   font?: TextFontChoice;
   /**
    * Draws a rule under each wrapped line. NOT a font variant — the fourteen

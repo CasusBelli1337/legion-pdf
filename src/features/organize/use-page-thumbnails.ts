@@ -14,8 +14,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DocumentSession } from '@shared/types';
 import { rasterizePage } from '../../lib/rasterize';
 
-/** Small enough to stay cheap on a 2,000-page file, sharp enough to read. */
-const THUMBNAIL_DPI = 24;
+/**
+ * Small enough to stay cheap on a 2,000-page file, sharp enough to read at the
+ * WIDEST the tool panel can be dragged (560px, so a ~268px column): a raster
+ * below that has to be scaled up, which is what made a widened panel blurry.
+ */
+const THUMBNAIL_DPI = 36;
 
 type RasterCaches = Map<Uint8Array, Map<number, string>>;
 
@@ -53,53 +57,98 @@ async function drawQueue(
   }
 }
 
+/** The mutable state one grid's thumbnail run works on. */
+interface Runner {
+  caches: RasterCaches;
+  queue: Set<number>;
+  rendering: boolean;
+  source: DocumentSession | null;
+}
+
+/**
+ * Draws whatever is queued, then draws whatever was queued WHILE it drew.
+ *
+ * That second half is a deadlock fix. An operation swaps the bytes, the run in
+ * flight stops because its generation has been retired, and the grid's cells
+ * re-request their pages against the new one — but the old run had not finished
+ * yet, so those requests only queued, and by the time it did finish there was
+ * nothing left to start them. The grid then sat on "Drawing" for ever. It
+ * restarts itself here instead.
+ */
+function drain(
+  runner: Runner,
+  onDrawn: () => void,
+  onFailed: (message: string | null) => void
+): void {
+  const source = runner.source;
+  if (runner.rendering || source === null || runner.queue.size === 0) return;
+  // Nothing to draw INTO: the generation has been retired and the grid has not
+  // asked for the new one yet. Guards the restart below against spinning.
+  if (!runner.caches.has(source.bytes)) return;
+
+  runner.rendering = true;
+  onFailed(null);
+  drawQueue(source, runner.caches, runner.queue, onDrawn)
+    .catch((error: unknown) =>
+      onFailed(error instanceof Error ? error.message : 'A page preview could not be drawn.')
+    )
+    .finally(() => {
+      runner.rendering = false;
+      drain(runner, onDrawn, onFailed);
+    });
+}
+
 export function usePageThumbnails(session: DocumentSession | null): PageThumbnails {
-  const caches = useRef<RasterCaches>(new Map());
-  const queue = useRef(new Set<number>());
-  const rendering = useRef(false);
+  const runner = useRef<Runner>({
+    caches: new Map(),
+    queue: new Set(),
+    rendering: false,
+    source: session,
+  });
   const [, setDrawn] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
   const bytes = session?.bytes ?? null;
+
+  const pump = useCallback(() => {
+    drain(runner.current, () => setDrawn((drawn) => drawn + 1), setFailed);
+  }, []);
 
   // On a byte swap (or unmount) the superseded generation's rasters are
   // released, which also stops any draw still running against them.
   useEffect(() => {
     const generation = bytes;
-    const allCaches = caches.current;
-    const pending = queue.current;
+    const { caches, queue } = runner.current;
     return () => {
       if (generation === null) return;
-      for (const url of allCaches.get(generation)?.values() ?? []) URL.revokeObjectURL(url);
-      allCaches.delete(generation);
-      pending.clear();
+      for (const url of caches.get(generation)?.values() ?? []) URL.revokeObjectURL(url);
+      caches.delete(generation);
+      queue.clear();
     };
   }, [bytes]);
+
+  // Pumping here as well covers a swap with nothing in flight: the cells
+  // re-request during their own effects, which React runs BEFORE this one.
+  useEffect(() => {
+    runner.current.source = session;
+    pump();
+  }, [pump, session]);
 
   const request = useCallback(
     (page: number): void => {
       if (session === null) return;
-      const cache = caches.current.get(session.bytes) ?? new Map<number, string>();
-      caches.current.set(session.bytes, cache);
-      if (cache.has(page) || queue.current.has(page)) return;
-      queue.current.add(page);
-      if (rendering.current) return;
-
-      rendering.current = true;
-      setFailed(null);
-      drawQueue(session, caches.current, queue.current, () => setDrawn((drawn) => drawn + 1))
-        .catch((error: unknown) =>
-          setFailed(error instanceof Error ? error.message : 'A page preview could not be drawn.')
-        )
-        .finally(() => {
-          rendering.current = false;
-        });
+      const { caches, queue } = runner.current;
+      const cache = caches.get(session.bytes) ?? new Map<number, string>();
+      caches.set(session.bytes, cache);
+      if (cache.has(page) || queue.has(page)) return;
+      queue.add(page);
+      pump();
     },
-    [session]
+    [pump, session]
   );
 
   const urlFor = useCallback(
     (page: number): string | undefined =>
-      bytes === null ? undefined : caches.current.get(bytes)?.get(page),
+      bytes === null ? undefined : runner.current.caches.get(bytes)?.get(page),
     [bytes]
   );
 

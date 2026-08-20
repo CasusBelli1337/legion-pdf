@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
+// The main-process handler file as TEXT: this zone may read it, never import it.
+import handlers from '../../../electron/ipc/stamp.ts?raw';
 import {
   EXHIBIT_START,
+  EXHIBIT_TAG,
+  SLIP_SHEET_TAG,
   afterExhibitStamp,
+  afterHistoryStep,
   editExhibit,
+  labelFromTag,
   slipSheetIndex,
   slipSheetReceipt,
 } from './exhibit-form';
@@ -77,5 +83,101 @@ describe('slipSheetIndex', () => {
 describe('slipSheetReceipt', () => {
   it('reports where the sheet ended up', () => {
     expect(slipSheetReceipt('EXHIBIT A', 8)).toMatch(/"EXHIBIT A" sheet as page 8/);
+  });
+});
+
+describe('the border default', () => {
+  // The owner's ask: the bare label is the stamp, and a box he did not ask for
+  // had to be switched off on every document.
+  it('is off', () => {
+    expect(EXHIBIT_START.form.bordered).toBe(false);
+  });
+
+  it('puts a slip-sheet label in the middle of the sheet unless told otherwise', () => {
+    expect(EXHIBIT_START.form.slipSheetPosition).toBe('center');
+  });
+});
+
+describe('labelFromTag', () => {
+  it('reads the label out of a stamp tag and a slip-sheet tag', () => {
+    expect(labelFromTag(`${EXHIBIT_TAG}EXHIBIT C`)).toBe('EXHIBIT C');
+    expect(labelFromTag(`${SLIP_SHEET_TAG}Exhibit 12`)).toBe('Exhibit 12');
+  });
+
+  it('is not fooled by another op, or by no tag at all', () => {
+    expect(labelFromTag(undefined)).toBeNull();
+    expect(labelFromTag('watermark')).toBeNull();
+    expect(labelFromTag('highlight')).toBeNull();
+    expect(labelFromTag(EXHIBIT_TAG)).toBeNull();
+  });
+});
+
+describe('afterHistoryStep', () => {
+  const undo = (label: string) => ({ direction: 'undo' as const, tag: `${EXHIBIT_TAG}${label}` });
+  const redo = (label: string) => ({ direction: 'redo' as const, tag: `${EXHIBIT_TAG}${label}` });
+
+  it('puts the label back to the one the undo took off the page', () => {
+    const after = afterHistoryStep(state({ label: 'EXHIBIT C' }), undo('EXHIBIT B'));
+    expect(after.form.label).toBe('EXHIBIT B');
+    expect(after.showPreview).toBe(true);
+  });
+
+  /** The owner's case: A, B, C stamped, three undos, and the box reads A again. */
+  it('walks a whole run back one undo at a time', () => {
+    let panel = state({ label: 'EXHIBIT D' });
+    for (const label of ['EXHIBIT C', 'EXHIBIT B', 'EXHIBIT A']) {
+      panel = afterHistoryStep(panel, undo(label));
+      expect(panel.form.label).toBe(label);
+    }
+    expect(panel.form.label).toBe('EXHIBIT A');
+  });
+
+  it('re-advances past a label the attorney redid', () => {
+    const rolled = afterHistoryStep(state({ label: 'EXHIBIT D' }), undo('EXHIBIT C'));
+    const redone = afterHistoryStep(rolled, redo('EXHIBIT C'));
+    expect(redone.form.label).toBe('EXHIBIT D');
+    expect(redone.showPreview).toBe(false);
+  });
+
+  it('walks back a slip sheet exactly as it walks back a stamp', () => {
+    const after = afterHistoryStep(state({ label: 'EXHIBIT B' }), {
+      direction: 'undo',
+      tag: `${SLIP_SHEET_TAG}EXHIBIT A`,
+    });
+    expect(after.form.label).toBe('EXHIBIT A');
+  });
+
+  it('leaves the panel untouched — the same object — for anything else', () => {
+    const panel = state({ label: 'EXHIBIT D' });
+    expect(afterHistoryStep(panel, { direction: 'undo' })).toBe(panel);
+    expect(afterHistoryStep(panel, { direction: 'undo', tag: 'highlight' })).toBe(panel);
+    expect(afterHistoryStep(panel, { direction: 'redo', tag: 'rotate' })).toBe(panel);
+  });
+
+  it('changes nothing but the label — position, size, and range stay put', () => {
+    const panel = state({ label: 'EXHIBIT C', fontSize: 65, margin: 24, range: '2-4' });
+    const after = afterHistoryStep(panel, undo('EXHIBIT B'));
+    expect(after.form).toEqual({ ...panel.form, label: 'EXHIBIT B' });
+  });
+});
+
+/**
+ * #seam:label-undo-tag drift-guard. The tags are written in the main process
+ * and read here, with no shared symbol between the two zones — so the guard is
+ * that both files carry the marker and the same two literals.
+ */
+describe('the tag seam with the main process', () => {
+  it('is marked on the main-process side too', () => {
+    expect(handlers).toContain('#seam:label-undo-tag');
+  });
+
+  it('spells the tags the same way on both sides', () => {
+    expect(handlers).toContain(`EXHIBIT_TAG = '${EXHIBIT_TAG}'`);
+    expect(handlers).toContain(`SLIP_SHEET_TAG = '${SLIP_SHEET_TAG}'`);
+  });
+
+  it('tags the stamp and the slip sheet when it stores their bytes', () => {
+    expect(handlers).toMatch(/IPC\.stamp\.exhibit,[\s\S]{0,600}\$\{EXHIBIT_TAG\}/);
+    expect(handlers).toMatch(/IPC\.stamp\.slipSheet,[\s\S]{0,400}\$\{SLIP_SHEET_TAG\}/);
   });
 });
