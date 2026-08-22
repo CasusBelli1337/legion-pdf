@@ -6,8 +6,11 @@
 
 import type { CloseChoice, DocumentSession } from '@shared/types';
 import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
-// Work that lives in the renderer and is not in the file yet — placed
-// signatures, redaction marks — is settled by the save gates before any write.
+// Work that lives in the renderer and is not in the file yet — typed form
+// answers, placed signatures, redaction marks — is settled by the save gates
+// before any write.
+import { commitFormValuesFor } from '../features/forms/save-filling';
+import { hasPendingFormEdits } from '../features/forms/form-store';
 import { hasLiveSignatures } from '../features/signature/save-flattening';
 import { hasPendingMarks } from '../features/redact/redaction-store';
 import { runSaveGates } from './save-gates';
@@ -111,6 +114,9 @@ export async function printActive(): Promise<void> {
   if (docId === null || printIsRunning) return;
   printIsRunning = true;
   try {
+    // Typed form answers live in the renderer; the print sheet renders from
+    // the bytes. Committing first is what makes the paper match the screen.
+    if (!(await commitFormValuesFor(docId))) return;
     // Chromium prints the DOM, and the viewer only holds the pages on screen,
     // so every page is rendered into a hidden print sheet first.
     await preparePrint(docId);
@@ -176,11 +182,16 @@ async function clearedToClose(session: DocumentSession): Promise<boolean> {
 export async function closeDocument(docId: string): Promise<void> {
   const session = useAppStore.getState().sessions.find((item) => item.id === docId);
   if (session === undefined) return;
-  // Live signatures and redaction marks are unsaved work the dirty flag cannot
-  // see: they live in the renderer, so the main-process byte store is still
-  // clean. Without them in the guard a signed-but-unsaved tab, or one carrying
-  // marks the attorney spent an afternoon drawing, would close silently.
-  const unsaved = session.dirty || hasLiveSignatures(docId) || hasPendingMarks(docId);
+  // Typed form answers, live signatures and redaction marks are unsaved work
+  // the dirty flag cannot see: they live in the renderer, so the main-process
+  // byte store is still clean. Without them in the guard a filled-but-unsaved
+  // court form, a signed tab, or one carrying marks the attorney spent an
+  // afternoon drawing, would close silently.
+  const unsaved =
+    session.dirty ||
+    hasPendingFormEdits(docId) ||
+    hasLiveSignatures(docId) ||
+    hasPendingMarks(docId);
   if (unsaved && !(await clearedToClose(session))) return;
   await releaseSession(docId);
 }

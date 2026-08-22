@@ -30,6 +30,8 @@ import type {
   ExtractDetail,
   ExtractOptions,
   FlattenDetail,
+  FillFormDetail,
+  FillFormOptions,
   FlattenOptions,
   HighlightOptions,
   InsertBlankOptions,
@@ -124,6 +126,11 @@ export interface IpcInvokeContract {
   'ops:flatten': {
     request: [docId: string, options: FlattenOptions];
     response: OpResult<FlattenDetail>;
+  };
+  /** All-or-throw: a fill that cannot land every value lands none of them. */
+  'ops:fillForm': {
+    request: [docId: string, options: FillFormOptions];
+    response: OpResult<FillFormDetail>;
   };
 
   'stamp:bates': {

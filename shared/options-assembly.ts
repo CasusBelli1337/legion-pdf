@@ -147,3 +147,23 @@ export interface FlattenOptions {
 export interface FlattenDetail {
   annotationsFlattened: number;
 }
+
+/**
+ * One form field's new value, addressed by its fully-qualified AcroForm name.
+ * Text and dropdown fields take a string; a checkbox takes a boolean; a radio
+ * group takes the selected option's export value as a string.
+ */
+export interface FormFieldValue {
+  name: string;
+  value: string | boolean;
+}
+
+export interface FillFormOptions {
+  values: FormFieldValue[];
+}
+
+export interface FillFormDetail {
+  /** Both counts, and they must match — a skipped field is a thrown error. */
+  requested: number;
+  applied: number;
+}

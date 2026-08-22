@@ -17,9 +17,11 @@ import type { PageRoleMap } from './text-layer-roles';
 import { usePageRender } from './use-page-render';
 import type { ViewerController } from './viewer-controller';
 import './text-layer.css';
+import './annotation-layer.css';
 
 interface PageViewProps {
   document: PDFDocumentProxy | null;
+  docId: string;
   page: number;
   size: PageSize;
   zoom: number;
@@ -43,23 +45,34 @@ function PageStatusOverlay({ page, isError }: { page: number; isError: boolean }
   );
 }
 
-function PageViewComponent({ document, page, size, zoom, controller, roles }: PageViewProps) {
+function PageViewComponent({
+  document,
+  docId,
+  page,
+  size,
+  zoom,
+  controller,
+  roles,
+}: PageViewProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLCanvasElement>(null);
   const backRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
+  const annotationRef = useRef<HTMLDivElement>(null);
   // Built once per page component and never replaced: which canvas is in front
   // is state the render must not reset.
   const [buffers] = useState(() => new PageBuffers(frontRef, backRef));
 
   const { status, hasPainted } = usePageRender({
     document,
+    docId,
     page,
     zoom,
     controller,
     elementRef,
     buffers,
     textRef,
+    annotationRef,
     roles,
   });
   const box = pageBoxAt(size, zoom);
@@ -77,6 +90,7 @@ function PageViewComponent({ document, page, size, zoom, controller, roles }: Pa
         <canvas ref={frontRef} className="absolute inset-0 block h-full w-full" />
         <canvas ref={backRef} className="absolute inset-0 block h-full w-full opacity-0" />
         <div ref={textRef} className="textLayer" />
+        <div ref={annotationRef} className="annotationLayer" />
         <OverlayLayer page={page} controller={controller} />
         {showOverlay && <PageStatusOverlay page={page} isError={status === 'error'} />}
       </div>

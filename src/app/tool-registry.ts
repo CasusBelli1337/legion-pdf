@@ -7,8 +7,9 @@
 
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, EyeOff, Hash, LayoutGrid, ScanText, Stamp } from 'lucide-react';
+import { Bot, EyeOff, FormInput, Hash, LayoutGrid, ScanText, Stamp } from 'lucide-react';
 import { CenturionPanel } from '@renderer/features/centurion';
+import { FormsPanel } from '@renderer/features/forms';
 import { OcrPanel } from '@renderer/features/ocr';
 import { OrganizePanel } from '@renderer/features/organize';
 import { RedactPanel } from '@renderer/features/redact';
@@ -28,6 +29,7 @@ export const TOOL_PANELS: readonly ToolPanel[] = [
   { id: 'organize', title: 'Organize Pages', icon: LayoutGrid, panel: OrganizePanel },
   { id: 'bates', title: 'Bates Numbering', icon: Hash, panel: BatesPanel },
   { id: 'stamps', title: 'Stamps & Marks', icon: Stamp, panel: StampsPanel },
+  { id: 'forms', title: 'Fill Forms', icon: FormInput, panel: FormsPanel },
   { id: 'ocr', title: 'Text Recognition', icon: ScanText, panel: OcrPanel },
   { id: 'redact', title: 'Redaction', icon: EyeOff, panel: RedactPanel },
   { id: 'centurion', title: 'Centurion', icon: Bot, panel: CenturionPanel },

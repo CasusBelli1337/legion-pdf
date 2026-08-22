@@ -40,7 +40,7 @@ describe('ops handler registration', () => {
       (channel) => Object.entries(IPC.ops).find(([, value]) => value === channel)?.[0]
     );
 
-    expect(names).toHaveLength(12);
+    expect(names).toHaveLength(13);
     for (const name of names) {
       expect(name).toBeDefined();
       expect(source).toContain(`IPC.ops.${name}`);

@@ -26,6 +26,8 @@ import type {
   ExtractDetail,
   ExtractOptions,
   FlattenDetail,
+  FillFormDetail,
+  FillFormOptions,
   FlattenOptions,
   HighlightOptions,
   InsertBlankOptions,
@@ -103,6 +105,8 @@ export interface OpsBridge {
   bookmarksSet(docId: string, tree: BookmarkNode[]): Promise<OpResult>;
   scrubMetadata(docId: string, options: ScrubMetadataOptions): Promise<OpResult<ScrubDetail>>;
   flatten(docId: string, options: FlattenOptions): Promise<OpResult<FlattenDetail>>;
+  /** All-or-throw: a fill that cannot land every value lands none of them. */
+  fillForm(docId: string, options: FillFormOptions): Promise<OpResult<FillFormDetail>>;
 }
 
 export interface StampBridge {

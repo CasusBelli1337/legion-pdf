@@ -55,6 +55,7 @@ function ViewerBody({
       {view.isReady && (
         <PageList
           document={view.document}
+          docId={view.docId}
           virtualizer={view.virtualizer}
           sizes={view.sizes}
           zoom={view.zoom}

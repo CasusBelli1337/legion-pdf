@@ -4,7 +4,7 @@
  * needs pdfjs imports it from here so there is exactly one worker setup.
  */
 
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import { AnnotationLayer, AnnotationMode, GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
@@ -26,7 +26,7 @@ const PDFJS_ASSETS = {
   standardFontDataUrl: assetUrl('standard_fonts'),
 } as const;
 
-export { getDocument };
+export { AnnotationLayer, AnnotationMode, getDocument };
 export type { PDFDocumentProxy };
 
 /**
