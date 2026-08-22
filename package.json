@@ -1,7 +1,7 @@
 {
   "name": "legion-librarius",
   "productName": "Legion PDF",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Legion PDF: a lightweight PDF editor for litigation attorneys",
   "license": "AGPL-3.0-only",
