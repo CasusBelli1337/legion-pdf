@@ -13,13 +13,24 @@ import type { PageClassification, TextRole } from './contract';
 import type { PageSize } from '@shared/types';
 import { centerX, centerY, positionItems } from './item-geometry';
 import type { PositionedItem, TextItemLike } from './item-geometry';
-import { findLineNumberColumns, lineNumberIndices, quadrantForPoint } from './line-columns';
+import {
+  findLineNumberColumns,
+  footerCeilingOf,
+  lineNumberIndices,
+  quadrantForPoint,
+} from './line-columns';
 import type { LineNumberColumn, Quadrant } from './line-columns';
 import { findPrintedPageNumber } from './printed-page';
 import type { PrintedNumber } from './printed-page';
 import { planRegions } from './region-plan';
 import type { RegionPlan } from './region-plan';
-import { inEdgeBand, inFooterBand, inHeaderBand, normalizeBandText } from './repeated-bands';
+import {
+  inEdgeBand,
+  inFooterBand,
+  inHeaderBand,
+  inWideFooterBand,
+  normalizeBandText,
+} from './repeated-bands';
 
 export type { Quadrant } from './line-columns';
 
@@ -66,6 +77,8 @@ interface RoleRules {
   repeated: ReadonlySet<string>;
   /** A condensed sheet has no page edges where its mini-pages meet. */
   multiUp: boolean;
+  /** Everything below this y is footer on pleading paper; null elsewhere. */
+  footerCeilingY: number | null;
 }
 
 /**
@@ -79,16 +92,35 @@ interface RoleRules {
  * as "Page 47 line one", so every mini-page's opening line looks like a running
  * head. Losing a line of a deposition to a false positive is far worse than
  * copying a header that a condensed sheet rarely carries in the first place.
+ *
+ * On ordinary pages, three tests in falling order of strength: below the
+ * pleading footer ceiling is footer by the format itself (line 28 is the last
+ * place body text can live); inside the strict band, the old edge-or-repeats
+ * rule; and on pages with NO line-number column, text that REPEATS across
+ * pages is footer a little beyond the strict band too — a multi-line footer
+ * title's first line straddles that boundary on real filings. The wide rescue
+ * is footer-side only (see WIDE_FRACTION) and stays off wherever a column
+ * gives the exact structural answer: digit-blind normalisation makes numbered
+ * lines look alike page after page, and the last body line must not be lost
+ * to that.
  */
 function bandRole(item: PositionedItem, rules: RoleRules): TextRole | null {
   if (rules.multiUp) return null;
   const y = centerY(item.box);
-  const isHeader = inHeaderBand(y, rules.size);
-  const isFooter = inFooterBand(y, rules.size);
-  if (!isHeader && !isFooter) return null;
+  if (rules.footerCeilingY !== null) {
+    if (y < rules.footerCeilingY) return 'footer';
+    if (inWideFooterBand(y, rules.size)) return null;
+  }
   const repeats = rules.repeated.has(normalizeBandText(item.item.str));
-  if (!repeats && !inEdgeBand(y, rules.size)) return null;
-  return isHeader ? 'header' : 'footer';
+  if (inHeaderBand(y, rules.size)) return anchored('header', y, repeats, rules.size);
+  if (inFooterBand(y, rules.size)) return anchored('footer', y, repeats, rules.size);
+  if (repeats && inWideFooterBand(y, rules.size)) return 'footer';
+  return null;
+}
+
+/** In the strict band, repetition or the paper's edge confirms the role. */
+function anchored(role: TextRole, y: number, repeats: boolean, size: PageSize): TextRole | null {
+  return repeats || inEdgeBand(y, size) ? role : null;
 }
 
 function roleOf(item: PositionedItem, rules: RoleRules): TextRole {
@@ -131,6 +163,7 @@ export function classifyPage(input: PageInput, context?: DocumentContext): Class
     size: input.size,
     repeated: context?.repeatedBandText ?? new Set<string>(),
     multiUp: plan.regions.length > 1,
+    footerCeilingY: plan.regions.length > 1 ? null : footerCeilingOf(columns, input.size),
   };
 
   const roles = new Map<number, TextRole>(
