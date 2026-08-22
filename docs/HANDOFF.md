@@ -27,10 +27,14 @@ one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
   2026-08-22); paste into E-Sign ▸ Settings on first use. `LIBRARIUS_DEV=1`
   + `LIBRARIUS_DEV_ANTHROPIC_KEY` enable dev-mode settings + Centurion QA on
   WSL (TROUBLESHOOTING § E-Sign).
+- **Installed**: v0.4.0 packaged (`LegionPDF-0.4.0-Setup.exe`, signed) and
+  silent-installed on the Windows host 2026-08-22 — Arthur can run the real
+  board consent through it now (paste the API key from Armory creds.txt into
+  E-Sign ▸ Settings on first use).
 - **Open**: Gmail app-password delivery mode built + unit-tested but not
-  live-tested (needs Arthur's app password); Windows installer rebuild needed
-  before Arthur can use it for the real board consent; sent-request receipts
-  don't survive app relaunch (service status API is the truth).
+  live-tested (needs Arthur's app password); sent-request receipts don't
+  survive app relaunch (service status API is the truth); legion-atlas
+  `feat/legion-sign` branch pushed but not yet PR'd/merged.
 
 ## v0.2 update (2026-08-11) — read this first, then the v0.1 record below
 
