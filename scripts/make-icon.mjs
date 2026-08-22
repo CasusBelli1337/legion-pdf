@@ -44,7 +44,6 @@ const TILE = '#FAFAFA';
 const MARK = '#5D103B';
 /** fav.svg is a 16-unit grid; the mark keeps a 10% margin inside the tile. */
 const GRID = 16;
-const MARGIN = 0.1;
 /** Rounded-square corner, as a share of the tile. */
 const RADIUS = 0.14;
 /**

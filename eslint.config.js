@@ -7,7 +7,18 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['out/**', 'release/**', 'dist/**', 'node_modules/**', 'resources/**', 'coverage/**'],
+    ignores: [
+      'out/**',
+      'release/**',
+      'dist/**',
+      'node_modules/**',
+      'resources/**',
+      'coverage/**',
+      // Third-party pdfjs assets copied in by scripts/sync-pdfjs-assets.mjs.
+      'src/public/pdfjs/**',
+      // Agent tooling (the run-legion-pdf driver REPL) — not app code.
+      '.claude/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
