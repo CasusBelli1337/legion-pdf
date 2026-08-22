@@ -64,6 +64,15 @@ npm run lint
 npm run build:win    # package the Windows NSIS installer into release/
 ```
 
+Building the Windows installer on Linux/WSL needs 32-bit wine (the NSIS
+stub is 32-bit). Easiest is electron-builder's own image:
+
+```bash
+docker run --rm -v "$PWD":/project -w /project -e HOME=/tmp \
+  electronuserland/builder:wine \
+  npx electron-builder --win nsis --config.win.signExecutable=false
+```
+
 ## Under the hood
 
 Electron + React 19 + TypeScript (strict, no `any`) + Tailwind 4. Rendering
