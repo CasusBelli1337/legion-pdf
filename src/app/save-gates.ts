@@ -1,12 +1,12 @@
 /**
  * Everything that has to be settled BEFORE a document is written to disk.
  *
- * Two lanes now hold work that lives in the renderer and is not in the file
- * yet — placed signatures and redaction marks — and each has a point of no
- * return the attorney must agree to. Every save path runs the same gates in the
- * same order through this one function, so a new save entry point cannot
- * accidentally skip one (that is exactly how a "signed" file ships unsigned, or
- * a marked file ships unredacted).
+ * Three lanes hold work that lives in the renderer and is not in the file
+ * yet — typed form answers, placed signatures, and redaction marks — and the
+ * last two each have a point of no return the attorney must agree to. Every
+ * save path runs the same gates in the same order through this one function,
+ * so a new save entry point cannot accidentally skip one (that is exactly how
+ * a "signed" file ships unsigned, or a marked file ships unredacted).
  *
  * Order matters: signatures first. Flattening a signature changes the bytes the
  * redaction would then destroy from, so asking about redaction first could
@@ -19,6 +19,7 @@
 
 // Imported from the modules rather than the feature barrels so a save never
 // pulls a tool panel's React tree in behind it.
+import { commitFormValuesFor } from '../features/forms/save-filling';
 import { flattenSignaturesFor } from '../features/signature/save-flattening';
 import { hasPendingMarks } from '../features/redact/redaction-store';
 import { useAppStore } from './store';
@@ -43,6 +44,9 @@ async function redactionGate(docId: string): Promise<boolean> {
 }
 
 export async function runSaveGates(docId: string): Promise<boolean> {
+  // Form answers first: they are non-destructive and never raise a dialog,
+  // and the flatten/redact steps that follow work on the committed bytes.
+  if (!(await commitFormValuesFor(docId))) return false;
   if (!(await flattenSignaturesFor(docId))) return false;
   if (!hasPendingMarks(docId)) return true;
   return redactionGate(docId);

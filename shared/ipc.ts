@@ -50,6 +50,7 @@ export const IPC = {
     bookmarksSet: 'ops:bookmarksSet',
     scrubMetadata: 'ops:scrubMetadata',
     flatten: 'ops:flatten',
+    fillForm: 'ops:fillForm',
     progress: 'ops:progress',
   },
   stamp: {

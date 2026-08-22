@@ -10,6 +10,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import type { DocumentSession } from '@shared/types';
 import { useAppStore } from '../../app/store';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
+import { useFormSession } from '../../features/forms/form-session';
 import { usePageRoles, type PageRoles } from './page-classification';
 import { usePdfDocument } from './pdf-document-cache';
 import type { FitMode } from './tab-view-state';
@@ -23,6 +24,8 @@ import type { ViewerController } from './viewer-controller';
 export interface ViewerState {
   controller: ViewerController;
   document: PDFDocumentProxy | null;
+  /** The doc-store id behind `document`; the form lane keys its edits by it. */
+  docId: string;
   error: string | null;
   isLoading: boolean;
   /**
@@ -65,11 +68,13 @@ export function useViewerState(
     isReady,
   });
   useDocumentSearch(document, controller);
+  useFormSession(document, session.id);
   const currentPage = useAppStore((state) => state.currentPage);
 
   return {
     controller,
     document,
+    docId: session.id,
     error,
     isLoading,
     isReady,

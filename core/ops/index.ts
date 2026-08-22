@@ -10,6 +10,7 @@ export { readOutline, countBookmarks } from './bookmarks-read';
 export { writeOutline, removeOutline } from './bookmarks-write';
 export { deletePages } from './delete-pages';
 export { extractPages } from './extract';
+export { fillFormFields } from './fill-form';
 export { flattenAnnotations } from './flatten';
 export { insertBlankPages, insertPagesFrom } from './insert';
 export type { InsertFromSettings } from './insert';

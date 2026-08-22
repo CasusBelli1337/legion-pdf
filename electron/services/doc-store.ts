@@ -7,7 +7,6 @@
 
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
-import { readFile } from 'node:fs/promises';
 import type {
   DocumentSession,
   DocumentSummary,
@@ -19,6 +18,7 @@ import type {
 import { countPages as defaultCountPages } from '@core/pdf-meta';
 import { writeFileAtomic } from './atomic-write';
 import { DocumentHistory } from './doc-history';
+import { readPdfFile } from './pdf-intake';
 import { RecentFilesStore } from './recent-files';
 
 export interface DocStoreOptions {
@@ -27,6 +27,8 @@ export interface DocStoreOptions {
   maxRecent?: number;
   /** Injectable for tests; defaults to the pdf-lib page counter in core/. */
   countPages?: (bytes: Uint8Array) => Promise<number>;
+  /** Injectable for tests; defaults to the decrypting reader in pdf-intake. */
+  readPdf?: (filePath: string) => Promise<Uint8Array>;
 }
 
 interface StoredDocument {
@@ -59,15 +61,21 @@ export class DocStore {
   private readonly documents = new Map<string, StoredDocument>();
   private readonly recentFiles: RecentFilesStore;
   private readonly countPages: (bytes: Uint8Array) => Promise<number>;
+  private readonly readPdf: (filePath: string) => Promise<Uint8Array>;
 
   constructor(options: DocStoreOptions) {
     this.recentFiles = new RecentFilesStore(options.recentFilePath, options.maxRecent);
     this.countPages = options.countPages ?? defaultCountPages;
+    this.readPdf = options.readPdf ?? readPdfFile;
   }
 
-  /** Reads a PDF off disk into the store and records it as recently opened. */
+  /**
+   * Reads a PDF off disk into the store and records it as recently opened.
+   * Encrypted files arrive decrypted (see pdf-intake); the document is still
+   * clean — nothing the attorney can see has changed.
+   */
   async openFile(filePath: string): Promise<DocumentSession> {
-    const bytes = new Uint8Array(await readFile(filePath));
+    const bytes = await this.readPdf(filePath);
     const pageCount = await this.countPages(bytes);
     const document: StoredDocument = {
       id: randomUUID(),

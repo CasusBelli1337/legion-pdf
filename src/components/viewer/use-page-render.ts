@@ -21,7 +21,9 @@ import { useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import { TextLayer } from 'pdfjs-dist';
 import type { RenderTask } from 'pdfjs-dist';
+import { AnnotationMode } from '../../lib/pdfjs';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
+import { drawAnnotationLayer } from './annotation-layer-draw';
 import { toTransformMatrix } from './page-geometry';
 import type { PageBuffers } from './page-canvas';
 import { applyTextRoles, tagTextSpans, type PageRoleMap } from './text-layer-roles';
@@ -49,12 +51,15 @@ function isRoutineCancellation(error: unknown): boolean {
 
 export interface PageRenderOptions {
   document: PDFDocumentProxy | null;
+  /** The doc-store id behind `document` — the form lane keys its edits by it. */
+  docId: string;
   page: number;
   zoom: number;
   controller: ViewerController;
   elementRef: RefObject<HTMLDivElement | null>;
   buffers: PageBuffers;
   textRef: RefObject<HTMLDivElement | null>;
+  annotationRef: RefObject<HTMLDivElement | null>;
   /** Text roles for this page, when the selection lane has classified it. */
   roles: PageRoleMap | null;
 }
@@ -64,6 +69,8 @@ interface Drawing {
   painted: boolean;
   task: RenderTask | null;
   text: TextLayer | null;
+  /** Widget appearance canvases the page render emits for the form layer. */
+  canvasMap: Map<string, HTMLCanvasElement>;
 }
 
 type PageProxy = Awaited<ReturnType<PDFDocumentProxy['getPage']>>;
@@ -89,10 +96,15 @@ async function drawCanvas(
   canvas.width = Math.ceil(viewport.width * ratio);
   canvas.height = Math.ceil(viewport.height * ratio);
 
+  // ENABLE_FORMS leaves form-widget appearances off the bitmap — the HTML
+  // annotation layer is their single painter — and fills canvasMap with the
+  // checkbox/radio state appearances that layer places.
   drawing.task = pdfPage.render({
     canvas,
     viewport,
     transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
+    annotationMode: AnnotationMode.ENABLE_FORMS,
+    annotationCanvasMap: drawing.canvasMap,
   });
   await drawing.task.promise;
   if (drawing.cancelled) return null;
@@ -121,6 +133,26 @@ async function drawTextLayer(
   applyTextRoles(container, options.roles);
 }
 
+/** Form widgets go on last — they sit above the text layer and need its zoom. */
+async function drawFormWidgets(
+  options: PageRenderOptions,
+  drawing: Drawing,
+  pdfPage: PageProxy,
+  viewport: PageViewport
+): Promise<void> {
+  const container = options.annotationRef.current;
+  if (container === null || options.document === null || drawing.cancelled) return;
+  await drawAnnotationLayer({
+    container,
+    document: options.document,
+    docId: options.docId,
+    pdfPage,
+    viewport,
+    zoom: options.zoom,
+    canvasMap: drawing.canvasMap,
+  });
+}
+
 /** What has been drawn, and for which page/zoom — so a zoom change re-draws. */
 interface DrawnState {
   key: string;
@@ -137,7 +169,13 @@ export function usePageRender(options: PageRenderOptions): PageRenderState {
 
   useEffect(() => {
     if (document === null) return;
-    const drawing: Drawing = { cancelled: false, painted: false, task: null, text: null };
+    const drawing: Drawing = {
+      cancelled: false,
+      painted: false,
+      task: null,
+      text: null,
+      canvasMap: new Map(),
+    };
     const settle = (status: PageRenderStatus): void =>
       setDrawn((current) => ({ key, status, painted: current.painted || drawing.painted }));
 
@@ -153,6 +191,7 @@ export function usePageRender(options: PageRenderOptions): PageRenderState {
       });
       settle('ready');
       await drawTextLayer(options, drawing, result.page, viewport);
+      await drawFormWidgets(options, drawing, result.page, viewport);
     }
 
     void run().catch((error: unknown) => {

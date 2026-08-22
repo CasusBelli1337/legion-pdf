@@ -79,6 +79,7 @@ const bridge: LibrariusBridge = {
     bookmarksSet: (docId, tree) => invoke(IPC.ops.bookmarksSet, docId, tree),
     scrubMetadata: (docId, options) => invoke(IPC.ops.scrubMetadata, docId, options),
     flatten: (docId, options) => invoke(IPC.ops.flatten, docId, options),
+    fillForm: (docId, options) => invoke(IPC.ops.fillForm, docId, options),
   },
   stamp: {
     bates: (docId, options) => invoke(IPC.stamp.bates, docId, options),

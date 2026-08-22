@@ -6,7 +6,6 @@
  * document dirty), and streams page-level progress to the UI.
  */
 
-import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { ipcMain } from 'electron';
 import { IPC } from '@shared/ipc';
@@ -15,6 +14,8 @@ import type {
   DeletePagesOptions,
   ExtractDetail,
   ExtractOptions,
+  FillFormDetail,
+  FillFormOptions,
   FlattenDetail,
   FlattenOptions,
   InsertBlankOptions,
@@ -34,6 +35,7 @@ import type { MergeSourceDocument, ProgressReporter } from '@core/ops';
 import {
   deletePages,
   extractPages,
+  fillFormFields,
   flattenAnnotations,
   getBookmarks,
   insertBlankPages,
@@ -45,6 +47,7 @@ import {
   setBookmarks,
   splitByRanges,
 } from '@core/ops';
+import { readPdfFile } from '../services/pdf-intake';
 import type { IpcContext } from './context';
 
 /** A combine is building a document that has no id yet, hence `docId: null`. */
@@ -95,7 +98,7 @@ async function resolveSource(
   if (source.filePath !== undefined) {
     return {
       name: basename(source.filePath),
-      bytes: new Uint8Array(await readFile(source.filePath)),
+      bytes: await readPdfFile(source.filePath),
     };
   }
   throw new Error('One of the files to combine has no open document and no path on disk.');
@@ -228,7 +231,7 @@ async function handleInsertFrom(
   docId: string,
   options: InsertFromOptions
 ): Promise<OpResult> {
-  const sourceBytes = new Uint8Array(await readFile(options.sourceFilePath));
+  const sourceBytes = await readPdfFile(options.sourceFilePath);
   const settings = {
     atPage: options.atPage,
     sourceBytes,
@@ -267,6 +270,20 @@ function registerDocumentHandlers(context: IpcContext): void {
           context.store.bytes(docId),
           options,
           reporter(context, docId, 'Flattening annotations')
+        )
+      )
+  );
+
+  ipcMain.handle(
+    IPC.ops.fillForm,
+    async (_event, docId: string, options: FillFormOptions): Promise<OpResult<FillFormDetail>> =>
+      keep(
+        context,
+        docId,
+        await fillFormFields(
+          context.store.bytes(docId),
+          options,
+          reporter(context, docId, 'Filling form fields')
         )
       )
   );

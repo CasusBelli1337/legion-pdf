@@ -19,6 +19,7 @@ const SIDE_GUTTER = 48;
 
 interface PageListProps {
   document: PDFDocumentProxy | null;
+  docId: string;
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>;
   sizes: PageSizeIndex;
   zoom: number;
@@ -26,7 +27,15 @@ interface PageListProps {
   roles: PageRoles;
 }
 
-export function PageList({ document, virtualizer, sizes, zoom, controller, roles }: PageListProps) {
+export function PageList({
+  document,
+  docId,
+  virtualizer,
+  sizes,
+  zoom,
+  controller,
+  roles,
+}: PageListProps) {
   const widest = sizes.sizeOf(1) ?? FALLBACK_SIZE;
 
   return (
@@ -48,6 +57,7 @@ export function PageList({ document, virtualizer, sizes, zoom, controller, roles
         >
           <PageView
             document={document}
+            docId={docId}
             page={item.index + 1}
             size={sizes.sizeOf(item.index + 1) ?? FALLBACK_SIZE}
             zoom={zoom}
