@@ -2,8 +2,11 @@
 
 ## Overview
 
-Ships as **Legion PDF** (the repo, npm package, and build dir keep the
-`legion-librarius` name — only the product name changed). Lightweight desktop
+Ships as **Legion PDF**. Open source (AGPL-3.0) at
+github.com/CasusBelli1337/legion-pdf; the npm package and build dir keep the
+internal `legion-librarius` name. Because the repo is public, example/fixture
+content must use FICTIONAL parties only — never a real client or matter name
+(scrubbed 2026-08-22; keep it that way). Lightweight desktop
 PDF editor for litigation attorneys — the Acrobat
 replacement. Fast viewer plus the litigation toolset: combine/organize,
 Bates/exhibit stamps, watermarks, signatures, local OCR, true redaction,
