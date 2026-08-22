@@ -1,10 +1,16 @@
 {
   "name": "legion-librarius",
   "productName": "Legion PDF",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Legion PDF: a lightweight PDF editor for litigation attorneys",
+  "license": "AGPL-3.0-only",
   "author": "Legion",
+  "homepage": "https://github.com/CasusBelli1337/legion-pdf",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CasusBelli1337/legion-pdf.git"
+  },
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
