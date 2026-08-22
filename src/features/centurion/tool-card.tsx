@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Bookmark, Droplets, EyeOff, Hash, ListOrdered, Stamp } from 'lucide-react';
+import { Bookmark, Droplets, EyeOff, Hash, ListOrdered, PenLine, Stamp } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { IPC } from '@shared/ipc';
 import type { CenturionToolName, ProgressEvent } from '@shared/types';
@@ -24,6 +24,7 @@ const TOOL_ICONS: Record<CenturionToolName, LucideIcon> = {
   applyPageNumbers: ListOrdered,
   setBookmarks: Bookmark,
   suggestRedactions: EyeOff,
+  addSignatureFields: PenLine,
 };
 
 /**

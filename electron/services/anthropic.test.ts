@@ -444,6 +444,7 @@ describe('offering the tools', () => {
       'applyPageNumbers',
       'setBookmarks',
       'suggestRedactions',
+      'addSignatureFields',
     ]);
     expect(String(sent.system)).toContain('confirm card');
     expect(String(sent.system)).toContain('Cite the page for every fact');

@@ -138,6 +138,36 @@ PDF text with reflow. "Whiteout and retype" ships instead (F-10).
 - **Acceptance:** installer runs on the Windows host, app launches, OCR
   works offline on a machine with no dev tools.
 
+### F-13 E-signature requests (Legion Sign)
+
+- E-Sign dock panel: add signers (name + email, colour-coded), place
+  signature / initials / name / date / text fields by click, drag/resize/
+  delete live boxes; fields are REQUEST metadata, never burned locally
+- Send for signature: uploads the PDF + fields to the Legion Sign service
+  (`sign.legionarmory.net`, an isolated Cloudflare Worker on Arthur's zone);
+  each signer gets a private capability link (256-bit token, stored hashed
+  server-side, uniform 404 on anything invalid — no existence leaks)
+- Signing page (service-hosted, Legion light design): guided fields, ESIGN
+  consent line, signature by draw / type / upload (upload runs the
+  demand-letter background-removal algorithm client-side); date auto-fills
+- Completion: when the LAST signer finishes, the service burns all values
+  with pdf-lib, appends a Signing Certificate page (timestamps UTC, IP, UA,
+  consent, SHA-256 of the original), and emails the final PDF to every
+  signer + the requester from sign@legion.law (Resend)
+- Delivery choices: service-sent email (default) / the attorney's own Gmail
+  (app password over SMTP, stored via safeStorage) / copy links manually
+- Acrobat fallback: "Export fillable PDF" writes a COPY with real AcroForm
+  text fields + marked signature boxes so non-Legion recipients complete it
+  in Acrobat/any viewer (Fill & Sign)
+- Centurion tool `addSignatureFields`: places fields by quoting anchor text
+  from the page ("By:", "Date:", underscore runs) with
+  right-of/on/above/below placement; lands in the panel for review, sends
+  nothing
+- **Acceptance:** live E2E — request sent to two real inboxes, both sign via
+  links (draw + type + upload paths), final copy with certificate page
+  arrives to all parties and opens clean in Legion PDF and Acrobat-class
+  viewers; fillable export completes in a non-Legion viewer.
+
 ---
 
 ## Engineering rules (bind every feature)
@@ -157,4 +187,5 @@ PDF text with reflow. "Whiteout and retype" ships instead (F-10).
 - **Phase 1 (Acrobat killer):** F-1, F-2, F-3, F-4, F-5, F-6, F-10
 - **Phase 2 (litigation edge):** F-7, F-8, F-9
 - **Phase 3 (polish):** F-11, F-12
+- **Phase 4 (e-signature):** F-13 (app + Legion Sign service, 2026-08-22)
 - **Stretch (separate session):** true text editing with reflow

@@ -15,6 +15,7 @@ import { isTurn, threadOf, useCenturionStore } from './centurion-store';
 import type { CenturionCard } from './centurion-store';
 import { isMissingKey, readFailure } from './error-text';
 import { markSuggestedTerms } from './redaction-handshake';
+import { applySignatureFields } from '@renderer/features/esign/anchor-placement';
 
 function store(): ReturnType<typeof useCenturionStore.getState> {
   return useCenturionStore.getState();
@@ -116,14 +117,14 @@ export function subscribeToChunks(): () => void {
 
 /**
  * UI golden rule 3: a tool that rewrote the document has to show up in the
- * viewer without the attorney refreshing anything. Redaction marks change no
- * bytes, so they need no re-read.
+ * viewer without the attorney refreshing anything. Redaction marks and e-sign
+ * fields change no bytes, so they need no re-read.
  */
 async function refreshAfterTool(chunk: AiChunk): Promise<void> {
   const proposal = chunk.proposal;
   const docId = store().askingDocId;
   if (proposal?.result?.outcome !== 'done' || docId === null) return;
-  if (proposal.name === 'suggestRedactions') return;
+  if (proposal.name === 'suggestRedactions' || proposal.name === 'addSignatureFields') return;
   try {
     useAppStore.getState().replaceSession(await window.librarius.file.read(docId));
   } catch (error) {
@@ -163,6 +164,10 @@ export async function decideTool(
     await markTerms(card, api);
     return;
   }
+  if (card.name === 'addSignatureFields') {
+    await placeSignatureFields(card, api);
+    return;
+  }
   // Main runs it and settles the card with its receipt on the next `ai:chunk`.
   await answer(card, 'approved');
 }
@@ -184,5 +189,31 @@ async function markTerms(card: CenturionCard, api: ViewerApi | null): Promise<vo
     const message = readFailure(error).message;
     store().settleCard(card.id, 'failed', message);
     await answer(card, { verdict: 'rejected', detail: `Nothing was marked: ${message}` });
+  }
+}
+
+/**
+ * The other renderer-side tool: an approved `addSignatureFields` places
+ * request fields in the E-Sign panel over the viewer's text search. A failure
+ * still answers 'approved' with the reason — the model must hear what
+ * happened, and a bare rejection would read as the attorney declining.
+ */
+async function placeSignatureFields(card: CenturionCard, api: ViewerApi | null): Promise<void> {
+  if (api === null) {
+    const detail = 'That document is not open in the viewer, so no fields could be placed.';
+    store().settleCard(card.id, 'failed', detail);
+    await answer(card, { verdict: 'approved', detail });
+    return;
+  }
+  try {
+    const call = validateToolCall(card.name, card.input);
+    if (call.name !== 'addSignatureFields') return;
+    const detail = await applySignatureFields(api, api.docId, call.input);
+    store().settleCard(card.id, 'done', detail);
+    await answer(card, { verdict: 'approved', detail });
+  } catch (error) {
+    const message = readFailure(error).message;
+    store().settleCard(card.id, 'failed', message);
+    await answer(card, { verdict: 'approved', detail: `No fields were placed: ${message}` });
   }
 }

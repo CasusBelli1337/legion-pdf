@@ -25,8 +25,17 @@ import type {
   CloseChoice,
   DeletePagesOptions,
   DocumentSession,
+  EsignEmailRequest,
+  EsignEmailResult,
+  EsignEnvelopeStatus,
+  EsignMailStatus,
+  EsignReceipt,
+  EsignRequestOptions,
+  EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  FillableFormDetail,
+  FillableFormOptions,
   ExtractDetail,
   ExtractOptions,
   FlattenDetail,
@@ -210,6 +219,40 @@ export interface IpcInvokeContract {
     request: [requestId: string, toolUseId: string, decision: CenturionToolDecision];
     response: void;
   };
+
+  /**
+   * Uploads the document + placed fields to the Legion signing service and
+   * resolves with each signer's private link. Network + service credentials
+   * live main-side only.
+   */
+  'esign:createRequest': {
+    request: [docId: string, options: EsignRequestOptions];
+    response: EsignReceipt;
+  };
+  /** Emails each signer their link from the configured Gmail sender. */
+  'esign:emailRequests': { request: [request: EsignEmailRequest]; response: EsignEmailResult };
+  'esign:status': { request: [envelopeId: string]; response: EsignEnvelopeStatus };
+  /**
+   * Writes a COPY of the document with real AcroForm fields (plus signature
+   * guide boxes) so Acrobat or any other viewer can fill and sign it.
+   * Resolves null when the user cancels the save dialog.
+   */
+  'esign:exportFillable': {
+    request: [docId: string, options: FillableFormOptions];
+    response: (SaveResult & { detail: FillableFormDetail }) | null;
+  };
+  'esign:serviceStatus': { request: []; response: EsignServiceStatus };
+  'esign:setService': {
+    request: [baseUrl: string, apiKey: string];
+    response: EsignServiceStatus;
+  };
+  'esign:clearService': { request: []; response: EsignServiceStatus };
+  'esign:mailStatus': { request: []; response: EsignMailStatus };
+  'esign:setMail': {
+    request: [address: string, appPassword: string];
+    response: EsignMailStatus;
+  };
+  'esign:clearMail': { request: []; response: EsignMailStatus };
 
   'app:print': { request: [docId: string]; response: void };
   'app:openPath': { request: [target: string]; response: void };

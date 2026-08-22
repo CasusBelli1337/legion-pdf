@@ -107,7 +107,7 @@ const TOOL_PROMPT = [
   '',
   'You can also DO things to this document rather than only describe it. Your tools change the',
   'file the attorney has open: Bates numbers, watermarks, exhibit stamps, page numbers,',
-  'bookmarks, and proposed redactions.',
+  'bookmarks, proposed redactions, and e-signature fields.',
   '',
   '- Every call is shown to the attorney as a confirm card and does nothing until he approves it.',
   '  Propose the call rather than asking for permission in prose first.',

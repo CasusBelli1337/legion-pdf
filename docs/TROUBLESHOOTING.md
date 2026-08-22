@@ -138,3 +138,19 @@ build hooks) and src/lib/pdfjs.ts passes wasmUrl/cMapUrl/standardFontDataUrl
 on every load. Drift-guarded by src/lib/pdfjs-assets.test.ts. QA rule: any
 viewer change gets smoke-tested against a REAL scanned court filing, not
 only generated fixtures — PNG-embedded scans never touch these decoders.
+
+## E-Sign / Legion Sign (added 2026-08-22)
+
+- The hosted signing flow talks to `sign.legionarmory.net` — an isolated
+  Cloudflare Worker in the legion-atlas repo under `sign/` (own D1
+  `legion-sign` + R2 `legion-sign`; NOT the Atlas Portal worker). Deploy
+  recipe: `sign/README.md` there. The app's service settings (base URL +
+  bearer API key) and the Gmail app-password sender both live in
+  safeStorage via `electron/services/esign-settings.ts`.
+- `LIBRARIUS_DEV_ANTHROPIC_KEY` (env) lets QA drive Centurion live without
+  touching the keystore. Honoured ONLY when `app.isPackaged` is false —
+  packaged builds ignore it (electron/ipc/ai.ts `devFallbackKey`).
+- E-sign fields are request metadata in the renderer store — they are never
+  burned into local bytes and do not survive an app restart; sent-request
+  receipts ("who has signed") reset on relaunch too. The service remains
+  the source of truth; re-check by envelope status if the app restarts.

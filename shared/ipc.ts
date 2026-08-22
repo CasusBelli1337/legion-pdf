@@ -102,6 +102,18 @@ export const IPC = {
     request: 'raster:request',
     response: 'raster:response',
   },
+  esign: {
+    createRequest: 'esign:createRequest',
+    emailRequests: 'esign:emailRequests',
+    status: 'esign:status',
+    exportFillable: 'esign:exportFillable',
+    serviceStatus: 'esign:serviceStatus',
+    setService: 'esign:setService',
+    clearService: 'esign:clearService',
+    mailStatus: 'esign:mailStatus',
+    setMail: 'esign:setMail',
+    clearMail: 'esign:clearMail',
+  },
 } as const;
 
 export type InvokeChannel = keyof IpcInvokeContract;

@@ -116,6 +116,18 @@ const bridge: LibrariusBridge = {
     toolDecision: (requestId, toolUseId, decision) =>
       invoke(IPC.ai.toolDecision, requestId, toolUseId, decision),
   },
+  esign: {
+    createRequest: (docId, options) => invoke(IPC.esign.createRequest, docId, options),
+    emailRequests: (request) => invoke(IPC.esign.emailRequests, request),
+    status: (envelopeId) => invoke(IPC.esign.status, envelopeId),
+    exportFillable: (docId, options) => invoke(IPC.esign.exportFillable, docId, options),
+    serviceStatus: () => invoke(IPC.esign.serviceStatus),
+    setService: (baseUrl, apiKey) => invoke(IPC.esign.setService, baseUrl, apiKey),
+    clearService: () => invoke(IPC.esign.clearService),
+    mailStatus: () => invoke(IPC.esign.mailStatus),
+    setMail: (address, appPassword) => invoke(IPC.esign.setMail, address, appPassword),
+    clearMail: () => invoke(IPC.esign.clearMail),
+  },
   app: {
     print: (docId) => invoke(IPC.app.print, docId),
     openPath: (target) => invoke(IPC.app.openPath, target),

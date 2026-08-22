@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IPC, PUSH_CHANNELS, invokeChannelsOf } from './ipc';
 
-const GROUPS = ['file', 'ops', 'stamp', 'ocr', 'redact', 'ai', 'app', 'raster'] as const;
+const GROUPS = ['file', 'ops', 'stamp', 'ocr', 'redact', 'ai', 'app', 'raster', 'esign'] as const;
 
 function everyChannel(): string[] {
   return GROUPS.flatMap((group) => Object.values(IPC[group]));

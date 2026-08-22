@@ -10,6 +10,7 @@
 
 import type { CenturionToolCall, CenturionToolName } from '@shared/types';
 import { validateToolCall } from '@shared/centurion-tools';
+import { FIELD_TITLES } from '@renderer/features/esign/field-geometry';
 
 /** What the card is called, in the words the tool panels use. */
 export const TOOL_TITLES: Record<CenturionToolName, string> = {
@@ -19,6 +20,7 @@ export const TOOL_TITLES: Record<CenturionToolName, string> = {
   applyPageNumbers: 'Page numbers',
   setBookmarks: 'Bookmarks',
   suggestRedactions: 'Suggested redactions',
+  addSignatureFields: 'Add e-signature fields',
 };
 
 export interface DetailLine {
@@ -72,6 +74,32 @@ function batesLines(
   ];
 }
 
+const PLACEMENT_WORDS: Record<string, string> = {
+  'right-of': 'right of',
+  above: 'above',
+  below: 'below',
+  on: 'on',
+};
+
+/** How many field lines a card shows before collapsing into "…and N more". */
+const MAX_FIELD_LINES = 8;
+
+/** One line per field: `Signature — Jane Smith, p. 4, right of "By:"`. */
+function signatureLines(
+  input: Extract<CenturionToolCall, { name: 'addSignatureFields' }>['input']
+): DetailLine[] {
+  const names = new Map(
+    input.signers.map((signer) => [signer.email.trim().toLowerCase(), signer.name])
+  );
+  const lines = input.fields.slice(0, MAX_FIELD_LINES).map((field) => ({
+    label: FIELD_TITLES[field.kind],
+    value: `${names.get(field.signerEmail.trim().toLowerCase()) ?? field.signerEmail}, p. ${field.page}, ${PLACEMENT_WORDS[field.placement] ?? field.placement} "${field.anchorText}"`,
+  }));
+  const more = input.fields.length - MAX_FIELD_LINES;
+  if (more > 0) lines.push({ label: '…', value: `and ${more} more field${more === 1 ? '' : 's'}` });
+  return lines;
+}
+
 const LINES: {
   [K in CenturionToolName]: (call: Extract<CenturionToolCall, { name: K }>) => DetailLine[];
 } = {
@@ -110,6 +138,8 @@ const LINES: {
 
   suggestRedactions: (call) =>
     call.input.terms.map((term) => ({ label: term.reason, value: term.text })),
+
+  addSignatureFields: (call) => signatureLines(call.input),
 };
 
 /**

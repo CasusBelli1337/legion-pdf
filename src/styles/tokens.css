@@ -75,6 +75,14 @@
   --color-danger: #dc2626;
   --color-info: #2563eb;
 
+  /* E-sign signer accents — four distinguishable hues cycled by signer order,
+     kept clear of the brand ramp and the status colours so a field box never
+     reads as a button or an error. */
+  --color-esign-signer-1: #2563eb;
+  --color-esign-signer-2: #0d9488;
+  --color-esign-signer-3: #d97706;
+  --color-esign-signer-4: #7e22ce;
+
   /* Lift. Dark uses a purple glow; light uses an honest drop shadow, because a
      glow on white paper reads as a rendering artefact. Same token either way —
      the thing it expresses is "this sits above the surface". */
@@ -121,6 +129,11 @@
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
   --color-info: #3b82f6;
+
+  --color-esign-signer-1: #60a5fa;
+  --color-esign-signer-2: #2dd4bf;
+  --color-esign-signer-3: #fbbf24;
+  --color-esign-signer-4: #c084fc;
 
   --shadow-glow-sm: 0 0 10px rgb(139 92 246 / 0.1);
   --shadow-glow: 0 0 20px rgb(139 92 246 / 0.15);

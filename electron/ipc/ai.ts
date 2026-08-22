@@ -75,8 +75,21 @@ function toolHooks(
   };
 }
 
+/**
+ * Dev-only escape hatch so QA automation can drive Centurion live without
+ * touching the real keystore: honoured ONLY when the app is unpackaged, read
+ * from the environment, and never written anywhere. Production builds
+ * (app.isPackaged) ignore it entirely.
+ */
+function devFallbackKey(): string | null {
+  if (app.isPackaged) return null;
+  return process.env['LIBRARIUS_DEV_ANTHROPIC_KEY'] ?? null;
+}
+
 function registerKeyHandlers(keystore: Keystore): void {
-  ipcMain.handle(IPC.ai.hasKey, (): AiKeyStatus => ({ hasKey: keystore.hasKey() }));
+  ipcMain.handle(IPC.ai.hasKey, (): AiKeyStatus => ({
+    hasKey: keystore.hasKey() || devFallbackKey() !== null,
+  }));
 
   ipcMain.handle(IPC.ai.setKey, (_event, key: string): AiKeyStatus => {
     try {
@@ -120,7 +133,7 @@ function registerAskHandler(context: IpcContext, keystore: Keystore, gate: ToolD
  */
 function readKey(keystore: Keystore, emit: (chunk: AiChunk) => void): string {
   try {
-    const apiKey = keystore.getKey();
+    const apiKey = keystore.getKey() ?? devFallbackKey();
     if (apiKey === null) throw new CenturionError('NO_KEY');
     return apiKey;
   } catch (error) {

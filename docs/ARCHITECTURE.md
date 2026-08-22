@@ -72,6 +72,10 @@ Channel groups:
 - `ocr:*`    detect, run (streams `ocr:progress`), cancel, bulk, bulkCancel
 - `redact:*` apply (streams progress), verify
 - `ai:*`     hasKey, setKey, clearKey, ask (streams `ai:chunk`), toolDecision
+- `esign:*`  createRequest (uploads doc + fields to Legion Sign, returns
+             per-signer links), emailRequests (Gmail SMTP), status,
+             exportFillable (AcroForm copy for Acrobat users), service/mail
+             settings (safeStorage; secrets never reach the renderer)
 - `app:*`    print, openPath, version, `app:openFiles` push (OS file opens)
 
 Channels whose lane has not landed yet are declared here in full and
@@ -139,6 +143,7 @@ Config over code: new tool = new entry here, zero shell changes.
 | D OCR | ocr agent | core/ocr/**, electron/services/ocr/**, src/features/ocr/**, electron/ipc/ocr.ts |
 | E Redaction | redact agent | core/redact/**, src/features/redact/**, electron/ipc/redact.ts |
 | F Centurion | ai agent | electron/services/anthropic.ts, electron/services/keystore.ts, src/features/centurion/**, electron/ipc/ai.ts |
+| G E-Sign | esign agent | core/esign/**, src/features/esign/**, electron/services/esign-*.ts, electron/ipc/esign*.ts |
 
 Shared files (`shared/ipc.ts`, `tool-registry.ts`, `package.json`) are
 owned by the orchestrator; agents REQUEST additions in their final report

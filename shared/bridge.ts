@@ -21,8 +21,17 @@ import type {
   CloseChoice,
   DeletePagesOptions,
   DocumentSession,
+  EsignEmailRequest,
+  EsignEmailResult,
+  EsignEnvelopeStatus,
+  EsignMailStatus,
+  EsignReceipt,
+  EsignRequestOptions,
+  EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  FillableFormDetail,
+  FillableFormOptions,
   ExtractDetail,
   ExtractOptions,
   FlattenDetail,
@@ -158,6 +167,25 @@ export interface AiBridge {
   ): Promise<void>;
 }
 
+export interface EsignBridge {
+  /** Uploads the document + fields to the signing service; resolves signer links. */
+  createRequest(docId: string, options: EsignRequestOptions): Promise<EsignReceipt>;
+  /** Emails each signer their private link from the configured Gmail sender. */
+  emailRequests(request: EsignEmailRequest): Promise<EsignEmailResult>;
+  status(envelopeId: string): Promise<EsignEnvelopeStatus>;
+  /** Writes a fillable-AcroForm COPY for Acrobat et al. Null when cancelled. */
+  exportFillable(
+    docId: string,
+    options: FillableFormOptions
+  ): Promise<(SaveResult & { detail: FillableFormDetail }) | null>;
+  serviceStatus(): Promise<EsignServiceStatus>;
+  setService(baseUrl: string, apiKey: string): Promise<EsignServiceStatus>;
+  clearService(): Promise<EsignServiceStatus>;
+  mailStatus(): Promise<EsignMailStatus>;
+  setMail(address: string, appPassword: string): Promise<EsignMailStatus>;
+  clearMail(): Promise<EsignMailStatus>;
+}
+
 export interface AppBridge {
   print(docId: string): Promise<void>;
   /**
@@ -194,6 +222,7 @@ export interface LibrariusBridge {
   ocr: OcrBridge;
   redact: RedactBridge;
   ai: AiBridge;
+  esign: EsignBridge;
   app: AppBridge;
   raster: RasterBridge;
   /** Subscribe to a batch op's page-level progress. Returns an unsubscribe fn. */

@@ -1,5 +1,37 @@
 # Handoff — Legion PDF text-editing stretch goal (updated 2026-08-11)
 
+## v0.4 update (2026-08-22) — e-signature shipped; read this first
+
+**F-13 E-signature (Legion Sign)** built, deployed, and LIVE-E2E-verified in
+one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
+`#Legion/Product/Armory - Librarius/E-Sign-E2E-2026-08-22/`):
+
+- **App side** (this repo): E-Sign dock panel (signers, click-place
+  signature/initials/name/date/text fields, drag/resize, send w/ 3 delivery
+  modes, live status, fillable-AcroForm export for Acrobat users, settings),
+  esign IPC lane, `core/esign/` fillable-form op, Gmail SMTP mailer +
+  safeStorage settings, and Centurion tool `addSignatureFields`
+  (anchor-text placement — worked first try on live Opus, incl. occurrence
+  disambiguation). 1,731 tests green.
+- **Service side** (legion-atlas repo, `sign/` dir): "Legion Sign" Cloudflare
+  Worker at **sign.legionarmory.net** (own D1 `legion-sign` + R2
+  `legion-sign`; NOT the portal worker) — hashed capability tokens, uniform
+  404s, scoped signer views, pdf-lib burn + Signing Certificate page, Resend
+  email from sign@legion.law (request + fully-signed w/ attachment). 47 tests.
+  Deploy recipe in `sign/README.md`; deployed version live.
+- **Proven live**: Centurion placed the fields → service emailed links (both
+  inboxes) → signer 1 drew, signer 2 uploaded a "scanned" signature
+  (background removal port) → finalize burned everything + cert page →
+  final copies emailed to all parties → panel shows Everyone signed.
+- **Keys**: ESIGN_API_KEY in `~/projects/Armory creds.txt` (rotated
+  2026-08-22); paste into E-Sign ▸ Settings on first use. `LIBRARIUS_DEV=1`
+  + `LIBRARIUS_DEV_ANTHROPIC_KEY` enable dev-mode settings + Centurion QA on
+  WSL (TROUBLESHOOTING § E-Sign).
+- **Open**: Gmail app-password delivery mode built + unit-tested but not
+  live-tested (needs Arthur's app password); Windows installer rebuild needed
+  before Arthur can use it for the real board consent; sent-request receipts
+  don't survive app relaunch (service status API is the truth).
+
 ## v0.2 update (2026-08-11) — read this first, then the v0.1 record below
 
 Arthur user-tested v0.1 and filed ~15 items; ALL are shipped and verified:

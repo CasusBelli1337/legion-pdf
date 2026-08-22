@@ -7,8 +7,9 @@
 
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, EyeOff, FormInput, Hash, LayoutGrid, ScanText, Stamp } from 'lucide-react';
+import { Bot, EyeOff, FormInput, Hash, LayoutGrid, PenLine, ScanText, Stamp } from 'lucide-react';
 import { CenturionPanel } from '@renderer/features/centurion';
+import { EsignPanel } from '@renderer/features/esign';
 import { FormsPanel } from '@renderer/features/forms';
 import { OcrPanel } from '@renderer/features/ocr';
 import { OrganizePanel } from '@renderer/features/organize';
@@ -32,6 +33,7 @@ export const TOOL_PANELS: readonly ToolPanel[] = [
   { id: 'forms', title: 'Fill Forms', icon: FormInput, panel: FormsPanel },
   { id: 'ocr', title: 'Text Recognition', icon: ScanText, panel: OcrPanel },
   { id: 'redact', title: 'Redaction', icon: EyeOff, panel: RedactPanel },
+  { id: 'esign', title: 'E-Sign', icon: PenLine, panel: EsignPanel },
   { id: 'centurion', title: 'Centurion', icon: Bot, panel: CenturionPanel },
 ];
 
