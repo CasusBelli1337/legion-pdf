@@ -14,6 +14,18 @@
  */
 
 import type { Corner, ExhibitPosition, WatermarkOrientation } from './types';
+import type { EsignFieldKind } from './options-esign';
+import {
+  CenturionToolInputError,
+  choice,
+  fields,
+  optionalText,
+  spread,
+  text,
+  whole,
+} from './centurion-tool-guards';
+
+export { CenturionToolInputError } from './centurion-tool-guards';
 
 /** The document operations Centurion may propose. One name per confirm card. */
 export type CenturionToolName =
@@ -22,7 +34,8 @@ export type CenturionToolName =
   | 'applyExhibitStamp'
   | 'applyPageNumbers'
   | 'setBookmarks'
-  | 'suggestRedactions';
+  | 'suggestRedactions'
+  | 'addSignatureFields';
 
 /**
  * One pending tool call, streamed to the panel on an `ai:chunk`. `input` is
@@ -128,6 +141,34 @@ export interface RedactionsToolInput {
   terms: RedactionTerm[];
 }
 
+/** Where an e-sign box sits relative to the text it is anchored to. */
+export type SignatureToolPlacement = 'right-of' | 'above' | 'below' | 'on';
+
+export interface SignatureToolSigner {
+  name: string;
+  email: string;
+}
+
+export interface SignatureToolField {
+  kind: EsignFieldKind;
+  /** Which roster signer owns the box; must match an email in `signers`. */
+  signerEmail: string;
+  /** 1-based page the anchor text is on. */
+  page: number;
+  /** Exact text on that page the box is anchored to. */
+  anchorText: string;
+  /** 1-based among that page's matches; the first when omitted. */
+  occurrence?: number;
+  placement: SignatureToolPlacement;
+  /** Shown to the signer for 'text' fields, e.g. "Title". */
+  label?: string;
+}
+
+export interface SignatureFieldsToolInput {
+  signers: SignatureToolSigner[];
+  fields: SignatureToolField[];
+}
+
 /** A call that has been through its validator: the name and the shape it owns. */
 export type CenturionToolCall =
   | { name: 'applyBates'; input: BatesToolInput }
@@ -135,7 +176,8 @@ export type CenturionToolCall =
   | { name: 'applyExhibitStamp'; input: ExhibitToolInput }
   | { name: 'applyPageNumbers'; input: PageNumbersToolInput }
   | { name: 'setBookmarks'; input: BookmarksToolInput }
-  | { name: 'suggestRedactions'; input: RedactionsToolInput };
+  | { name: 'suggestRedactions'; input: RedactionsToolInput }
+  | { name: 'addSignatureFields'; input: SignatureFieldsToolInput };
 
 /* ── the values a tool may name ───────────────────────────────────────── */
 
@@ -149,79 +191,16 @@ export const PAGE_NUMBER_SPOTS: PageNumberSpot[] = [
   'bottom-center',
   'bottom-right',
 ];
-
-/** Thrown when a tool call cannot be narrowed. The message goes back to Claude. */
-export class CenturionToolInputError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CenturionToolInputError';
-  }
-}
+export const SIGNATURE_FIELD_KINDS: EsignFieldKind[] = [
+  'signature',
+  'initials',
+  'name',
+  'date',
+  'text',
+];
+export const SIGNATURE_PLACEMENTS: SignatureToolPlacement[] = ['right-of', 'above', 'below', 'on'];
 
 /* ── validation: the model's input is never trusted ───────────────────── */
-
-function fields(input: unknown, tool: string): Record<string, unknown> {
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    throw new CenturionToolInputError(`${tool} needs an object of settings.`);
-  }
-  return input as Record<string, unknown>;
-}
-
-function text(source: Record<string, unknown>, key: string, tool: string, max: number): string {
-  const value = source[key];
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new CenturionToolInputError(`${tool}: "${key}" must be some text.`);
-  }
-  if (value.length > max) {
-    throw new CenturionToolInputError(`${tool}: "${key}" is at most ${max} characters.`);
-  }
-  return value;
-}
-
-/** Like `text`, but an empty string is a real answer (an empty Bates prefix). */
-function optionalText(source: Record<string, unknown>, key: string, tool: string): string {
-  const value = source[key];
-  if (typeof value !== 'string') {
-    throw new CenturionToolInputError(`${tool}: "${key}" must be text.`);
-  }
-  if (value.length > 32) {
-    throw new CenturionToolInputError(`${tool}: "${key}" is at most 32 characters.`);
-  }
-  return value;
-}
-
-function whole(
-  source: Record<string, unknown>,
-  key: string,
-  tool: string,
-  range: { min: number; max: number }
-): number {
-  const value = source[key];
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new CenturionToolInputError(`${tool}: "${key}" must be a whole number.`);
-  }
-  if (value < range.min || value > range.max) {
-    throw new CenturionToolInputError(
-      `${tool}: "${key}" must be between ${range.min} and ${range.max}, not ${value}.`
-    );
-  }
-  return value;
-}
-
-function choice<T extends string>(
-  source: Record<string, unknown>,
-  key: string,
-  tool: string,
-  allowed: T[]
-): T {
-  const value = source[key];
-  if (typeof value !== 'string' || !allowed.includes(value as T)) {
-    throw new CenturionToolInputError(
-      `${tool}: "${key}" must be one of ${allowed.join(', ')}, not ${JSON.stringify(value)}.`
-    );
-  }
-  return value as T;
-}
 
 function pageList(value: unknown, tool: string): number[] {
   if (!Array.isArray(value) || value.length === 0) {
@@ -273,6 +252,76 @@ function redactionTerms(value: unknown, tool: string): RedactionTerm[] {
     const term = fields(entry, tool);
     return { text: text(term, 'text', tool, 200), reason: text(term, 'reason', tool, 200) };
   });
+}
+
+const MAX_SIGNERS = 20;
+const MAX_SIGNATURE_FIELDS = 100;
+
+function emailAddress(source: Record<string, unknown>, key: string, tool: string): string {
+  const value = text(source, key, tool, 200);
+  if (!value.includes('@')) {
+    throw new CenturionToolInputError(
+      `${tool}: "${key}" must be an email address, not "${value}".`
+    );
+  }
+  return value;
+}
+
+function signatureSigners(value: unknown, tool: string): SignatureToolSigner[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new CenturionToolInputError(`${tool}: "signers" must list at least one signer.`);
+  }
+  if (value.length > MAX_SIGNERS) {
+    throw new CenturionToolInputError(`${tool}: at most ${MAX_SIGNERS} signers per request.`);
+  }
+  return value.map((entry) => {
+    const signer = fields(entry, tool);
+    return { name: text(signer, 'name', tool, 100), email: emailAddress(signer, 'email', tool) };
+  });
+}
+
+function signatureField(
+  entry: unknown,
+  tool: string,
+  rosterEmails: Set<string>
+): SignatureToolField {
+  const field = fields(entry, tool);
+  const signerEmail = emailAddress(field, 'signerEmail', tool);
+  if (!rosterEmails.has(signerEmail.trim().toLowerCase())) {
+    throw new CenturionToolInputError(
+      `${tool}: signerEmail "${signerEmail}" matches nobody in "signers" - every field must belong to a listed signer.`
+    );
+  }
+  const occurrence = field['occurrence'];
+  const label = field['label'];
+  return {
+    kind: choice(field, 'kind', tool, SIGNATURE_FIELD_KINDS),
+    signerEmail,
+    page: whole(field, 'page', tool, { min: 1, max: 100_000 }),
+    anchorText: text(field, 'anchorText', tool, 200),
+    placement: choice(field, 'placement', tool, SIGNATURE_PLACEMENTS),
+    ...(occurrence === undefined || occurrence === null
+      ? {}
+      : { occurrence: whole(field, 'occurrence', tool, { min: 1, max: 50 }) }),
+    ...(label === undefined || label === null ? {} : { label: text(field, 'label', tool, 100) }),
+  };
+}
+
+function signatureFields(
+  value: unknown,
+  tool: string,
+  signers: SignatureToolSigner[]
+): SignatureToolField[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new CenturionToolInputError(`${tool}: "fields" must list at least one field to place.`);
+  }
+  if (value.length > MAX_SIGNATURE_FIELDS) {
+    throw new CenturionToolInputError(
+      `${tool}: at most ${MAX_SIGNATURE_FIELDS} fields per request.`
+    );
+  }
+  const rosterEmails = new Set(signers.map((signer) => signer.email.trim().toLowerCase()));
+  return value.map((entry) => signatureField(entry, tool, rosterEmails));
 }
 
 type Validator = (input: Record<string, unknown>, tool: CenturionToolName) => CenturionToolCall;
@@ -329,12 +378,15 @@ const VALIDATORS: Record<CenturionToolName, Validator> = {
     name: 'suggestRedactions',
     input: { terms: redactionTerms(source['terms'], tool) },
   }),
-};
 
-/** Only sets the key when there is a value — `pages: undefined` is not "no pages". */
-function spread<T>(key: string, value: T | undefined): Record<string, T> {
-  return value === undefined ? {} : { [key]: value };
-}
+  addSignatureFields: (source, tool) => {
+    const signers = signatureSigners(source['signers'], tool);
+    return {
+      name: 'addSignatureFields',
+      input: { signers, fields: signatureFields(source['fields'], tool, signers) },
+    };
+  },
+};
 
 export function isToolName(name: string): name is CenturionToolName {
   return Object.prototype.hasOwnProperty.call(VALIDATORS, name);

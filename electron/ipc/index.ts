@@ -7,6 +7,7 @@
 
 import { registerAiHandlers } from './ai';
 import { registerAppHandlers } from './app';
+import { registerEsignHandlers } from './esign';
 import { registerFileHandlers } from './file';
 import { registerOcrHandlers } from './ocr';
 import { registerOpsHandlers } from './ops';
@@ -23,5 +24,6 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerOcrHandlers(context);
   registerRedactHandlers(context);
   registerAiHandlers(context);
+  registerEsignHandlers(context);
   registerAppHandlers(context);
 }

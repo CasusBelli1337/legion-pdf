@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CENTURION_TOOLS, toolDefinition, toolParams } from './centurion-tool-protocol';
 
 describe('the tool catalogue offered to Centurion', () => {
-  it('offers exactly the six document tools, each with a schema', () => {
+  it('offers exactly the seven document tools, each with a schema', () => {
     expect(CENTURION_TOOLS.map((tool) => tool.name)).toEqual([
       'applyBates',
       'applyWatermark',
@@ -10,6 +10,7 @@ describe('the tool catalogue offered to Centurion', () => {
       'applyPageNumbers',
       'setBookmarks',
       'suggestRedactions',
+      'addSignatureFields',
     ]);
     for (const tool of CENTURION_TOOLS) {
       // Descriptions carry the "when to use it", which is what the model reads.
@@ -23,9 +24,11 @@ describe('the tool catalogue offered to Centurion', () => {
     }
   });
 
-  // Redaction is destruction: the one tool that never runs against the bytes.
-  it('keeps redaction out of the main process', () => {
+  // Redaction is destruction, and e-sign fields are panel metadata: neither
+  // tool ever runs against the bytes.
+  it('keeps redaction and signature fields out of the main process', () => {
     expect(toolDefinition('suggestRedactions').runsIn).toBe('renderer');
+    expect(toolDefinition('addSignatureFields').runsIn).toBe('renderer');
     for (const name of ['applyBates', 'applyWatermark', 'setBookmarks'] as const) {
       expect(toolDefinition(name).runsIn).toBe('main');
     }

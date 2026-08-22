@@ -22,6 +22,7 @@ import type {
   PageNumberOptions,
   PageNumberSpot,
   ProgressEvent,
+  SignatureFieldsToolInput,
   WatermarkOptions,
 } from '@shared/types';
 import type { ProgressChannel } from '@shared/ipc';
@@ -75,6 +76,18 @@ function batesLabel(prefix: string, number: number, padWidth: number): string {
   return `${prefix}${String(number).padStart(padWidth, '0')}`;
 }
 
+/** "Add 5 e-sign fields for 2 signers to the E-Sign panel (Jane Smith: 3, John Doe: 2)." */
+function signatureSummary({ signers, fields }: SignatureFieldsToolInput): string {
+  const names = new Map(signers.map((signer) => [signer.email.trim().toLowerCase(), signer.name]));
+  const counts = new Map<string, number>();
+  for (const field of fields) {
+    const name = names.get(field.signerEmail.trim().toLowerCase()) ?? field.signerEmail;
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const perSigner = [...counts].map(([name, count]) => `${name}: ${count}`).join(', ');
+  return `Add ${fields.length} e-sign field${fields.length === 1 ? '' : 's'} for ${counts.size} signer${counts.size === 1 ? '' : 's'} to the E-Sign panel (${perSigner}).`;
+}
+
 /** Config over code: one sentence-writer per tool, so none of them grows a switch. */
 const SUMMARIES: {
   [K in CenturionToolCall['name']]: (
@@ -105,6 +118,8 @@ const SUMMARIES: {
     const sample = terms.map((term) => `"${term.text}"`).join(', ');
     return `Mark ${terms.length} term${terms.length === 1 ? '' : 's'} for redaction (${sample}). Marks only - nothing is destroyed until you apply redaction yourself.`;
   },
+
+  addSignatureFields: signatureSummary,
 };
 
 /** One plain-English sentence per tool. This is what the attorney approves. */
@@ -226,6 +241,9 @@ export class CenturionToolExecutor {
       case 'suggestRedactions':
         // Marks are made in the renderer, over the viewer's own text search.
         throw new Error('Redaction marks are made in the panel, never in the main process.');
+      case 'addSignatureFields':
+        // Fields land in the renderer's E-Sign panel, over the viewer's own text search.
+        throw new Error('Signature fields are placed in the panel, never in the main process.');
     }
   }
 

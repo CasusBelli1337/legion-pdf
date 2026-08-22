@@ -6,6 +6,7 @@
 
 export type * from './tool-options';
 export type * from './centurion-tools';
+export type * from './options-esign';
 
 /** A point in PDF user space: origin bottom-left, units are points (1/72"). */
 export interface PdfPoint {

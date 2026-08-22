@@ -83,6 +83,39 @@ describe('the expandable detail', () => {
     expect(lines[0]?.label).toBe('Could not read the settings');
   });
 
+  it('lists one line per signature field, capped with an "and N more"', () => {
+    const signers = [
+      { name: 'Jane Smith', email: 'jane@example.com' },
+      { name: 'John Doe', email: 'john@example.com' },
+    ];
+    expect(
+      detailLines('addSignatureFields', {
+        signers,
+        fields: [
+          {
+            kind: 'signature',
+            signerEmail: 'jane@example.com',
+            page: 4,
+            anchorText: 'By:',
+            placement: 'right-of',
+          },
+        ],
+      })
+    ).toEqual([{ label: 'Signature', value: 'Jane Smith, p. 4, right of "By:"' }]);
+
+    const many = Array.from({ length: 10 }, (_unused, index) => ({
+      kind: 'date',
+      signerEmail: 'john@example.com',
+      page: index + 1,
+      anchorText: 'Date:',
+      placement: 'below',
+    }));
+    const lines = detailLines('addSignatureFields', { signers, fields: many });
+    expect(lines).toHaveLength(9);
+    expect(lines[0]).toEqual({ label: 'Date', value: 'John Doe, p. 1, below "Date:"' });
+    expect(lines[8]).toEqual({ label: '…', value: 'and 2 more fields' });
+  });
+
   it('names every tool in the words the panels use', () => {
     expect(Object.values(TOOL_TITLES)).toEqual([
       'Bates numbering',
@@ -91,6 +124,7 @@ describe('the expandable detail', () => {
       'Page numbers',
       'Bookmarks',
       'Suggested redactions',
+      'Add e-signature fields',
     ]);
   });
 });

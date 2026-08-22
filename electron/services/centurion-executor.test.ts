@@ -152,6 +152,28 @@ describe('running an approved call against the document', () => {
     ).rejects.toThrow(/never in the main process/);
   });
 
+  // Signature fields are panel metadata, placed in the renderer over the viewer.
+  it('will not place signature fields in the main process', async () => {
+    const { docId, host } = await fixture();
+    await expect(
+      new CenturionToolExecutor(host).run(docId, {
+        name: 'addSignatureFields',
+        input: {
+          signers: [{ name: 'Jane Smith', email: 'jane@example.com' }],
+          fields: [
+            {
+              kind: 'signature',
+              signerEmail: 'jane@example.com',
+              page: 1,
+              anchorText: 'By:',
+              placement: 'on',
+            },
+          ],
+        },
+      })
+    ).rejects.toThrow(/never in the main process/);
+  });
+
   it('resolves an omitted page list to the whole document', () => {
     expect(resolvePages(undefined, 3)).toEqual([1, 2, 3]);
     expect(resolvePages([2], 3)).toEqual([2]);
@@ -196,6 +218,61 @@ describe('the sentence the attorney approves', () => {
         20
       )
     ).toBe('Replace the bookmarks with 1 entries, starting "Exhibit A" at page 3.');
+  });
+
+  it('counts fields per signer, by name, when it proposes signature fields', () => {
+    const summary = summarizeToolCall(
+      {
+        name: 'addSignatureFields',
+        input: {
+          signers: [
+            { name: 'Jane Smith', email: 'jane@example.com' },
+            { name: 'John Doe', email: 'john@example.com' },
+          ],
+          fields: [
+            {
+              kind: 'signature',
+              signerEmail: 'jane@example.com',
+              page: 4,
+              anchorText: 'By:',
+              placement: 'on',
+            },
+            {
+              kind: 'date',
+              signerEmail: 'JANE@example.com',
+              page: 4,
+              anchorText: 'Date:',
+              placement: 'right-of',
+            },
+            {
+              kind: 'name',
+              signerEmail: 'jane@example.com',
+              page: 4,
+              anchorText: 'Name:',
+              placement: 'right-of',
+            },
+            {
+              kind: 'signature',
+              signerEmail: 'john@example.com',
+              page: 5,
+              anchorText: 'By:',
+              placement: 'on',
+            },
+            {
+              kind: 'date',
+              signerEmail: 'john@example.com',
+              page: 5,
+              anchorText: 'Date:',
+              placement: 'right-of',
+            },
+          ],
+        },
+      },
+      20
+    );
+    expect(summary).toBe(
+      'Add 5 e-sign fields for 2 signers to the E-Sign panel (Jane Smith: 3, John Doe: 2).'
+    );
   });
 
   // The card has to say what it will NOT do, or "redaction" reads as destruction.
