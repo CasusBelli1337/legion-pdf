@@ -50,6 +50,11 @@ export interface PleadingOptions {
   lineCount?: number;
   header?: string;
   bates?: string;
+  /**
+   * Footer title lines below line 28, first line on top. The first sits just
+   * ABOVE the strict 8% band — exactly where real pleading footers start.
+   */
+  footer?: readonly string[];
   /** Extra indent for these 1-based line numbers — a paragraph's first line. */
   indented?: readonly number[];
 }
@@ -57,6 +62,8 @@ export interface PleadingOptions {
 const PLEADING_TOP = 720;
 const PLEADING_LEADING = 24;
 const PLEADING_BODY_X = 90;
+const PLEADING_FOOTER_TOP = 60;
+const PLEADING_FOOTER_LEADING = 12;
 
 /** Pleading paper: numbers 1-28 down the left margin, body to their right. */
 export function pleadingPage(options: PleadingOptions): PageInput {
@@ -73,11 +80,21 @@ export function pleadingPage(options: PleadingOptions): PageInput {
     placed.push({ text, x: PLEADING_BODY_X + indent, y });
   }
 
+  placed.push(...footerPlacements(options.footer));
   if (options.bates !== undefined) placed.push({ text: options.bates, x: 430, y: 30, size: 9 });
   if (options.printed !== undefined) {
     placed.push({ text: String(options.printed), x: 300, y: 44, size: 10 });
   }
   return pageOf(options.page, placed);
+}
+
+function footerPlacements(footer: readonly string[] = []): Placed[] {
+  return footer.map((text, index) => ({
+    text,
+    x: 90,
+    y: PLEADING_FOOTER_TOP - index * PLEADING_FOOTER_LEADING,
+    size: 9,
+  }));
 }
 
 export interface MiniPage {

@@ -165,6 +165,42 @@ describe('the engine end to end', () => {
     expect(payload).toBeNull();
   });
 
+  // The 2026-08-20 Ashford bug: a drag across a page break sweeps up every span
+  // between anchor and focus in document order — page 2's footer title
+  // included — and the footer's first line rode into the clipboard because it
+  // sat just above the strict footer band.
+  it('drops the footer a cross-page drag swept up, and cites the real lines', async () => {
+    const footer = [
+      'DECLARATION OF MARGARET C. VANCE IN SUPPORT OF',
+      'MOTION FOR DETERMINATION OF CLAIM OF PRIVILEGE',
+    ];
+    const pages = [1, 2, 3].map((page) =>
+      pleadingPage({
+        page,
+        printed: page,
+        lines: Array.from({ length: 28 }, (_, index) => `line ${index + 1} on page ${page}`),
+        footer,
+      })
+    );
+    const [, second, third] = pages;
+    if (second === undefined || third === undefined) throw new Error('fixture');
+    const runs = [
+      ...runsForLines(
+        second,
+        (text) => /^line 2[5-8] on page 2$/.test(text) || footer.includes(text)
+      ),
+      ...runsForLines(third, (text) => /^line [12] on page 3$/.test(text)),
+    ];
+    const payload = await payloadFor(pages, runs);
+
+    expect(payload?.text).toBe(
+      'line 25 on page 2 line 26 on page 2 line 27 on page 2 line 28 on page 2 ' +
+        'line 1 on page 3 line 2 on page 3'
+    );
+    expect(payload?.text).not.toContain('DECLARATION');
+    expect(payload?.cite?.formatted).toBe('(2:25-3:2)');
+  });
+
   it('cites a condensed sheet by its mini-page number', async () => {
     const sheets = [1, 2].map((sheet) =>
       condensedSheet(sheet, [

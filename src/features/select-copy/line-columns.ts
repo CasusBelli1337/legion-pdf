@@ -174,6 +174,38 @@ export function lineNumberFor(
   return best.value;
 }
 
+/**
+ * A column whose bottom number ends above this much of the page is treated as
+ * incomplete (OCR dropped the last few numbers) and sets no footer ceiling —
+ * mislabelling real body as footer is the worse failure.
+ */
+const CEILING_MAX_FRACTION = 0.2;
+
+/**
+ * On pleading paper everything the author wrote sits ON a numbered line, so
+ * whatever is printed below the bottom margin number — the document's footer
+ * title, the firm slug — is page furniture no matter how far it sits from the
+ * paper's edge. The ceiling is a quarter-line below the bottom number: line
+ * 28's own text stays body, the title under it does not. Null when the page
+ * has no full-page column; condensed sheets keep their own rules.
+ */
+export function footerCeilingOf(
+  columns: readonly LineNumberColumn[],
+  size: PageSize
+): number | null {
+  const ceilings = columns
+    .filter((column) => column.quadrant === null && column.entries.length > 0)
+    .map(bottomNumberY)
+    .filter((ceiling) => ceiling < size.height * CEILING_MAX_FRACTION);
+  if (ceilings.length === 0) return null;
+  return Math.min(...ceilings);
+}
+
+function bottomNumberY(column: LineNumberColumn): number {
+  const bottom = Math.min(...column.entries.map((entry) => centerY(entry.box)));
+  return bottom - lineSpacingOf(column) / 4;
+}
+
 /** Typical vertical distance between consecutive numbers in a column. */
 export function lineSpacingOf(column: LineNumberColumn): number {
   const centers = column.entries.map((entry) => centerY(entry.box)).sort((a, b) => b - a);

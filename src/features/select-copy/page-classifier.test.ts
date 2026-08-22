@@ -107,6 +107,49 @@ describe('roles', () => {
     expect(looksLikeBates('The witness testified.')).toBe(false);
     expect(looksLikeBates('28')).toBe(false);
   });
+
+  // The 2026-08-20 Ashford copy bug: the footer title's FIRST line sits just
+  // above the strict band, was classified body, and rode into the clipboard.
+  it('keeps a pleading footer title out of body even above the strict band', () => {
+    const lines = Array.from({ length: 28 }, (_, index) =>
+      index === 27 ? 'reviewed the contents of the imaged drives at any time' : ''
+    );
+    const page = classifyPage(
+      pleadingPage({
+        page: 2,
+        printed: 2,
+        lines,
+        footer: [
+          'DECLARATION OF MARGARET C. VANCE IN SUPPORT OF',
+          'MOTION FOR DETERMINATION OF CLAIM OF PRIVILEGE',
+        ],
+      })
+    );
+
+    expect(roleOfText(page, 'DECLARATION OF MARGARET C. VANCE IN SUPPORT OF')).toBe('footer');
+    expect(roleOfText(page, 'MOTION FOR DETERMINATION OF CLAIM OF PRIVILEGE')).toBe('footer');
+    expect(roleOfText(page, 'reviewed the contents of the imaged drives at any time')).toBe('body');
+    expect(roleOfText(page, '28')).toBe('line-number');
+    expect(page.classification.printedPageNumber).toBe(2);
+  });
+
+  it('rescues a repeating footer notice that sits above the strict band', () => {
+    const inputs = [1, 2, 3, 4].map((page) =>
+      pageOf(page, [
+        { text: `The ${DAYS[page - 1] ?? 'first'} hearing began at nine.`, x: 90, y: 400 },
+        { text: 'CONFIDENTIAL — SUBJECT TO PROTECTIVE ORDER', x: 90, y: 80, size: 9 },
+      ])
+    );
+    const repeated = repeatedBandText(
+      inputs.map((input) => ({ items: positionItems(input.items), size: input.size }))
+    );
+    const first = inputs[0];
+    if (first === undefined) throw new Error('fixture');
+    const page = classifyPage(first, { repeatedBandText: repeated });
+
+    expect(roleOfText(page, 'CONFIDENTIAL — SUBJECT TO PROTECTIVE ORDER')).toBe('footer');
+    expect(roleOfText(page, 'The monday hearing began at nine.')).toBe('body');
+  });
 });
 
 describe('printed page numbers', () => {
