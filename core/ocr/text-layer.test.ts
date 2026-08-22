@@ -57,7 +57,7 @@ describe('writeTextLayer', () => {
     ];
     const result = await writeTextLayer(await blankPdf(), [page(words)]);
 
-    expect(result.detail.charsPerPage).toEqual([20]);
+    expect(result.detail.charsPerPage).toEqual([21]);
     expect(result.detail.wordsPerPage).toEqual([3]);
     const items = await extractTextItems(result.bytes, 1);
     expect(items.map((item) => item.str)).toEqual(['EXHIBIT', 'A', 'ASHFORD000123']);

@@ -152,7 +152,11 @@ describe('wordTextOf', () => {
 describe('characterCount', () => {
   it('sums the characters of every recognized word', () => {
     expect(characterCount(parseHocr(REAL_HOCR).words)).toBe(
-      'SUPERIOR'.length + 'COURT'.length + 'OF'.length + 'CALIFORNIA'.length + 'ASHFORD000123'.length
+      'SUPERIOR'.length +
+        'COURT'.length +
+        'OF'.length +
+        'CALIFORNIA'.length +
+        'ASHFORD000123'.length
     );
   });
 });
