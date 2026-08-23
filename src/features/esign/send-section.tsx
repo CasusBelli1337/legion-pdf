@@ -77,10 +77,10 @@ function DeliveryChoice({ delivery, mailReady, onChange }: DeliveryChoiceProps) 
   const options: { value: EsignDelivery; label: string; disabled?: boolean; hint?: string }[] = [
     { value: 'service', label: 'Email links from Legion Sign (recommended)' },
     {
-      value: 'gmail',
-      label: 'Email from my Gmail',
+      value: 'outreach',
+      label: 'Email from my address (via Outreach)',
       disabled: !mailReady,
-      hint: mailReady ? undefined : 'Connect your Gmail under Settings below to use this.',
+      hint: mailReady ? undefined : 'Connect Outreach under Settings below to use this.',
     },
     { value: 'links', label: "I'll share the links myself" },
   ];
@@ -147,7 +147,7 @@ function noteFor(delivery: EsignDelivery, outcome: SendOutcome): string | null {
   if (delivery === 'links') return "Request created — share each signer's link below.";
   if (outcome.emailError !== null) return null;
   const emails = outcome.emailedCount === 1 ? 'email' : 'emails';
-  return `Request sent — ${outcome.emailedCount ?? 0} ${emails} went out from your Gmail.`;
+  return `Request sent — ${outcome.emailedCount ?? 0} ${emails} went out from your mailbox.`;
 }
 
 interface SendRun {
@@ -202,7 +202,7 @@ function useSendRun(): SendRun {
   return { busy, error, note, links, send };
 }
 
-/** Fills the attorney's email from their connected Gmail, once, if untouched. */
+/** Fills the attorney's email from the Outreach from-mailbox, once, if untouched. */
 function usePrefillEmail(
   mail: EsignMailStatus | null,
   setDraft: (update: (current: Draft) => Draft) => void
@@ -212,7 +212,7 @@ function usePrefillEmail(
     if (prefilled.current || mail === null || !mail.configured) return;
     prefilled.current = true;
     setDraft((current) =>
-      current.requesterEmail === '' ? { ...current, requesterEmail: mail.address } : current
+      current.requesterEmail === '' ? { ...current, requesterEmail: mail.from } : current
     );
   }, [mail, setDraft]);
 }

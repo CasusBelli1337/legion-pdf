@@ -1,13 +1,16 @@
 /**
- * Sends each signer their private signing link from the attorney's OWN Gmail
- * (smtp.gmail.com over SSL, app-password auth) — the 'gmail' delivery route.
- * Message building is a pure exported function so the layout unit-tests with
- * no network; every transport failure is rewritten into plain English, and
- * the app password never appears in an error or a log.
+ * Sends each signer their private signing link from the attorney's OWN
+ * mailbox via the Armory's Outreach module — the 'outreach' delivery route.
+ * Outreach holds the Gmail OAuth connection; this app only POSTs
+ * to/subject/html plus the from-mailbox to its raw-send endpoint
+ * (/service/send-founder-email — a generic service-token send despite the
+ * name) over the private tailnet. Message building is a pure exported
+ * function so the layout unit-tests with no network; every transport failure
+ * is rewritten into plain English, and the service token never appears in an
+ * error or a log. The text/plain part is built but not yet sent — Outreach's
+ * MIME builder is HTML-only today.
  */
 
-import { createTransport } from 'nodemailer';
-import type { Transporter } from 'nodemailer';
 import type { EsignEmailRequest, EsignEmailResult, EsignSignerLink } from '@shared/types';
 import type { EsignMailCredentials } from './esign-settings';
 
@@ -74,60 +77,101 @@ export function buildRequestMessage(
   return { subject: headerSafe(`Signature requested: ${request.title}`), html, text };
 }
 
-function gmailTransport(credentials: EsignMailCredentials): Transporter {
-  return createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: { user: credentials.address, pass: credentials.appPassword },
-  });
+const SEND_TIMEOUT_MS = 30_000;
+
+/** What one send attempt came back as — everything plainFailure needs. */
+interface SendOutcome {
+  ok: boolean;
+  status: number;
+  /** True when the reply was HTML — the Armory login page, not Outreach. */
+  htmlBody: boolean;
 }
 
-/** Plain English only — the raw SMTP error can name hosts, never leaves main. */
-function plainMailFailure(error: unknown, sent: number, total: number): string {
+async function postSend(
+  credentials: EsignMailCredentials,
+  body: { to: string; subject: string; html: string; from: string },
+  fetchImpl: typeof fetch
+): Promise<SendOutcome> {
+  const response = await fetchImpl(`${credentials.baseUrl}/service/send-founder-email`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${credentials.token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    redirect: 'manual',
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+  });
+  const contentType = response.headers.get('content-type') ?? '';
+  return {
+    ok: response.ok && contentType.includes('application/json'),
+    status: response.status,
+    htmlBody: contentType.includes('text/html'),
+  };
+}
+
+/** Plain English only — nothing here may quote the token or a raw body. */
+function plainSendFailure(outcome: SendOutcome, sent: number, total: number): string {
   const progress = sent > 0 ? ` ${sent} of the ${total} request emails had already been sent.` : '';
-  const code = (error as { code?: unknown }).code;
-  if (code === 'EAUTH') {
-    return `Gmail rejected the sender sign-in — check the app password.${progress}`;
+  if (outcome.htmlBody || outcome.status >= 300) {
+    if (outcome.status === 401 || outcome.status === 403) {
+      return `The Armory rejected the service token — check the E-Sign settings.${progress}`;
+    }
+    if (outcome.status === 503) {
+      return `Your mailbox is not connected in Outreach — connect it there, then try again.${progress}`;
+    }
+    if (outcome.htmlBody || (outcome.status >= 300 && outcome.status < 400)) {
+      return (
+        'The Armory answered with its sign-in page instead of Outreach — its ' +
+        `send path has not been opened yet (see the E-Sign handoff notes).${progress}`
+      );
+    }
   }
-  if (code === 'ECONNECTION' || code === 'ETIMEDOUT' || code === 'EDNS' || code === 'ESOCKET') {
-    return `Could not reach Gmail — check your internet connection.${progress}`;
-  }
-  return `Sending the request emails through Gmail failed.${progress}`;
+  return `Sending the request emails through Outreach failed.${progress}`;
+}
+
+function plainNetworkFailure(sent: number, total: number): string {
+  const progress = sent > 0 ? ` ${sent} of the ${total} request emails had already been sent.` : '';
+  return `Could not reach the Armory — check that Tailscale is running on this computer.${progress}`;
 }
 
 /**
- * One email per recipient, from the attorney's address. All-or-loud: a
- * failure mid-run reports how many emails already left, never a quiet
- * partial success. The transport parameter exists for tests only.
+ * One email per recipient, sent as the attorney's own mailbox through
+ * Outreach. All-or-loud: a failure mid-run reports how many emails already
+ * left, never a quiet partial success. `fetchImpl` exists for tests only.
  */
 export async function sendRequestEmails(
   request: EsignEmailRequest,
   credentials: EsignMailCredentials,
-  transport: Transporter = gmailTransport(credentials)
+  fetchImpl: typeof fetch = fetch
 ): Promise<EsignEmailResult> {
   if (request.recipients.length === 0) {
     throw new Error('There is nobody to email — the request has no signing links.');
   }
   let sent = 0;
-  try {
-    for (const recipient of request.recipients) {
-      const message = buildRequestMessage(request, recipient);
-      await transport.sendMail({
-        from: { name: headerSafe(request.requesterName), address: credentials.address },
-        to: { name: headerSafe(recipient.name), address: recipient.email },
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
-      });
-      sent += 1;
+  for (const recipient of request.recipients) {
+    const message = buildRequestMessage(request, recipient);
+    let outcome: SendOutcome;
+    try {
+      outcome = await postSend(
+        credentials,
+        {
+          to: recipient.email,
+          subject: message.subject,
+          html: message.html,
+          from: credentials.from,
+        },
+        fetchImpl
+      );
+    } catch (error) {
+      // The cause stays main-side for debugging; Electron drops it at the IPC
+      // boundary, so only the plain sentence can ever reach the renderer.
+      throw new Error(plainNetworkFailure(sent, request.recipients.length), { cause: error });
     }
-  } catch (error) {
-    // The cause stays main-side for debugging; Electron drops it at the IPC
-    // boundary, so only the plain sentence can ever reach the renderer.
-    throw new Error(plainMailFailure(error, sent, request.recipients.length), { cause: error });
-  } finally {
-    transport.close();
+    if (!outcome.ok) {
+      throw new Error(plainSendFailure(outcome, sent, request.recipients.length));
+    }
+    sent += 1;
   }
   return { sent };
 }

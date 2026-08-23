@@ -182,7 +182,8 @@ export interface EsignBridge {
   setService(baseUrl: string, apiKey: string): Promise<EsignServiceStatus>;
   clearService(): Promise<EsignServiceStatus>;
   mailStatus(): Promise<EsignMailStatus>;
-  setMail(address: string, appPassword: string): Promise<EsignMailStatus>;
+  /** Connects the Armory Outreach sender: module URL, service token, mailbox. */
+  setMail(baseUrl: string, token: string, from: string): Promise<EsignMailStatus>;
   clearMail(): Promise<EsignMailStatus>;
 }
 

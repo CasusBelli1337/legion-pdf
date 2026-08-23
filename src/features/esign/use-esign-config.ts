@@ -1,6 +1,6 @@
 /**
- * The two renderer-visible connection states — the Legion Sign service and the
- * Gmail request sender — plus the setters that change them. Secrets pass
+ * The two renderer-visible connection states — the Legion Sign service and
+ * the Armory Outreach sender — plus the setters that change them. Secrets pass
  * straight through to the main process and are never held here: the renderer
  * only ever learns `configured`, exactly as the key-storage rule demands.
  */
@@ -14,7 +14,7 @@ export interface EsignConfig {
   mail: EsignMailStatus | null;
   saveService(baseUrl: string, apiKey: string): Promise<void>;
   clearService(): Promise<void>;
-  saveMail(address: string, appPassword: string): Promise<void>;
+  saveMail(baseUrl: string, token: string, from: string): Promise<void>;
   clearMail(): Promise<void>;
 }
 
@@ -47,8 +47,8 @@ export function useEsignConfig(): EsignConfig {
   const clearService = useCallback(async () => {
     setService(await window.librarius.esign.clearService());
   }, []);
-  const saveMail = useCallback(async (address: string, appPassword: string) => {
-    setMail(await window.librarius.esign.setMail(address, appPassword));
+  const saveMail = useCallback(async (baseUrl: string, token: string, from: string) => {
+    setMail(await window.librarius.esign.setMail(baseUrl, token, from));
   }, []);
   const clearMail = useCallback(async () => {
     setMail(await window.librarius.esign.clearMail());

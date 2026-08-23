@@ -58,9 +58,13 @@ function fakeBridge(): EsignBridge {
     serviceStatus: vi.fn(async () => ({ configured: true, baseUrl: 'https://sign.example' })),
     setService: vi.fn(async () => ({ configured: true, baseUrl: 'https://sign.example' })),
     clearService: vi.fn(async () => ({ configured: false, baseUrl: '' })),
-    mailStatus: vi.fn(async () => ({ configured: false, address: '' })),
-    setMail: vi.fn(async () => ({ configured: true, address: 'alex@example.com' })),
-    clearMail: vi.fn(async () => ({ configured: false, address: '' })),
+    mailStatus: vi.fn(async () => ({ configured: false, baseUrl: '', from: '' })),
+    setMail: vi.fn(async () => ({
+      configured: true,
+      baseUrl: 'http://a',
+      from: 'alex@example.com',
+    })),
+    clearMail: vi.fn(async () => ({ configured: false, baseUrl: '', from: '' })),
   };
 }
 
@@ -188,7 +192,7 @@ describe('sendRequest', () => {
     expect(options.fields).toEqual([field('f-1', 's-1')]);
   });
 
-  it('emails from Gmail after recording, with the receipt’s links', async () => {
+  it('emails through Outreach after recording, with the receipt’s links', async () => {
     const calls: string[] = [];
     const bridge = fakeBridge();
     bridge.createRequest = vi.fn(async () => {
@@ -203,7 +207,7 @@ describe('sendRequest', () => {
       calls.push('record');
     });
 
-    const outcome = await sendRequest('doc-1', draft({ delivery: 'gmail' }), { bridge, record });
+    const outcome = await sendRequest('doc-1', draft({ delivery: 'outreach' }), { bridge, record });
 
     expect(calls).toEqual(['create', 'record', 'email']);
     expect(bridge.emailRequests).toHaveBeenCalledWith({
@@ -243,14 +247,14 @@ describe('sendRequest', () => {
     expect(record).not.toHaveBeenCalled();
   });
 
-  it('keeps the envelope when the Gmail send fails, and says both things', async () => {
+  it('keeps the envelope when the Outreach send fails, and says both things', async () => {
     const bridge = fakeBridge();
     bridge.emailRequests = vi.fn(async () => {
       throw new Error('The app password was rejected.');
     });
     const record = vi.fn();
 
-    const outcome = await sendRequest('doc-1', draft({ delivery: 'gmail' }), { bridge, record });
+    const outcome = await sendRequest('doc-1', draft({ delivery: 'outreach' }), { bridge, record });
 
     expect(record).toHaveBeenCalledTimes(1);
     expect(outcome.ok).toBe(true);

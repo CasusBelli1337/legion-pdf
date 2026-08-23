@@ -1,7 +1,7 @@
 /**
  * Sending a signature request, kept out of the components: validate the draft
  * in plain English, create the envelope on the signing service, record the
- * receipt, and — when the attorney's own Gmail is the courier — send the
+ * receipt, and — when the attorney's own mailbox (via Outreach) is the courier — send the
  * request emails. Everything here takes the bridge as an argument, so it is
  * unit-testable without an Electron preload in sight.
  */
@@ -110,9 +110,9 @@ function requestOptions(draft: SendDraft): EsignRequestOptions {
 export interface SendSuccess {
   ok: true;
   receipt: EsignReceipt;
-  /** Emails that left the attorney's Gmail; null when Gmail was not the courier. */
+  /** Emails that left the attorney's own mailbox; null when it was not the courier. */
   emailedCount: number | null;
-  /** Set when the envelope was created but the Gmail send then failed. */
+  /** Set when the envelope was created but the Outreach send then failed. */
   emailError: string | null;
 }
 
@@ -135,7 +135,7 @@ function defaultDeps(): SendDeps {
   };
 }
 
-async function emailFromGmail(
+async function emailFromOutreach(
   draft: SendDraft,
   receipt: EsignReceipt,
   bridge: EsignBridge
@@ -154,13 +154,13 @@ async function emailFromGmail(
       ok: true,
       receipt,
       emailedCount: null,
-      emailError: `The request was created, but the emails could not be sent from your Gmail: ${detail} You can copy each signer's link from the request below.`,
+      emailError: `The request was created, but the emails could not be sent from your mailbox: ${detail} You can copy each signer's link from the request below.`,
     };
   }
 }
 
 /**
- * Validate, create, record, then (for Gmail delivery) email — in that order.
+ * Validate, create, record, then (for Outreach delivery) email — in that order.
  * Never throws: every path comes back as a SendOutcome the panel can show.
  */
 export async function sendRequest(
@@ -179,8 +179,8 @@ export async function sendRequest(
   }
   deps.record(docId, receipt);
 
-  if (draft.delivery !== 'gmail') {
+  if (draft.delivery !== 'outreach') {
     return { ok: true, receipt, emailedCount: null, emailError: null };
   }
-  return emailFromGmail(draft, receipt, deps.bridge);
+  return emailFromOutreach(draft, receipt, deps.bridge);
 }

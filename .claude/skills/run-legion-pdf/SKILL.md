@@ -51,6 +51,7 @@ launch failed.
 | `click <css-sel>` | DOM click (never coordinates) |
 | `click-text <label>` | click button by `title` / aria-label / text — toolbar and dock buttons all carry `title` ("Save (Ctrl+S)", "Fill Forms", "Next page") |
 | `type <text>` / `press <key>` | keyboard into the focused element |
+| | **Gotcha (2026-08-22):** `type` can silently TRUNCATE long strings (a ~230-char chat message lost its tail mid-word). For anything long or load-bearing, set the value via `eval` with the native setter instead: `Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(el, text); el.dispatchEvent(new Event("input", {bubbles: true}))` |
 | `wait <css-sel>` | wait for element, 15 s |
 | `eval <js>` | evaluate an expression in the page, print JSON |
 | `text [css-sel]` | print innerText |

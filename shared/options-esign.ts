@@ -42,10 +42,11 @@ export interface EsignField {
 
 /**
  * Who emails the signers their links: the signing service (from
- * sign@legion.law), the attorney's own Gmail, or nobody — the attorney
- * copies the links into whatever channel they like.
+ * sign@legion.law), the attorney's own mailbox via the Armory's Outreach
+ * module, or nobody — the attorney copies the links into whatever channel
+ * they like.
  */
-export type EsignDelivery = 'service' | 'gmail' | 'links';
+export type EsignDelivery = 'service' | 'outreach' | 'links';
 
 export interface EsignRequestOptions {
   /** Shown to signers and used as the email subject, e.g. the document name. */
@@ -102,11 +103,13 @@ export interface EsignServiceStatus {
   baseUrl: string;
 }
 
-/** Renderer-visible mail state. The app password never leaves main. */
+/** Renderer-visible Outreach sender state. The service token never leaves main. */
 export interface EsignMailStatus {
   configured: boolean;
-  /** The Gmail address requests are sent from, when configured. */
-  address: string;
+  /** The Outreach module's base URL (Armory over Tailscale). */
+  baseUrl: string;
+  /** The mailbox requests are sent from, e.g. arthur@legion.law. */
+  from: string;
 }
 
 /* ── sending the request emails ───────────────────────────────────────── */
