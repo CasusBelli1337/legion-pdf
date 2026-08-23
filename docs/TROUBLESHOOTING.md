@@ -145,8 +145,21 @@ only generated fixtures — PNG-embedded scans never touch these decoders.
   Cloudflare Worker in the legion-atlas repo under `sign/` (own D1
   `legion-sign` + R2 `legion-sign`; NOT the Atlas Portal worker). Deploy
   recipe: `sign/README.md` there. The app's service settings (base URL +
-  bearer API key) and the Gmail app-password sender both live in
-  safeStorage via `electron/services/esign-settings.ts`.
+  bearer API key) and the Outreach sender (Armory URL + service token +
+  from-mailbox) both live in safeStorage via
+  `electron/services/esign-settings.ts`.
+- "Email from my address" rides the Armory EC2's Outreach module over
+  Tailscale (Outreach holds the Gmail OAuth; Google blocks app passwords
+  on Arthur's accounts, so the SMTP path was removed 2026-08-22).
+  Endpoint: `POST {armory}/tools/outreach/service/send-founder-email`
+  with the ARMORY_SERVICE_TOKEN bearer. PREREQUISITE not yet applied:
+  the EC2 Caddy must exempt `/tools/outreach/service/*` from
+  forward_auth — legion-armory branch `arthur/outreach-service-exemption`
+  has the one-line change; apply on the EC2 host and reload caddy. Until
+  then the app reports "The Armory answered with its sign-in page" and
+  leaves the envelope + copyable links intact (live-verified). WSL DNS
+  note: MagicDNS `.ts.net` names may not resolve inside WSL — use the
+  tailnet IP form (http://100.69.109.124/tools/outreach) in dev.
 - `LIBRARIUS_DEV_ANTHROPIC_KEY` (env) lets QA drive Centurion live without
   touching the keystore. Honoured ONLY when `app.isPackaged` is false —
   packaged builds ignore it (electron/ipc/ai.ts `devFallbackKey`).
