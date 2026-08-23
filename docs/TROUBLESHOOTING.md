@@ -167,3 +167,31 @@ only generated fixtures — PNG-embedded scans never touch these decoders.
   burned into local bytes and do not survive an app restart; sent-request
   receipts ("who has signed") reset on relaunch too. The service remains
   the source of truth; re-check by envelope status if the app restarts.
+
+## Windows packaging blocked by Smart App Control (hit 2026-08-22)
+
+Symptom: `npm run build:win` dies with `⨯ spawn UNKNOWN` at
+`computeScriptAndSignUninstaller`, leaving a ~186 KB stub as the Setup.exe.
+Root cause: electron-builder RUNS the freshly compiled (unsigned) NSIS stub
+to extract the uninstaller for signing, and **Windows Smart App Control**
+blocks it — `Start-Process` on the stub says "An Application Control policy
+has blocked this file." Check state (1 = enforcing, 2 = evaluation, 0 = off):
+`Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' |
+Select VerifiedAndReputablePolicyState`. SAC auto-flipped from evaluation to
+enforcing between two builds on 2026-08-22 — the same recipe had just built
+v0.4.0 fine.
+
+Facts and options:
+- Already-installed apps keep launching (reputation established) — verified
+  for the installed v0.4.0. Only NEW unsigned executables are blocked.
+- Fix A: turn Smart App Control OFF (Windows Security ▸ App & browser
+  control) — a USER decision; it cannot be re-enabled without reinstalling
+  Windows. This is what building unsigned installers on this machine needs.
+- Fix B: a real code-signing certificate (EV for instant reputation) — SAC
+  then trusts the stub and the installer; the durable, secure fix.
+- A containerized Linux build dodges the BUILD failure but not the runtime
+  block: SAC would still stop the resulting unsigned installer on launch.
+- Red herring met along the way: app-builder-lib 26.15.3's win32 `execWine`
+  branch passes `options.env` unmerged (child would lack SystemRoot/PATH) —
+  patched locally in the build repo's node_modules, but SAC was the actual
+  blocker here.
