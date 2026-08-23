@@ -125,7 +125,7 @@ const bridge: LibrariusBridge = {
     setService: (baseUrl, apiKey) => invoke(IPC.esign.setService, baseUrl, apiKey),
     clearService: () => invoke(IPC.esign.clearService),
     mailStatus: () => invoke(IPC.esign.mailStatus),
-    setMail: (address, appPassword) => invoke(IPC.esign.setMail, address, appPassword),
+    setMail: (baseUrl, token, from) => invoke(IPC.esign.setMail, baseUrl, token, from),
     clearMail: () => invoke(IPC.esign.clearMail),
   },
   app: {

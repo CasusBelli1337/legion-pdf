@@ -29,7 +29,7 @@ import { assertPlacementsValid } from './esign-validate';
 import type { IpcContext } from './context';
 
 const NEEDS_SERVICE = 'Connect the Legion signing service in the E-Sign panel settings first.';
-const NEEDS_MAIL = 'Set up your Gmail sender in the E-Sign panel settings first.';
+const NEEDS_MAIL = 'Connect the Armory Outreach sender in the E-Sign panel settings first.';
 
 export function registerEsignHandlers(context: IpcContext): void {
   const settings = new EsignSettings({ directory: app.getPath('userData'), safeStorage });
@@ -193,8 +193,8 @@ function registerSettingsHandlers(settings: EsignSettings): void {
 
   ipcMain.handle(
     IPC.esign.setMail,
-    guarded((address: string, appPassword: string) => {
-      settings.setMail(address, appPassword);
+    guarded((baseUrl: string, token: string, from: string) => {
+      settings.setMail(baseUrl, token, from);
       return settings.mailStatus();
     })
   );

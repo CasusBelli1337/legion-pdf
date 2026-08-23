@@ -1,12 +1,12 @@
 /**
  * The E-Sign secrets' only home: the Legion signing-service connection
- * ({baseUrl, apiKey}) and the Gmail request-email sender ({address,
- * appPassword}), each in its own safeStorage-encrypted file under the
- * directory given at construction (app.getPath('userData') in production).
+ * ({baseUrl, apiKey}) and the Armory Outreach sender ({baseUrl, token,
+ * from}), each in its own safeStorage-encrypted file under the directory
+ * given at construction (app.getPath('userData') in production).
  *
  * Engineering rule 4, same as ./keystore: neither secret ever reaches a log,
  * an error message, a status object, or the renderer. The renderer's whole
- * view is `configured` plus the non-secret half (base URL / sender address).
+ * view is `configured` plus the non-secret halves (base URLs / from address).
  * Electron's safeStorage is injected so this class unit-tests in plain Node.
  */
 
@@ -19,6 +19,17 @@ import type { SafeStorageLike } from './keystore';
 /** The hosted Legion signing service; what the panel shows before any setup. */
 export const DEFAULT_SERVICE_URL = 'https://sign.legionarmory.net';
 
+/**
+ * The Outreach module on the Armory EC2, reached over the private Tailscale
+ * network (WireGuard-encrypted end to end — which is why plain http is
+ * acceptable here and ONLY here). MagicDNS name; the settings accept the
+ * tailnet IP form too when DNS is being difficult.
+ */
+export const DEFAULT_OUTREACH_URL = 'http://armory-ec2.tail1a3aad.ts.net/tools/outreach';
+
+/** The mailbox Outreach sends from unless the attorney picks another. */
+export const DEFAULT_OUTREACH_FROM = 'arthur@legion.law';
+
 const SERVICE_FILE = 'esign-service.dat';
 const MAIL_FILE = 'esign-mail.dat';
 
@@ -30,9 +41,10 @@ const MIN_SECRET_LENGTH = 8;
 
 export type EsignSettingsErrorCode =
   | 'INVALID_URL'
+  | 'INVALID_OUTREACH_URL'
   | 'INVALID_KEY'
   | 'INVALID_EMAIL'
-  | 'INVALID_PASSWORD'
+  | 'INVALID_TOKEN'
   | 'ENCRYPTION_UNAVAILABLE'
   | 'UNREADABLE';
 
@@ -40,11 +52,14 @@ export type EsignSettingsErrorCode =
 const MESSAGES: Record<EsignSettingsErrorCode, string> = {
   INVALID_URL:
     'The service address must be a full https:// URL, for example https://sign.legionarmory.net.',
+  INVALID_OUTREACH_URL:
+    'The Armory address must be a full URL, for example ' +
+    'http://armory-ec2.tail1a3aad.ts.net/tools/outreach.',
   INVALID_KEY: 'That does not look like a service API key. Paste the whole key, with no spaces.',
   INVALID_EMAIL:
-    'That does not look like an email address. Enter the full Gmail address the requests should come from.',
-  INVALID_PASSWORD:
-    'That does not look like a Gmail app password. Paste the whole app password from your Google account.',
+    'That does not look like an email address. Enter the full address the requests should come from.',
+  INVALID_TOKEN:
+    'That does not look like an Armory service token. Paste the whole token, with no spaces.',
   ENCRYPTION_UNAVAILABLE:
     'This computer has no secure place to keep these settings, so they were not stored. ' +
     'Sign in to Windows normally and try again.',
@@ -66,8 +81,12 @@ export interface EsignServiceCredentials {
 }
 
 export interface EsignMailCredentials {
-  address: string;
-  appPassword: string;
+  /** Outreach module base URL, e.g. http://armory-ec2.tail1a3aad.ts.net/tools/outreach. */
+  baseUrl: string;
+  /** The Armory service token Outreach's /service endpoints require. */
+  token: string;
+  /** The connected mailbox to send as, e.g. arthur@legion.law. */
+  from: string;
 }
 
 export interface EsignSettingsOptions {
@@ -90,10 +109,28 @@ function normalizeBaseUrl(baseUrl: string): string {
   return trimmed;
 }
 
-function normalizeSecret(value: string, code: 'INVALID_KEY' | 'INVALID_PASSWORD'): string {
+function normalizeSecret(value: string, code: 'INVALID_KEY' | 'INVALID_TOKEN'): string {
   const trimmed = value.trim();
   if (trimmed.length < MIN_SECRET_LENGTH) throw new EsignSettingsError(code);
-  if (code === 'INVALID_KEY' && /\s/.test(trimmed)) throw new EsignSettingsError(code);
+  if (/\s/.test(trimmed)) throw new EsignSettingsError(code);
+  return trimmed;
+}
+
+/**
+ * Outreach lives on the private tailnet, where WireGuard already encrypts the
+ * wire — so http is allowed here, unlike the public signing service.
+ */
+function normalizeOutreachUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new EsignSettingsError('INVALID_OUTREACH_URL');
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new EsignSettingsError('INVALID_OUTREACH_URL');
+  }
   return trimmed;
 }
 
@@ -140,18 +177,21 @@ export class EsignSettings {
     return this.read<EsignServiceCredentials>(this.servicePath);
   }
 
-  /* ── the Gmail request-email sender ─────────────────────────────────── */
+  /* ── the Armory Outreach request-email sender ───────────────────────── */
 
   mailStatus(): EsignMailStatus {
     const stored = this.readQuietly<EsignMailCredentials>(this.mailPath);
-    if (stored === null) return { configured: false, address: '' };
-    return { configured: true, address: stored.address };
+    if (stored === null) {
+      return { configured: false, baseUrl: DEFAULT_OUTREACH_URL, from: DEFAULT_OUTREACH_FROM };
+    }
+    return { configured: true, baseUrl: stored.baseUrl, from: stored.from };
   }
 
-  setMail(address: string, appPassword: string): void {
+  setMail(baseUrl: string, token: string, from: string): void {
     this.write(this.mailPath, {
-      address: normalizeAddress(address),
-      appPassword: normalizeSecret(appPassword, 'INVALID_PASSWORD'),
+      baseUrl: normalizeOutreachUrl(baseUrl),
+      token: normalizeSecret(token, 'INVALID_TOKEN'),
+      from: normalizeAddress(from),
     });
   }
 

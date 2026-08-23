@@ -31,10 +31,15 @@ one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
   silent-installed on the Windows host 2026-08-22 — Arthur can run the real
   board consent through it now (paste the API key from Armory creds.txt into
   E-Sign ▸ Settings on first use).
-- **Open**: Gmail app-password delivery mode built + unit-tested but not
-  live-tested (needs Arthur's app password); sent-request receipts don't
-  survive app relaunch (service status API is the truth); legion-atlas
-  `feat/legion-sign` branch pushed but not yet PR'd/merged.
+- **Open**: "Email from my address" now rides Armory Outreach (Gmail
+  app-password SMTP removed 2026-08-22 — Google blocks app passwords on
+  Arthur's accounts). Blocked on ONE infra step only Arthur/Jeremy can do:
+  apply legion-armory branch `arthur/outreach-service-exemption`
+  (one Caddyfile.ec2 line) on the EC2 host + reload caddy, then paste the
+  EC2's ARMORY_SERVICE_TOKEN into E-Sign ▸ Settings ▸ Outreach sender.
+  Also open: sent-request receipts don't survive app relaunch (service
+  status API is the truth); legion-atlas `feat/legion-sign` branch pushed
+  but not yet PR'd/merged.
 
 ## v0.2 update (2026-08-11) — read this first, then the v0.1 record below
 

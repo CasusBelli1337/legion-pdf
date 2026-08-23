@@ -4,10 +4,17 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEV_FLAG_ENV } from './keystore';
 import type { SafeStorageLike } from './keystore';
-import { DEFAULT_SERVICE_URL, EsignSettings, EsignSettingsError } from './esign-settings';
+import {
+  DEFAULT_OUTREACH_FROM,
+  DEFAULT_OUTREACH_URL,
+  DEFAULT_SERVICE_URL,
+  EsignSettings,
+  EsignSettingsError,
+} from './esign-settings';
 
 const API_KEY = 'lsk-test-0123456789abcdef';
-const APP_PASSWORD = 'abcd efgh ijkl mnop';
+const OUTREACH_URL = 'http://armory-ec2.tail1a3aad.ts.net/tools/outreach';
+const TOKEN = 'svc-token-1234567890';
 const ADDRESS = 'attorney@example.com';
 const BASE_URL = 'https://sign.example.net';
 
@@ -113,33 +120,51 @@ describe('EsignSettings — signing service', () => {
   });
 });
 
-describe('EsignSettings — Gmail sender', () => {
-  it('reports unconfigured with an empty address before any setup', () => {
-    expect(make().mailStatus()).toEqual({ configured: false, address: '' });
+describe('EsignSettings — Outreach sender', () => {
+  it('offers the tailnet defaults before any setup', () => {
+    expect(make().mailStatus()).toEqual({
+      configured: false,
+      baseUrl: DEFAULT_OUTREACH_URL,
+      from: DEFAULT_OUTREACH_FROM,
+    });
     expect(make().mailCredentials()).toBeNull();
   });
 
   it('stores, reports, and round-trips the sender', () => {
     const settings = make();
-    settings.setMail(`  ${ADDRESS}  `, APP_PASSWORD);
+    settings.setMail(`  ${OUTREACH_URL}/  `, TOKEN, `  ${ADDRESS}  `);
 
-    expect(settings.mailStatus()).toEqual({ configured: true, address: ADDRESS });
-    expect(settings.mailCredentials()).toEqual({ address: ADDRESS, appPassword: APP_PASSWORD });
+    expect(settings.mailStatus()).toEqual({
+      configured: true,
+      baseUrl: OUTREACH_URL,
+      from: ADDRESS,
+    });
+    expect(settings.mailCredentials()).toEqual({
+      baseUrl: OUTREACH_URL,
+      token: TOKEN,
+      from: ADDRESS,
+    });
   });
 
-  it('never leaves the app password in cleartext, in the file or the status', () => {
+  it('accepts plain http — the tailnet is the transport security there', () => {
     const settings = make();
-    settings.setMail(ADDRESS, APP_PASSWORD);
-
-    expect(readFileSync(join(directory, 'esign-mail.dat'), 'utf8')).not.toContain(APP_PASSWORD);
-    expect(JSON.stringify(settings.mailStatus())).not.toContain(APP_PASSWORD);
+    settings.setMail('http://100.69.109.124/tools/outreach', TOKEN, ADDRESS);
+    expect(settings.mailStatus().baseUrl).toBe('http://100.69.109.124/tools/outreach');
   });
 
-  it('refuses something that is not an email address', () => {
+  it('never leaves the service token in cleartext, in the file or the status', () => {
+    const settings = make();
+    settings.setMail(OUTREACH_URL, TOKEN, ADDRESS);
+
+    expect(readFileSync(join(directory, 'esign-mail.dat'), 'utf8')).not.toContain(TOKEN);
+    expect(JSON.stringify(settings.mailStatus())).not.toContain(TOKEN);
+  });
+
+  it('refuses something that is not a from address', () => {
     for (const bad of ['', 'not-an-address', 'x@y', 'two words@example.com']) {
       let thrown: unknown;
       try {
-        make().setMail(bad, APP_PASSWORD);
+        make().setMail(OUTREACH_URL, TOKEN, bad);
       } catch (error) {
         thrown = error;
       }
@@ -148,30 +173,41 @@ describe('EsignSettings — Gmail sender', () => {
     }
   });
 
-  it('refuses an implausible app password without quoting it back', () => {
+  it('refuses a garbage Armory address with its own sentence', () => {
     let thrown: unknown;
     try {
-      make().setMail(ADDRESS, 'short');
+      make().setMail('not a url', TOKEN, ADDRESS);
     } catch (error) {
       thrown = error;
     }
     expect(thrown).toBeInstanceOf(EsignSettingsError);
-    expect((thrown as EsignSettingsError).code).toBe('INVALID_PASSWORD');
+    expect((thrown as EsignSettingsError).code).toBe('INVALID_OUTREACH_URL');
+  });
+
+  it('refuses an implausible service token without quoting it back', () => {
+    let thrown: unknown;
+    try {
+      make().setMail(OUTREACH_URL, 'short', ADDRESS);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EsignSettingsError);
+    expect((thrown as EsignSettingsError).code).toBe('INVALID_TOKEN');
     expect((thrown as Error).message).not.toContain('short');
   });
 
   it('forgets the sender on clear', () => {
     const settings = make();
-    settings.setMail(ADDRESS, APP_PASSWORD);
+    settings.setMail(OUTREACH_URL, TOKEN, ADDRESS);
     settings.clearMail();
-    expect(settings.mailStatus()).toEqual({ configured: false, address: '' });
+    expect(settings.mailStatus().configured).toBe(false);
     expect(settings.mailCredentials()).toBeNull();
   });
 
   it('keeps the two credential files independent', () => {
     const settings = make();
     settings.setService(BASE_URL, API_KEY);
-    settings.setMail(ADDRESS, APP_PASSWORD);
+    settings.setMail(OUTREACH_URL, TOKEN, ADDRESS);
     settings.clearService();
     expect(settings.serviceStatus().configured).toBe(false);
     expect(settings.mailStatus().configured).toBe(true);
@@ -194,12 +230,16 @@ describe('EsignSettings in degraded mode (safeStorage unavailable)', () => {
 
   it('writes a clearly-marked plaintext file when the dev flag is set', () => {
     const settings = make({ [DEV_FLAG_ENV]: '1' }, false);
-    settings.setMail(ADDRESS, APP_PASSWORD);
+    settings.setMail(OUTREACH_URL, TOKEN, ADDRESS);
 
     expect(readFileSync(join(directory, 'esign-mail.dat'), 'utf8')).toContain(
       'LIBRARIUS-DEV-PLAINTEXT-V1'
     );
-    expect(settings.mailCredentials()).toEqual({ address: ADDRESS, appPassword: APP_PASSWORD });
+    expect(settings.mailCredentials()).toEqual({
+      baseUrl: OUTREACH_URL,
+      token: TOKEN,
+      from: ADDRESS,
+    });
   });
 
   it('refuses to honour a leftover dev plaintext file outside dev mode', () => {

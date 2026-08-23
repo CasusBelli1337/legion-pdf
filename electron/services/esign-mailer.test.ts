@@ -1,10 +1,12 @@
-import { createTransport } from 'nodemailer';
-import type { Transporter } from 'nodemailer';
 import { describe, expect, it, vi } from 'vitest';
 import type { EsignEmailRequest } from '@shared/types';
 import { buildRequestMessage, sendRequestEmails } from './esign-mailer';
 
-const CREDENTIALS = { address: 'attorney@example.com', appPassword: 'abcd efgh ijkl mnop' };
+const CREDENTIALS = {
+  baseUrl: 'http://armory-ec2.tail1a3aad.ts.net/tools/outreach',
+  token: 'svc-token-1234567890',
+  from: 'attorney@example.com',
+};
 
 const REQUEST: EsignEmailRequest = {
   title: 'Settlement Agreement',
@@ -25,6 +27,12 @@ const REQUEST: EsignEmailRequest = {
     },
   ],
 };
+
+function reply(status: number, contentType: string, body = '{}'): Response {
+  return new Response(body, { status, headers: { 'content-type': contentType } });
+}
+
+const sentOk = (): Response => reply(200, 'application/json', '{"id":"gm1"}');
 
 describe('buildRequestMessage', () => {
   it('builds the subject, button, raw-link fallback, and quoted note', () => {
@@ -78,69 +86,83 @@ describe('buildRequestMessage', () => {
 });
 
 describe('sendRequestEmails', () => {
-  it('sends one email per recipient from the attorney and counts them', async () => {
-    const transport = createTransport({ jsonTransport: true });
-    const sendMail = vi.spyOn(transport, 'sendMail');
+  it('posts one send per recipient to Outreach with the bearer token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(sentOk());
 
-    const result = await sendRequestEmails(REQUEST, CREDENTIALS, transport);
+    const result = await sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch);
 
     expect(result).toEqual({ sent: 2 });
-    expect(sendMail).toHaveBeenCalledTimes(2);
-    const first = sendMail.mock.calls[0]![0];
-    expect(first.from).toEqual({ name: 'Alex Prentiss', address: 'attorney@example.com' });
-    expect(first.to).toEqual({ name: 'Maria Vance', address: 'maria.vance@example.com' });
-    expect(first.subject).toBe('Signature requested: Settlement Agreement');
-    expect(first.html).toContain('https://sign.example.net/s/aaa');
-    expect(first.text).toContain('https://sign.example.net/s/aaa');
-    const second = sendMail.mock.calls[1]![0];
-    expect(second.to).toEqual({ name: 'Declan Ruiz', address: 'declan.ruiz@example.com' });
-    expect(second.html).toContain('https://sign.example.net/s/bbb');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${CREDENTIALS.baseUrl}/service/send-founder-email`);
+    expect((init.headers as Record<string, string>).authorization).toBe(
+      `Bearer ${CREDENTIALS.token}`
+    );
+    const body = JSON.parse(init.body as string) as Record<string, string>;
+    expect(body.to).toBe('maria.vance@example.com');
+    expect(body.from).toBe('attorney@example.com');
+    expect(body.subject).toBe('Signature requested: Settlement Agreement');
+    expect(body.html).toContain('https://sign.example.net/s/aaa');
+    const second = JSON.parse((fetchImpl.mock.calls[1] as [string, RequestInit])[1].body as string);
+    expect(second.to).toBe('declan.ruiz@example.com');
   });
 
   it('refuses an empty recipient list loudly', async () => {
-    const transport = createTransport({ jsonTransport: true });
+    const fetchImpl = vi.fn();
     await expect(
-      sendRequestEmails({ ...REQUEST, recipients: [] }, CREDENTIALS, transport)
+      sendRequestEmails({ ...REQUEST, recipients: [] }, CREDENTIALS, fetchImpl as typeof fetch)
     ).rejects.toThrow('There is nobody to email');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('maps an auth failure to the app-password sentence, without the password', async () => {
-    const transport = {
-      sendMail: vi.fn().mockRejectedValue(Object.assign(new Error('535 5.7.8'), { code: 'EAUTH' })),
-      close: vi.fn(),
-    } as unknown as Transporter;
+  it('maps a 401 to the service-token sentence, without the token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(reply(401, 'application/json', '{"error":"no"}'));
 
     let thrown: unknown;
     try {
-      await sendRequestEmails(REQUEST, CREDENTIALS, transport);
+      await sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch);
     } catch (error) {
       thrown = error;
     }
     expect((thrown as Error).message).toBe(
-      'Gmail rejected the sender sign-in — check the app password.'
+      'The Armory rejected the service token — check the E-Sign settings.'
     );
-    expect((thrown as Error).message).not.toContain(CREDENTIALS.appPassword);
+    expect((thrown as Error).message).not.toContain(CREDENTIALS.token);
+  });
+
+  it('maps a 503 to the mailbox-not-connected sentence', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(reply(503, 'application/json', '{"error":"x"}'));
+    await expect(
+      sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch)
+    ).rejects.toThrow('Your mailbox is not connected in Outreach');
+  });
+
+  it('recognises the Armory sign-in page — the send path not yet opened', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(reply(200, 'text/html; charset=utf-8', '<!DOCTYPE html><html></html>'));
+    await expect(
+      sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch)
+    ).rejects.toThrow('answered with its sign-in page');
+  });
+
+  it('reads a bare login redirect the same way as the sign-in page', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 302 }));
+    await expect(
+      sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch)
+    ).rejects.toThrow('answered with its sign-in page');
   });
 
   it('reports how many emails already left when a later send fails', async () => {
-    const sendMail = vi
+    const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { code: 'ECONNECTION' }));
-    const close = vi.fn();
-    const transport = { sendMail, close } as unknown as Transporter;
-
-    await expect(sendRequestEmails(REQUEST, CREDENTIALS, transport)).rejects.toThrow(
-      'Could not reach Gmail — check your internet connection. ' +
+      .mockResolvedValueOnce(sentOk())
+      .mockRejectedValueOnce(new TypeError('fetch failed'));
+    await expect(
+      sendRequestEmails(REQUEST, CREDENTIALS, fetchImpl as typeof fetch)
+    ).rejects.toThrow(
+      'Could not reach the Armory — check that Tailscale is running on this computer. ' +
         '1 of the 2 request emails had already been sent.'
     );
-    expect(close).toHaveBeenCalled();
-  });
-
-  it('closes the transport after a clean run too', async () => {
-    const transport = createTransport({ jsonTransport: true });
-    const close = vi.spyOn(transport, 'close');
-    await sendRequestEmails(REQUEST, CREDENTIALS, transport);
-    expect(close).toHaveBeenCalled();
   });
 });

@@ -49,7 +49,8 @@ describe('esign renderer-facing shapes', () => {
     }>();
     expectTypeOf<InvokeResponse<'esign:mailStatus'>>().toEqualTypeOf<{
       configured: boolean;
-      address: string;
+      baseUrl: string;
+      from: string;
     }>();
   });
 

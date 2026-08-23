@@ -248,8 +248,9 @@ export interface IpcInvokeContract {
   };
   'esign:clearService': { request: []; response: EsignServiceStatus };
   'esign:mailStatus': { request: []; response: EsignMailStatus };
+  /** Connects the Armory Outreach sender: module URL, service token, mailbox. */
   'esign:setMail': {
-    request: [address: string, appPassword: string];
+    request: [baseUrl: string, token: string, from: string];
     response: EsignMailStatus;
   };
   'esign:clearMail': { request: []; response: EsignMailStatus };
