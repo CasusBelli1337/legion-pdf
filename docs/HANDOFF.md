@@ -27,10 +27,12 @@ one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
   2026-08-22); paste into E-Sign ▸ Settings on first use. `LIBRARIUS_DEV=1`
   + `LIBRARIUS_DEV_ANTHROPIC_KEY` enable dev-mode settings + Centurion QA on
   WSL (TROUBLESHOOTING § E-Sign).
-- **Installed**: v0.4.0 packaged (`LegionPDF-0.4.0-Setup.exe`, signed) and
-  silent-installed on the Windows host 2026-08-22 — Arthur can run the real
-  board consent through it now (paste the API key from Armory creds.txt into
-  E-Sign ▸ Settings on first use).
+- **Installed**: v0.4.1 (`LegionPDF-0.4.1-Setup.exe`) silent-installed on
+  the Windows host 2026-08-25, incl. the Outreach sender swap. Arthur turned
+  Smart App Control OFF to unblock packaging (TROUBLESHOOTING § Smart App
+  Control); the EC2 Caddy step was handed to the EC2 Claude via the prompt at
+  OneDrive `#Legion/Product/Armory - Librarius/2026-08-25 EC2 Claude
+  Prompt - Open Outreach Service Path.txt`.
 - **Open**: "Email from my address" now rides Armory Outreach (Gmail
   app-password SMTP removed 2026-08-22 — Google blocks app passwords on
   Arthur's accounts). Blocked on ONE infra step only Arthur/Jeremy can do:
