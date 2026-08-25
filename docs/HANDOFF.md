@@ -33,13 +33,14 @@ one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
   Control); the EC2 Caddy step was handed to the EC2 Claude via the prompt at
   OneDrive `#Legion/Product/Armory - Librarius/2026-08-25 EC2 Claude
   Prompt - Open Outreach Service Path.txt`.
-- **Open**: "Email from my address" now rides Armory Outreach (Gmail
-  app-password SMTP removed 2026-08-22 — Google blocks app passwords on
-  Arthur's accounts). Blocked on ONE infra step only Arthur/Jeremy can do:
-  apply legion-armory branch `arthur/outreach-service-exemption`
-  (one Caddyfile.ec2 line) on the EC2 host + reload caddy, then paste the
-  EC2's ARMORY_SERVICE_TOKEN into E-Sign ▸ Settings ▸ Outreach sender.
-  Also open: sent-request receipts don't survive app relaunch (service
+- **Outreach delivery LIVE (2026-08-25)**: the EC2 Caddy exemption was
+  applied (EC2-side Claude; caddy RESTART needed — reload misses bind-mount
+  edits) and the full path verified: app → tailnet → Outreach → email in
+  the signer's inbox FROM arthur@legion.law. Arthur still needs to paste
+  the ARMORY_SERVICE_TOKEN into the INSTALLED app's E-Sign settings on
+  first use (dev userData had it for QA; the installed app's safeStorage
+  does not). EC2's Caddyfile.ec2 edit left uncommitted there (dirty tree).
+- **Open**: sent-request receipts don't survive app relaunch (service
   status API is the truth); legion-atlas `feat/legion-sign` branch pushed
   but not yet PR'd/merged.
 
