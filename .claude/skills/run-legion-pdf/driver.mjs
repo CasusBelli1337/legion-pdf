@@ -53,6 +53,31 @@ const COMMANDS = {
     console.log('screenshot:', f);
   },
 
+  // drag x1 y1 x2 y2 — TRUSTED mouse drag via Playwright (viewport px).
+  // Synthetic PointerEvents from eval fail on pointer-capture surfaces
+  // (added 2026-08-25 for the text-box draw surface).
+  async drag(rest) {
+    if (!page) return console.log('ERROR: launch first');
+    const [x1, y1, x2, y2] = (rest || '').split(/\s+/).map(Number);
+    if ([x1, y1, x2, y2].some((n) => !Number.isFinite(n))) {
+      return console.log('usage: drag x1 y1 x2 y2');
+    }
+    await page.mouse.move(x1, y1);
+    await page.mouse.down();
+    await page.mouse.move(x2, y2, { steps: 8 });
+    await page.mouse.up();
+    console.log(`drag ${x1},${y1} -> ${x2},${y2} done`);
+  },
+
+  // mouseclick x y — trusted single click at viewport coordinates.
+  async mouseclick(rest) {
+    if (!page) return console.log('ERROR: launch first');
+    const [x, y] = (rest || '').split(/\s+/).map(Number);
+    if ([x, y].some((n) => !Number.isFinite(n))) return console.log('usage: mouseclick x y');
+    await page.mouse.click(x, y);
+    console.log(`mouseclick ${x},${y} done`);
+  },
+
   // DOM click, not coordinates — reliable regardless of window stacking.
   async click(sel) {
     if (!page) return console.log('ERROR: launch first');
