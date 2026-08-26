@@ -41,8 +41,16 @@ one session (see `qa/reports/2026-08-22-esign-e2e.md` + evidence on OneDrive
   first use (dev userData had it for QA; the installed app's safeStorage
   does not). EC2's Caddyfile.ec2 edit left uncommitted there (dirty tree).
 - **Open**: sent-request receipts don't survive app relaunch (service
-  status API is the truth); legion-atlas `feat/legion-sign` branch pushed
-  but not yet PR'd/merged.
+  status API is the truth). The service is merged to legion-atlas main
+  (PR #3, 2026-08-26); the EC2 armory's applied Caddyfile.ec2 edit remains
+  uncommitted on that host (mirrored on legion-armory branch
+  `arthur/outreach-service-exemption`).
+- **Real-world proof (2026-08-25)**: the Legion LegalTech board consent
+  (3 directors, Outreach delivery from Arthur's own mailbox) and both
+  stock option grant notices (grantee + CEO countersign each) executed
+  through Legion Sign end to end — date blanks filled in-app with the
+  font-matched text tool, consent filed in the minute book with a new
+  index, per the execution memo's Steps 1-5.
 
 ## v0.2 update (2026-08-11) — read this first, then the v0.1 record below
 
