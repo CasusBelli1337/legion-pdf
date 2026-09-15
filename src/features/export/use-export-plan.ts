@@ -1,0 +1,77 @@
+/**
+ * What the Word export is about to do, fetched while the attorney is still
+ * deciding. Three rules, all learned the hard way:
+ *
+ * 1. It never blocks the Export button. The plan is advice; a plan that fails
+ *    (an odd PDF, a page the renderer will not read) leaves the panel with no
+ *    lines and the export still runs.
+ * 2. It is debounced, because the page range is typed a character at a time.
+ * 3. An answer that lands after the attorney switched documents, formats, or
+ *    ranges is DROPPED — the same rule `use-export.ts` keeps for results. A
+ *    stale plan is worse than no plan: it describes another document.
+ */
+
+import { useEffect, useState } from 'react';
+import type { ExportFormat, ExportPlan } from '@shared/types';
+
+/** Long enough that typing "1-30, 45" asks once, short enough to feel instant. */
+export const PLAN_DEBOUNCE_MS = 300;
+
+export interface PlanState {
+  plan: ExportPlan | null;
+  /** True while an answer is outstanding, so the panel can show movement. */
+  loading: boolean;
+}
+
+const IDLE: PlanState = { plan: null, loading: false };
+const LOOKING: PlanState = { plan: null, loading: true };
+
+/** Only the Word export rebuilds a page, so only Word has anything to preview. */
+export function planApplies(docId: string | null, format: ExportFormat): boolean {
+  return docId !== null && format === 'docx';
+}
+
+/** The three things a plan describes; a change to any of them invalidates it. */
+function planKey(docId: string | null, format: ExportFormat, range: string): string {
+  return [docId ?? '', format, range].join('|');
+}
+
+export function useExportPlan(
+  docId: string | null,
+  format: ExportFormat,
+  range: string
+): PlanState {
+  const opening = (): PlanState => (planApplies(docId, format) ? LOOKING : IDLE);
+  const [state, setState] = useState<PlanState>(opening);
+  const [shownKey, setShownKey] = useState(() => planKey(docId, format, range));
+
+  // Adjusted during render rather than in an effect, so the panel never shows
+  // the previous document's plan for a frame (React: "adjusting state when a
+  // prop changes"), and the effect below only ever sets state asynchronously.
+  const key = planKey(docId, format, range);
+  if (shownKey !== key) {
+    setShownKey(key);
+    setState(opening());
+  }
+
+  useEffect(() => {
+    if (docId === null || !planApplies(docId, format)) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      void window.librarius.export
+        .plan(docId, { format, outputPath: '', pages: range })
+        .then((plan) => {
+          if (live) setState({ plan, loading: false });
+        })
+        .catch(() => {
+          if (live) setState(IDLE);
+        });
+    }, PLAN_DEBOUNCE_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [docId, format, range]);
+
+  return state;
+}

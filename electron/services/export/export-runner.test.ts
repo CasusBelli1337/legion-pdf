@@ -60,6 +60,9 @@ function harness(options: HarnessOptions = {}): Harness {
       return Promise.resolve({ png: pagePng(page), widthPx: 8, heightPx: 6 });
     },
     requestLayout: () => Promise.reject(new Error('no renderer in this suite')),
+    recognizeText: () => Promise.reject(new Error('no recognizer in this suite')),
+    adopt: () => Promise.reject(new Error('no store in this suite')),
+    closeDoc: () => undefined,
     toJpeg: (png, quality) => new TextEncoder().encode(`JPEG q${quality} of ${png.byteLength}`),
     openText: () => Promise.resolve(source),
     writeFile: (path, bytes) => {

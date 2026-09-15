@@ -8,7 +8,7 @@
  */
 
 import { EXPORT_FORMATS } from '@shared/export-formats';
-import type { ExportColorMode, ExportFormat, ExportResult } from '@shared/types';
+import type { ExportColorMode, ExportFormat, ExportResult, ScanPictureMode } from '@shared/types';
 import {
   ActionButton,
   Caution,
@@ -20,9 +20,19 @@ import {
   Receipt,
   Working,
 } from '@renderer/features/stamps';
-import { receiptText, showInFolderTarget } from './export-messages';
+import {
+  PLAN_LOADING,
+  RECEIPT_DROPPED_LABEL,
+  RECEIPT_KEPT_LABEL,
+  SCAN_PICTURE_HINTS,
+  SCAN_PICTURE_OPTIONS,
+  extraNotes,
+  receiptText,
+  showInFolderTarget,
+} from './export-messages';
 import { DPI_CHOICES } from './export-settings';
 import type { ExportController, ExportForm } from './use-export';
+import type { PlanState } from './use-export-plan';
 
 const FIELD =
   'rounded-md border border-armory-border bg-armory-base px-2 py-1.5 text-xs text-text-primary outline-none focus:border-armory-focus';
@@ -154,11 +164,26 @@ export function Destination({ summary, onChoose }: { summary: string; onChoose()
   );
 }
 
+/** What the export kept and what it could not, each under its own heading. */
+function ReceiptLines({ label, lines }: { label: string; lines: readonly string[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <>
+      <p className="readout text-text-muted">{label}</p>
+      {lines.map((line) => (
+        <Hint key={line}>{line}</Hint>
+      ))}
+    </>
+  );
+}
+
 function DoneReceipt({ result }: { result: ExportResult }) {
   return (
     <>
       <Receipt message={receiptText(result)} />
-      {result.notes.map((note) => (
+      <ReceiptLines label={RECEIPT_KEPT_LABEL} lines={result.receipt?.kept ?? []} />
+      <ReceiptLines label={RECEIPT_DROPPED_LABEL} lines={result.receipt?.dropped ?? []} />
+      {extraNotes(result).map((note) => (
         <Hint key={note}>{note}</Hint>
       ))}
       <ActionButton
@@ -193,6 +218,37 @@ export function RunControls({ controller, pages, disabled, label }: RunControlsP
       {state.phase === 'failed' && state.error !== null && <Problem message={state.error} />}
       {state.phase === 'stopped' && state.error !== null && <Caution>{state.error}</Caution>}
       {state.phase === 'done' && state.result !== null && <DoneReceipt result={state.result} />}
+    </>
+  );
+}
+
+/** The plan's sentences, or a sign that the panel is still working it out. */
+export function PlanLines({ state }: { state: PlanState }) {
+  if (state.loading) return <Hint>{PLAN_LOADING}</Hint>;
+  return (
+    <>
+      {(state.plan?.lines ?? []).map((line) => (
+        <Hint key={line}>{line}</Hint>
+      ))}
+    </>
+  );
+}
+
+interface ScanPicturesProps {
+  value: ScanPictureMode;
+  onChange(mode: ScanPictureMode): void;
+}
+
+export function ScanPictures({ value, onChange }: ScanPicturesProps) {
+  return (
+    <>
+      <ChoiceField
+        label="What the Word file gets"
+        value={value}
+        options={SCAN_PICTURE_OPTIONS}
+        onChange={onChange}
+      />
+      <Hint>{SCAN_PICTURE_HINTS[value]}</Hint>
     </>
   );
 }

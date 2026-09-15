@@ -1,26 +1,40 @@
 // #seam:ipc-contract
 /**
- * LANE L (export) — the document as page images, a multi-page TIFF, or plain
- * text. Word (.docx) is declared here too and served by the Word lane's
- * exporter; until that lands it rejects by name rather than looking wired.
+ * LANE L (export) — the document as page images, a multi-page TIFF, plain text,
+ * or a Word file.
  *
- * This file is deliberately thin. It supplies the four things the exporters
- * cannot reach on their own — page rasters (the renderer owns the canvas),
- * Electron's JPEG encoder, pdfjs for text, and the disk — and hands everything
- * else to `ExportRunner`, which is unit-tested without Electron at all.
+ * This file is deliberately thin. It supplies the things the exporters cannot
+ * reach on their own — page rasters (the renderer owns the canvas), Electron's
+ * JPEG encoder, pdfjs for text, local Tesseract, the document store, and the
+ * disk — and hands everything else to `ExportRunner` and `exportPlan`, both of
+ * which are unit-tested without Electron at all.
  */
 
+import { cpus } from 'node:os';
+import { existsSync } from 'node:fs';
 import { access, mkdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { ipcMain, nativeImage } from 'electron';
+import { app, ipcMain, nativeImage } from 'electron';
 import { IPC } from '@shared/ipc';
-import { registerNotImplemented } from './not-implemented';
-import type { ExportFormat, ExportOptions, ExportResult } from '@shared/types';
+import type {
+  ExportFormat,
+  ExportOptions,
+  ExportPlan,
+  ExportResult,
+  OcrRunDetail,
+  OpResult,
+} from '@shared/types';
 import { writeFileAtomic } from '../services/atomic-write';
 import { chooseExportOutput } from '../services/native-dialogs';
-import { ExportRunner, openPdfText } from '../services/export';
+import { ExportRunner, exportPlan, openPdfText, resolvePages } from '../services/export';
 import type { ExporterContext, PageRaster } from '../services/export';
+import { OcrService, resolveTesseract } from '../services/ocr';
+import type { TesseractLocation } from '../services/ocr';
 import type { IpcContext } from './context';
+
+/** What the Word exporter recognizes a scanned page at. Same as the OCR panel. */
+const SCAN_DPI = 300;
+const SCAN_LANGUAGE = 'eng';
 
 /** An empty raster is a page that was never drawn — never a page to write out. */
 async function rasterThrough(
@@ -48,10 +62,48 @@ async function writeExportFile(path: string, bytes: Uint8Array): Promise<void> {
   await writeFileAtomic(path, bytes);
 }
 
+/** The bundled binary, resolved the same way `electron/ipc/ocr.ts` resolves it. */
+function locateTesseract(): TesseractLocation {
+  return resolveTesseract({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appRoot: app.getAppPath(),
+    envPath: process.env.LIBRARIUS_TESSERACT_PATH,
+    exists: existsSync,
+  });
+}
+
+/**
+ * One OCR service per export, so its progress goes to THAT export's readout
+ * rather than the OCR panel's. The document's own bytes are never replaced:
+ * the recognized copy is adopted by the exporter and dropped again.
+ */
+function recognizeText(
+  context: IpcContext,
+  docId: string,
+  bytes: Uint8Array,
+  pages: readonly number[],
+  onProgress: (current: number, total: number) => void
+): Promise<OpResult<OcrRunDetail>> {
+  const service = new OcrService({
+    requestRaster: (request) => context.requestRaster(request),
+    locate: locateTesseract,
+    cpuCount: () => cpus().length,
+    tempRoot: app.getPath('temp'),
+    emitProgress: (progress) => onProgress(progress.current, progress.total),
+  });
+  return service.run(docId, bytes, { pages: [...pages], language: SCAN_LANGUAGE, dpi: SCAN_DPI });
+}
+
 function exporterContext(context: IpcContext): ExporterContext {
   return {
     requestRaster: (request) => rasterThrough(context, request),
     requestLayout: (request) => context.requestLayout(request),
+    recognizeText: (docId, bytes, pages, onProgress) =>
+      recognizeText(context, docId, bytes, pages, onProgress),
+    adopt: async (bytes, fileName) => (await context.store.adopt(bytes, fileName)).id,
+    closeDoc: (docId) => context.store.close(docId),
     toJpeg,
     openText: openPdfText,
     writeFile: writeExportFile,
@@ -61,6 +113,15 @@ function exporterContext(context: IpcContext): ExporterContext {
         () => false
       ),
   };
+}
+
+function planFor(context: IpcContext, docId: string, options: ExportOptions): Promise<ExportPlan> {
+  return exportPlan({
+    format: options.format,
+    pages: resolvePages(options.pages, context.store.session(docId).pageCount),
+    bytes: context.store.bytes(docId),
+    requestLayout: async (page) => (await context.requestLayout({ docId, page })).layout,
+  });
 }
 
 export function registerExportHandlers(context: IpcContext): void {
@@ -80,6 +141,12 @@ export function registerExportHandlers(context: IpcContext): void {
   );
 
   ipcMain.handle(
+    IPC.export.plan,
+    (_event, docId: string, options: ExportOptions): Promise<ExportPlan> =>
+      planFor(context, docId, options)
+  );
+
+  ipcMain.handle(
     IPC.export.run,
     (_event, docId: string, options: ExportOptions): Promise<ExportResult> =>
       runner.run(docId, options)
@@ -88,7 +155,4 @@ export function registerExportHandlers(context: IpcContext): void {
   ipcMain.handle(IPC.export.cancel, (_event, docId: string): void => {
     runner.cancel(docId);
   });
-
-  // The scan lane answers this; until it lands it must fail by name, never look wired.
-  registerNotImplemented([IPC.export.plan]);
 }

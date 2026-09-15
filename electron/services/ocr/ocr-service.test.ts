@@ -18,13 +18,13 @@ import { OcrCancelledError } from './tesseract-cli';
 const WIDTH = 255;
 const HEIGHT = 330;
 
-function hocrWith(words: string[]): string {
+function hocrWith(words: string[], confidences: readonly number[] = []): string {
   const spans = words
     .map(
       (text, index) =>
         `<span class='ocrx_word' id='word_1_${index}' title='bbox ${20 + index * 40} 30 ${
           55 + index * 40
-        } 45; x_wconf 94'>${text}</span>`
+        } 45; x_wconf ${confidences[index] ?? 94}'>${text}</span>`
     )
     .join('\n');
   return `<div class='ocr_page' id='page_1' title='image "p.png"; bbox 0 0 ${WIDTH} ${HEIGHT}'>
@@ -160,7 +160,21 @@ describe('OcrService.run', () => {
       pagesOcred: [1, 2],
       charsPerPage: [0, 0],
       wordsPerPage: [0, 0],
+      confidencePerPage: [0, 0],
     });
+  });
+
+  it("reports Tesseract's mean word confidence per page, in pagesOcred order", async () => {
+    const confidences: Record<string, number[]> = { '1': [90, 80], '2': [51, 50] };
+    const { service } = await harness({
+      runHocr: vi.fn(async ({ imagePath }) => {
+        const page = /page-(\d+)\.png$/.exec(imagePath)?.[1] ?? '1';
+        return hocrWith(['CONFIDENTIAL', 'EXHIBIT'], confidences[page] ?? [0, 0]);
+      }),
+    });
+    const result = await service.run('doc-1', await threePagePdf(), OPTIONS);
+    expect(result.detail.pagesOcred).toEqual([1, 2]);
+    expect(result.detail.confidencePerPage).toEqual([85, 50.5]);
   });
 
   it('FAILS when a page yields no words and the raster is not blank', async () => {

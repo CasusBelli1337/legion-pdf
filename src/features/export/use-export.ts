@@ -18,6 +18,7 @@ import type {
   ExportOptions,
   ExportResult,
   ProgressEvent,
+  ScanPictureMode,
 } from '@shared/types';
 import { ALL_PAGES } from '@renderer/features/stamps';
 import { plainExportError, suggestedName } from './export-messages';
@@ -32,6 +33,8 @@ export interface ExportForm {
   dpi: number;
   color: ExportColorMode;
   quality: number;
+  /** Word only: what becomes of a scanned page's picture. */
+  scanPictures: ScanPictureMode;
   /** The folder or file the attorney chose, or null while nothing is chosen. */
   outputPath: string | null;
 }
@@ -79,6 +82,7 @@ export function exportOptionsFrom(form: ExportForm): ExportOptions {
     options.color = form.color;
   }
   if (form.format === 'jpeg') options.quality = form.quality;
+  if (form.format === 'docx') options.scanPictures = form.scanPictures;
   return options;
 }
 

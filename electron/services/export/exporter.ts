@@ -16,6 +16,8 @@ import type {
   ExportResult,
   LayoutRequest,
   LayoutResponse,
+  OcrRunDetail,
+  OpResult,
 } from '@shared/types';
 import { docxExporter } from './docx-exporter';
 import { textExporter } from './text-exporter';
@@ -54,6 +56,20 @@ export interface ExporterContext {
   requestRaster(request: { docId: string; page: number; dpi: number }): Promise<PageRaster>;
   /** And page LAYOUTS — text runs, images, rules — the Word exporter's input. */
   requestLayout(request: Omit<LayoutRequest, 'requestId'>): Promise<LayoutResponse>;
+  /**
+   * Local Tesseract over the pages that are pictures of words. Answers the
+   * document's bytes WITH a text layer; `onProgress` moves the panel's readout.
+   */
+  recognizeText(
+    docId: string,
+    bytes: Uint8Array,
+    pages: readonly number[],
+    onProgress: (current: number, total: number) => void
+  ): Promise<OpResult<OcrRunDetail>>;
+  /** Puts bytes in the doc store WITHOUT a tab; answers the id layouts read by. */
+  adopt(bytes: Uint8Array, fileName: string): Promise<string>;
+  /** Drops an adopted document. Always called, however the export ended. */
+  closeDoc(docId: string): void;
   /** PNG → JPEG. Electron's nativeImage in production, a stub in tests. */
   toJpeg(png: Uint8Array, quality: number): Uint8Array;
   /** pdfjs again, this time main-side, for the plain-text export. */
