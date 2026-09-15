@@ -76,6 +76,8 @@ function viewMenu(send: SendAction, isDevelopment: boolean): MenuItemConstructor
       item('Zoom Out', 'CmdOrCtrl+-', 'zoomOut', send),
       item('Actual Size', 'CmdOrCtrl+0', 'zoomReset', send),
       { type: 'separator' },
+      item('Side by Side', 'CmdOrCtrl+\\', 'splitView', send),
+      { type: 'separator' },
       { role: 'togglefullscreen' },
       ...developerItems,
     ],

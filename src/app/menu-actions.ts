@@ -30,6 +30,7 @@ export const MENU_ACTIONS: Record<MenuAction, () => void> = {
   zoomIn: () => useAppStore.getState().nudgeZoom(1),
   zoomOut: () => useAppStore.getState().nudgeZoom(-1),
   zoomReset: () => useAppStore.getState().setZoom(1),
+  splitView: () => useAppStore.getState().toggleSplit(),
   about: () => void showVersion(),
 };
 

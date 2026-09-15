@@ -4,6 +4,8 @@
  */
 
 export { PdfViewer } from './pdf-viewer';
+export { SplitView } from './split-view';
+export { hasTabDrag, tabDragId, TAB_DRAG_TYPE } from './tab-drag';
 export { ViewerApiProvider } from './viewer-api';
 export { useViewerApi, useViewerController } from './viewer-context';
 export { finishPrint, preparePrint } from './print-controller';

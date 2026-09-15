@@ -9,6 +9,7 @@
 import {
   ChevronDown,
   ChevronUp,
+  Columns2,
   Crosshair,
   Maximize,
   Redo2,
@@ -27,6 +28,7 @@ import {
   TOOLBAR_ROW,
   TOOLBAR_TRAILING,
 } from '../../app/shell/toolbar';
+import { useAppStore } from '../../app/store';
 import { redoActive, undoActive } from '../../app/undo-actions';
 import { useUndoState } from '../../features/undo';
 import { NumberField } from './toolbar-controls';
@@ -180,6 +182,29 @@ function FitPresets({ fitMode, onFit }: Pick<ViewerToolbarProps, 'fitMode' | 'on
   );
 }
 
+/**
+ * Side by side. It reads the store directly rather than taking a prop: the
+ * split belongs to the shell, not to the document on screen, and the button has
+ * to show its own pressed state however the split was toggled (this button, the
+ * View menu, Ctrl+\, or the reference pane's own close button).
+ */
+function SplitToggle() {
+  const isSplitOpen = useAppStore((state) => state.isSplitOpen);
+  const toggleSplit = useAppStore((state) => state.toggleSplit);
+  return (
+    <button
+      type="button"
+      className={`${TOOLBAR_BUTTON} ${isSplitOpen ? 'bg-armory-interactive text-brand-400' : ''}`}
+      onClick={toggleSplit}
+      aria-label="Side by side"
+      aria-pressed={isSplitOpen}
+      title="Side by side — read another open document beside this one (Ctrl+\)"
+    >
+      <Columns2 size={14} aria-hidden />
+    </button>
+  );
+}
+
 function TrailingGroup({
   isFindOpen,
   showHarness,
@@ -200,6 +225,7 @@ function TrailingGroup({
           <Crosshair size={14} aria-hidden />
         </button>
       )}
+      <SplitToggle />
       <button
         type="button"
         className={`${TOOLBAR_BUTTON} ${isFindOpen ? 'bg-armory-interactive text-brand-400' : ''}`}

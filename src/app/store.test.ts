@@ -29,7 +29,15 @@ function twoOpenDocuments(): void {
     noticeDocId: null,
     error: null,
     errorDocId: null,
+    isSplitOpen: false,
+    splitDocId: null,
+    isSplitSynced: false,
   });
+}
+
+function split(): { isSplitOpen: boolean; splitDocId: string | null } {
+  const { isSplitOpen, splitDocId } = useAppStore.getState();
+  return { isSplitOpen, splitDocId };
 }
 
 beforeEach(twoOpenDocuments);
@@ -113,5 +121,118 @@ describe('opening and closing documents', () => {
     useAppStore.getState().closeSession('doc-2');
 
     expect(useAppStore.getState().notice).toBe('Turned 1 page clockwise.');
+  });
+});
+
+/**
+ * Side by side. The invariant everything here protects: the LEFT pane is the
+ * active tab and the RIGHT pane is some OTHER open document — never the same
+ * file twice, and never a document that is no longer open.
+ */
+describe('opening side by side', () => {
+  it('picks another open document to read beside this one', () => {
+    useAppStore.getState().toggleSplit();
+
+    expect(split()).toEqual({ isSplitOpen: true, splitDocId: 'doc-2' });
+  });
+
+  it('opens empty when there is nothing else to show, rather than refusing', () => {
+    useAppStore.setState({ sessions: [session('doc-1')], activeId: 'doc-1' });
+    useAppStore.getState().toggleSplit();
+
+    expect(split()).toEqual({ isSplitOpen: true, splitDocId: null });
+  });
+
+  it('comes back to the document it was last showing', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().toggleSplit();
+    useAppStore.setState({ sessions: [session('doc-1'), session('doc-2'), session('doc-3')] });
+    useAppStore.getState().toggleSplit();
+
+    expect(split().splitDocId).toBe('doc-2');
+  });
+
+  it('does not come back to a document that has since been closed', () => {
+    useAppStore.setState({ isSplitOpen: false, splitDocId: 'doc-gone' });
+    useAppStore.getState().toggleSplit();
+
+    expect(split().splitDocId).toBe('doc-2');
+  });
+
+  it('closing the split leaves the working document exactly where it was', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().toggleSplit();
+
+    expect(useAppStore.getState().isSplitOpen).toBe(false);
+    expect(useAppStore.getState().activeId).toBe('doc-1');
+  });
+});
+
+describe('which document sits in which pane', () => {
+  it('shows the chosen document on the right', () => {
+    useAppStore.setState({ sessions: [session('doc-1'), session('doc-2'), session('doc-3')] });
+    useAppStore.getState().setSplitDoc('doc-3');
+
+    expect(split()).toEqual({ isSplitOpen: true, splitDocId: 'doc-3' });
+  });
+
+  it('swaps the panes rather than showing one file twice', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().swapSplit();
+
+    expect(useAppStore.getState().activeId).toBe('doc-2');
+    expect(useAppStore.getState().splitDocId).toBe('doc-1');
+  });
+
+  it('reads "put the document in front on the right" as a swap', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().setSplitDoc('doc-1');
+
+    expect(useAppStore.getState().activeId).toBe('doc-2');
+    expect(useAppStore.getState().splitDocId).toBe('doc-1');
+  });
+
+  it('swaps when the tab already in the reference pane is clicked', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().setActive('doc-2');
+
+    expect(useAppStore.getState().activeId).toBe('doc-2');
+    expect(useAppStore.getState().splitDocId).toBe('doc-1');
+  });
+
+  it('brings a third tab forward without disturbing the reference pane', () => {
+    useAppStore.setState({ sessions: [session('doc-1'), session('doc-2'), session('doc-3')] });
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().setSplitDoc('doc-2');
+    useAppStore.getState().setActive('doc-3');
+
+    expect(useAppStore.getState().activeId).toBe('doc-3');
+    expect(useAppStore.getState().splitDocId).toBe('doc-2');
+  });
+});
+
+describe('closing a document that is on screen twice over', () => {
+  it('empties the reference pane when its document is closed', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().closeSession('doc-2');
+
+    expect(useAppStore.getState().splitDocId).toBeNull();
+    expect(useAppStore.getState().isSplitOpen).toBe(true);
+  });
+
+  it('empties it when the reference document is handed the foreground', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().closeSession('doc-1');
+
+    expect(useAppStore.getState().activeId).toBe('doc-2');
+    expect(useAppStore.getState().splitDocId).toBeNull();
+  });
+
+  it('empties it when the reference document is opened as a tab in front', () => {
+    useAppStore.getState().toggleSplit();
+    useAppStore.getState().openSession(session('doc-2'));
+
+    expect(useAppStore.getState().activeId).toBe('doc-2');
+    expect(useAppStore.getState().splitDocId).toBeNull();
   });
 });

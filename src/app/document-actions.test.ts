@@ -9,7 +9,7 @@ vi.mock('../components/viewer', () => ({
   forgetTabView: vi.fn(),
 }));
 
-const { closeDocument, printActive } = await import('./document-actions');
+const { closeDocument, decideOpen, printActive } = await import('./document-actions');
 const { useAppStore } = await import('./store');
 
 const SAVE_RESULT: SaveResult = {
@@ -156,5 +156,58 @@ describe('closing a saved tab', () => {
     await closeDocument('doc-missing');
     expect(file.close).not.toHaveBeenCalled();
     expect(openIds()).toEqual(['doc-1']);
+  });
+});
+
+/**
+ * Arthur: "sometimes the name changes or the name displayed in the tab isn't
+ * the actual name of the PDF." Opening the same file twice was one way to get
+ * there: two tabs, one name, two independent copies of the bytes — and the
+ * second one, showing the version still on disk, takes the foreground, so the
+ * edits look lost and saving that tab writes them away for real.
+ */
+describe('deciding what to open', () => {
+  const open = [
+    { id: 'doc-1', filePath: 'C:\\Matters\\Deposition.pdf' },
+    { id: 'doc-2', filePath: null },
+  ];
+
+  it('reads a file that is not open yet', () => {
+    expect(decideOpen(['C:\\Matters\\Exhibit A.pdf'], open)).toEqual({
+      toOpen: ['C:\\Matters\\Exhibit A.pdf'],
+      focusId: null,
+    });
+  });
+
+  it('brings the existing tab forward instead of opening the file twice', () => {
+    expect(decideOpen(['C:\\Matters\\Deposition.pdf'], open)).toEqual({
+      toOpen: [],
+      focusId: 'doc-1',
+    });
+  });
+
+  // Explorer, the recent list and a drop all spell the same file differently.
+  it('matches the same Windows file however it was spelled', () => {
+    expect(decideOpen(['c:/matters/DEPOSITION.PDF'], open).toOpen).toEqual([]);
+  });
+
+  it('never matches a document that has never been saved', () => {
+    expect(decideOpen([''], open).focusId).toBeNull();
+  });
+
+  it('opens the new files and leaves the open one alone', () => {
+    const paths = ['C:\\Matters\\Deposition.pdf', 'C:\\Matters\\Exhibit A.pdf'];
+
+    expect(decideOpen(paths, open)).toEqual({
+      toOpen: ['C:\\Matters\\Exhibit A.pdf'],
+      focusId: 'doc-1',
+    });
+  });
+
+  it('has nothing to do when nothing is open', () => {
+    expect(decideOpen(['C:\\Matters\\Deposition.pdf'], [])).toEqual({
+      toOpen: ['C:\\Matters\\Deposition.pdf'],
+      focusId: null,
+    });
   });
 });
