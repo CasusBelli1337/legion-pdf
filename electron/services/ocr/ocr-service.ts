@@ -47,6 +47,34 @@ export interface OcrServiceDeps {
 const RECOGNIZING = 'Recognizing text';
 const WRITING = 'Writing the text layer';
 
+/**
+ * Tesseract's own opinion of each page, 0-100, averaged over the page's words.
+ * The Word exporter shows it to the attorney ("94% average confidence") so a
+ * badly recognised page is read with suspicion rather than trusted; a page with
+ * no words (a proven-blank sheet) reports 0 rather than NaN.
+ */
+function meanConfidence(words: OcrPageWords['words']): number {
+  if (words.length === 0) return 0;
+  return words.reduce((total, word) => total + word.confidence, 0) / words.length;
+}
+
+/** The writer's detail, plus the confidence only the recognizer knows. */
+function withConfidence(
+  result: OpResult<OcrRunDetail>,
+  recognized: readonly OcrPageWords[]
+): OpResult<OcrRunDetail> {
+  const byPage = new Map(recognized.map((page) => [page.page, page.words]));
+  return {
+    ...result,
+    detail: {
+      ...result.detail,
+      confidencePerPage: result.detail.pagesOcred.map((page) =>
+        meanConfidence(byPage.get(page) ?? [])
+      ),
+    },
+  };
+}
+
 function assertOptions(options: OcrOptions, pageCount: number): void {
   if (options.pages.length === 0) {
     throw new RangeError('No pages were selected for text recognition.');
@@ -96,7 +124,7 @@ export class OcrService {
     try {
       const recognized = await this.recognizeAll(docId, options, workspace, controller.signal);
       this.report(docId, WRITING, options.pages.length, options.pages.length);
-      return await writeTextLayer(bytes, recognized);
+      return withConfidence(await writeTextLayer(bytes, recognized), recognized);
     } finally {
       this.runs.delete(docId);
       await rm(workspace, { recursive: true, force: true }).catch(() => undefined);

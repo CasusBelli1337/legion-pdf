@@ -1,15 +1,91 @@
 /**
  * Scanned pages' pictures after the last page of text, one full-page picture
- * per scanned page, when the attorney asked for them as an appendix. Not built
- * yet — the scan lane owns this file.
+ * per scanned page, when the attorney chose `scanPictures: 'appendix'`.
+ *
+ * One SECTION per picture rather than one page of a single section: each scan
+ * keeps its own paper size (a letter deposition with one legal-size exhibit
+ * stays honest), the margins are zero so the picture lands edge to edge, and a
+ * section break guarantees Word starts a new sheet without a page-break
+ * paragraph that could itself be edited away.
+ *
+ * The first section carries the heading, so its top margin is the heading's
+ * band and its picture is fitted to what is left — a zero-margin first section
+ * would push its own picture onto a second sheet.
  */
 
+import {
+  AlignmentType,
+  LineRuleType,
+  PageOrientation,
+  Paragraph as DocxParagraph,
+  TextRun,
+} from 'docx';
 import type { ISectionOptions } from 'docx';
-import type { PageLayout, ScanPictureMode } from '@shared/types';
+import type { LayoutImage, PageLayout, ScanPictureMode } from '@shared/types';
+import { fullPageImageRun } from './docx-image';
+import { scannedPictureOf } from './images';
+import { twips } from './model';
+import { pageSizeOf } from './page-setup';
+
+export const SCAN_APPENDIX_HEADING = 'Scanned pages';
+
+/** Points reserved above the first picture for the heading line. */
+const HEADING_BAND = 30;
+const HEADING_SIZE_PT = 12;
+
+interface Scan {
+  layout: PageLayout;
+  image: LayoutImage;
+}
+
+function heading(): DocxParagraph {
+  return new DocxParagraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: 0, line: twips(HEADING_BAND), lineRule: LineRuleType.EXACT },
+    children: [new TextRun({ text: SCAN_APPENDIX_HEADING, bold: true, size: HEADING_SIZE_PT * 2 })],
+  });
+}
+
+/** The picture at its largest inside the room the sheet leaves it. */
+function picture(scan: Scan, topBandPt: number): DocxParagraph {
+  const size = pageSizeOf(scan.layout);
+  const room = { width: size.width, height: size.height - topBandPt };
+  const rect = scan.image.rect;
+  const scale = Math.min(room.width / rect.width, room.height / rect.height);
+  return new DocxParagraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 0, after: 0 },
+    children: [fullPageImageRun(scan.image.png, rect.width * scale, rect.height * scale)],
+  });
+}
+
+function sectionFor(scan: Scan, first: boolean): ISectionOptions {
+  const size = pageSizeOf(scan.layout);
+  const topBandPt = first ? HEADING_BAND : 0;
+  return {
+    properties: {
+      page: {
+        size: {
+          width: twips(Math.min(size.width, size.height)),
+          height: twips(Math.max(size.width, size.height)),
+          orientation:
+            size.width > size.height ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+        },
+        margin: { top: twips(topBandPt), right: 0, bottom: 0, left: 0, header: 0, footer: 0 },
+      },
+    },
+    children: first ? [heading(), picture(scan, topBandPt)] : [picture(scan, topBandPt)],
+  };
+}
 
 export function scanAppendixSections(
-  _layouts: readonly PageLayout[],
-  _mode: ScanPictureMode
+  layouts: readonly PageLayout[],
+  mode: ScanPictureMode
 ): ISectionOptions[] {
-  return [];
+  if (mode !== 'appendix') return [];
+  const scans = layouts.flatMap((layout) => {
+    const image = scannedPictureOf(layout);
+    return image === null ? [] : [{ layout, image }];
+  });
+  return scans.map((scan, index) => sectionFor(scan, index === 0));
 }
