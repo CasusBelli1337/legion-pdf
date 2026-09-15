@@ -108,8 +108,8 @@ request became, how it was proven, screenshots under
   tail-truncation fixed, derived names (`X extracted.pdf`, `Combined.pdf`,
   `X (redacted).pdf`) are by design; Ctrl+S on a never-saved doc → Save As.
 
-State: 2,167 tests green. **Installed: v0.5.0** (`LegionPDF-0.5.0-Setup.exe`,
-built from `c4a81b8`, silent-installed 2026-09-15; installer copied to
+State: 2,171 tests green. **Installed: v0.5.1** (`LegionPDF-0.5.1-Setup.exe`,
+built from `218261a`, silent-installed 2026-09-15; installer copied to
 OneDrive `#Legion/Product/Armory - Librarius/`). Installed-build proof: the
 Explorer-verb registry entries and a two-launch `--combine` of a PDF + a Word
 document through the packaged app (report § Packaging). Worktrees for the

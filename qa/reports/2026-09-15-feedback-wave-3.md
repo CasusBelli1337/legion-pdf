@@ -129,11 +129,13 @@ sheets were unnumbered. Details: `docs/references/word-export.md`.
 
 ## Packaging
 
-Version 0.5.0, built on the Windows host from commit `c4a81b8` (code identical
-to `6e1094a`) per `docs/TROUBLESHOOTING.md` § Windows packaging:
-`LegionPDF-0.5.0-Setup.exe` (176 MB, signed), copied to OneDrive
-`#Legion/Product/Armory - Librarius/`. Silent-installed per-user
-(`Legion PDF 0.5.0` in Apps); the app was not running at the time.
+Version 0.5.0 was built from commit `c4a81b8` and installed for the checks
+below; v0.5.1 (the toolbar Edit text entry, commit `218261a`) was then built
+the same way, per `docs/TROUBLESHOOTING.md` § Windows packaging:
+`LegionPDF-0.5.1-Setup.exe` (176 MB, signed), copied to OneDrive
+`#Legion/Product/Armory - Librarius/`, and silent-installed per-user
+(`Legion PDF 0.5.1` in Apps; the Explorer verbs re-verified). The app was not
+running at either install.
 
 Installed-build checks (all passed):
 
