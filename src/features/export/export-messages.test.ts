@@ -5,6 +5,7 @@ import {
   destinationSummary,
   exportButtonLabel,
   fileNameOf,
+  plainExportError,
   receiptText,
   showInFolderTarget,
   suggestedName,
@@ -33,6 +34,31 @@ describe('suggestedName', () => {
 
   it('still answers something usable for a document with no name', () => {
     expect(suggestedName('', 'txt')).toBe('Export.txt');
+  });
+});
+
+describe('plainExportError', () => {
+  it('strips Electron plumbing AND the error class name', () => {
+    const wrapped = new Error(
+      "Error invoking remote method 'export:run': ExportCancelledError: " +
+        'Export was stopped after page 5. 5 files were kept.'
+    );
+    expect(plainExportError(wrapped)).toBe('Export was stopped after page 5. 5 files were kept.');
+  });
+
+  it('turns the not-built-yet convention into a sentence for the attorney', () => {
+    const wrapped = new Error(
+      "Error invoking remote method 'export:run': Error: NotImplemented: export docx"
+    );
+    expect(plainExportError(wrapped)).toBe(
+      'Word document export is not ready yet. It arrives in a coming update — the other formats all work now.'
+    );
+  });
+
+  it('leaves a sentence that was already plain alone', () => {
+    expect(plainExportError(new Error('Choose where to save the export first.'))).toBe(
+      'Choose where to save the export first.'
+    );
   });
 });
 

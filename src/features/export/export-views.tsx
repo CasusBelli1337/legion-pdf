@@ -72,9 +72,11 @@ export function FormatPicker({
               />
               <span className="text-xs font-medium text-text-primary">{info.label}</span>
             </span>
-            <span className="mt-1 block pl-4 text-xs leading-relaxed text-text-secondary">
-              {info.description}
-            </span>
+            {chosen && (
+              <span className="mt-1 block pl-4 text-xs leading-relaxed text-text-secondary">
+                {info.description}
+              </span>
+            )}
           </button>
         );
       })}

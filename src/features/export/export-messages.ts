@@ -4,7 +4,7 @@
  * many, and where — never a path fragment or a format name on its own.
  */
 
-import { exportFormatInfo } from '@shared/export-formats';
+import { EXPORT_FORMATS, exportFormatInfo } from '@shared/export-formats';
 import type { ExportFormat, ExportResult } from '@shared/types';
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
@@ -51,6 +51,34 @@ export function receiptText(result: ExportResult): string {
 /** "Show in folder" opens the folder in both cases — that is what the label promises. */
 export function showInFolderTarget(result: ExportResult): string {
   return containingFolder(result.files[0] ?? '');
+}
+
+/**
+ * Electron wraps a handler's rejection as "Error invoking remote method '...':
+ * SomeError: <sentence>". The attorney reads the sentence and nothing else —
+ * a leaked class name ("ExportCancelledError:") is plumbing, caught live on
+ * 2026-09-15 when a stopped run showed it in the panel.
+ */
+export function plainExportError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^[A-Za-z]*Error:\s*/, '')
+    .trim();
+  return notYetMessage(message) ?? message;
+}
+
+/**
+ * A format that is declared but whose lane has not landed says so in the app's
+ * own convention — "NotImplemented: export docx". The attorney gets a sentence
+ * instead, with the format named the way the picker names it.
+ */
+function notYetMessage(message: string): string | null {
+  const match = /^NotImplemented: export (\w+)$/.exec(message);
+  if (match === null) return null;
+  const format = match[1] as ExportFormat;
+  const label = EXPORT_FORMATS.find((info) => info.format === format)?.label ?? format;
+  return `${label} export is not ready yet. It arrives in a coming update — the other formats all work now.`;
 }
 
 /** The button always says exactly what it is about to do. */

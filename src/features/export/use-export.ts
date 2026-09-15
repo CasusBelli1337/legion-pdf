@@ -19,8 +19,8 @@ import type {
   ExportResult,
   ProgressEvent,
 } from '@shared/types';
-import { ALL_PAGES, describeError } from '@renderer/features/stamps';
-import { suggestedName } from './export-messages';
+import { ALL_PAGES } from '@renderer/features/stamps';
+import { plainExportError, suggestedName } from './export-messages';
 import { exportMemory, rememberExport } from './export-settings';
 
 export type ExportPhase = 'idle' | 'running' | 'done' | 'stopped' | 'failed';
@@ -118,7 +118,7 @@ function useExportActions({ docId, fileName, form, setForm, setState }: ActionDe
         phase: stopped.current ? 'stopped' : 'failed',
         progress: null,
         result: null,
-        error: describeError(error),
+        error: plainExportError(error),
       }),
     [docId, setState]
   );

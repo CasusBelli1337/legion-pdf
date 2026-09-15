@@ -10,6 +10,7 @@ export {
   destinationSummary,
   exportButtonLabel,
   fileNameOf,
+  plainExportError,
   receiptText,
   showInFolderTarget,
   suggestedName,
