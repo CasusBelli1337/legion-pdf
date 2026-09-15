@@ -16,8 +16,10 @@ export interface CorpusFixture {
   p95Dy: number;
   /** Words per page that may fail to align. */
   wordsTolerance: number;
-  /** True when the pages carry pleading line numbers that must all land within 0.5 pt. */
+  /** True when the pages carry pleading line numbers that must all land on their lines. */
   lineNumbers: boolean;
+  /** How far a line number may sit from the source's, points (0.5 unless the source is a scan). */
+  lineNumberTolerance?: number;
   /** The PDF the export is measured against when the fixture itself is a scan of it. */
   truth?: string;
 }
@@ -41,6 +43,7 @@ export const CORPUS: readonly CorpusFixture[] = [
     p95Dy: 4,
     wordsTolerance: 12,
     lineNumbers: true,
+    lineNumberTolerance: 1.5,
     truth: 'pleading-word',
   },
   {
@@ -51,6 +54,7 @@ export const CORPUS: readonly CorpusFixture[] = [
     p95Dy: 4,
     wordsTolerance: 12,
     lineNumbers: true,
+    lineNumberTolerance: 1.5,
     truth: 'pleading-word',
   },
   {

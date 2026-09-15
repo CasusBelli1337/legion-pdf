@@ -24,8 +24,12 @@ export const MAX_LINE_NUMBER = 28;
 /** Fewer numbers than this in a stack is a coincidence, not a margin. */
 const MIN_STACK = 5;
 
-/** Left edges within this many points are the same column. */
-const X_TOLERANCE_PT = 6;
+/**
+ * Right edges within this many points are the same column. Pleading numbers
+ * are right aligned, so "9" and "10" share a right edge while their left
+ * edges differ by a digit; OCR jitters either edge by a point or two.
+ */
+const X_TOLERANCE_PT = 8;
 
 /** The mini-page of a condensed sheet, in reading order. Null = ordinary page. */
 export type Quadrant = 0 | 1 | 2 | 3 | null;
@@ -116,7 +120,7 @@ export function findLineNumberColumns(
     .map(asLineCandidate)
     .filter((entry): entry is LineNumberEntry => entry !== null);
 
-  const stacks = clusterValues(candidates, (entry) => entry.box.x, X_TOLERANCE_PT).flatMap(
+  const stacks = clusterValues(candidates, (entry) => rightOf(entry.box), X_TOLERANCE_PT).flatMap(
     stacksInBand
   );
   const multiUp = stacks.length >= 3;
