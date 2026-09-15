@@ -85,6 +85,7 @@ function spacerFor(paragraph: Paragraph): TextParagraph {
     spaceBeforePt: 0,
     tabStopsPt: [],
     top: paragraph.top,
+    spacer: true,
     ...(paragraph.columnBreakBefore === true ? { columnBreakBefore: true } : {}),
   };
   paragraph.spaceBeforePt = 0;

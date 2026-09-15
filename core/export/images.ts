@@ -22,6 +22,8 @@ import { bodyExtents, pageSizeOf } from './page-setup';
 const MIN_PICTURE_PT = 4;
 /** A picture covering this share of the page is the page. */
 const FULL_PAGE_SHARE = 0.6;
+/** More pictures than this on one page are strokes of a drawing, not pictures to place in a flow. */
+const MANY_PICTURES = 12;
 
 export interface ImagePlan {
   paragraphs: ImageParagraph[];
@@ -163,6 +165,15 @@ function scanPicture(
 
 export function planImages(layout: PageLayout, frame: BodyFrame, text: ImagePlanInput): ImagePlan {
   const plan: ImagePlan = { paragraphs: [], notes: [] };
+  const pictures = layout.images.filter(
+    (image) => image.rect.width >= MIN_PICTURE_PT && image.rect.height >= MIN_PICTURE_PT
+  );
+  if (pictures.length > MANY_PICTURES) {
+    plan.notes.push(
+      `Page ${layout.page} carries ${pictures.length} small pictures (pen strokes or a drawing); they were left out and the page's text was kept.`
+    );
+    return plan;
+  }
   const mode = text.scanPictures ?? 'omit';
   for (const image of layout.images) {
     if (image.rect.width < MIN_PICTURE_PT || image.rect.height < MIN_PICTURE_PT) continue;

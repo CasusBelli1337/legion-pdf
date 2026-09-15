@@ -32,6 +32,8 @@ const DOUBLE_GAP = 4;
 const INNER_RULE_REACH = 30;
 /** The right-hand rule lives in the right quarter of the page. */
 const RIGHT_RULE_SHARE = 0.72;
+/** Body runs left of the numbers that make the numbers a list inside the body, not a margin. */
+const MAX_STRAYS = 3;
 /** A number this far (× pitch) off the fitted grid says the numbers follow the text, not a grid. */
 const GRID_TOLERANCE = 0.25;
 
@@ -149,14 +151,12 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
   // A value that repeats is a stack of mini-pages (a condensed transcript), not one page's column.
   if (new Set(values).size !== values.length || Math.max(...values) > MAX_LINE_NUMBER) return null;
   const numberRight = Math.max(...column.map((entry) => entry.right));
-  const bodyLeft = Math.min(
-    ...layout.runs
-      .filter((run) => run.role === 'body' && run.text.trim().length > 0)
-      .map((run) => run.x),
-    Number.POSITIVE_INFINITY
+  // A numbered list sits inside the body; pleading numbers sit left of all of
+  // it. A couple of strays are an OCR's misread numbers, not body text.
+  const strays = layout.runs.filter(
+    (run) => run.role === 'body' && run.text.trim().length > 0 && run.x < numberRight - 2
   );
-  // A numbered list sits inside the body; pleading numbers sit left of all of it.
-  if (bodyLeft < numberRight - 2) return null;
+  if (strays.length >= MAX_STRAYS) return null;
   const pitchPt = pitchOf(column);
   if (!(pitchPt > 0)) return null;
   const firstBaseline = median(column.map((entry) => entry.y + (entry.value - 1) * pitchPt));

@@ -49,7 +49,15 @@ function expectPage(page: PageFidelity, fixture: CorpusFixture, context: string)
 describe.skipIf(!ready)('Word export fidelity, rendered in real Word', () => {
   for (const fixture of CORPUS) {
     it(`${fixture.name}: ${fixture.purpose}`, async () => {
-      const { fidelity, summary } = await grade(path.join(FIXTURES, `${fixture.name}.pdf`), OUTPUT);
+      const { fidelity, summary } = await grade(
+        path.join(FIXTURES, `${fixture.name}.pdf`),
+        OUTPUT,
+        {
+          ...(fixture.truth === undefined
+            ? {}
+            : { truthPath: path.join(FIXTURES, `${fixture.truth}.pdf`) }),
+        }
+      );
       const context = `${fixture.name} —\n${summary.join('\n')}\n`;
       expect(fidelity.exportedPages, `${context}page count`).toBe(fidelity.sourcePages);
       for (const page of fidelity.pages) expectPage(page, fixture, `${context}page ${page.page}`);

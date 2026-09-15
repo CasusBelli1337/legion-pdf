@@ -25,7 +25,7 @@ import type { PDFFont, PDFName, PDFOperator, PDFPage } from 'pdf-lib';
 import type { OcrRunDetail, OpResult, PageSize } from '@shared/types';
 import { characterCount } from './hocr-parser';
 import { displaySize, displayToUserMatrix, rasterScale, wordRect } from './geometry';
-import type { OcrPageWords, OcrWord } from './types';
+import type { OcrPageWords, OcrWord, PixelBox } from './types';
 import { EmptyOcrPageError } from './types';
 
 /** Below this the font size is meaningless; a box that small is OCR noise. */
@@ -97,6 +97,18 @@ function wordOperators(
   ];
 }
 
+/**
+ * The box the word is DRAWN in: sitting on its line's baseline at the line's
+ * type size when Tesseract reported them, else its own bounding box. A box
+ * alone puts "dog" and "dot" on different baselines and sizes every word by
+ * its own ascenders; the line's figures put a line of text on one baseline.
+ */
+function placedBox(word: OcrWord): PixelBox {
+  if (word.baselinePx === undefined) return word.box;
+  const sizePx = word.sizePx ?? word.box.y1 - word.box.y0;
+  return { x0: word.box.x0, x1: word.box.x1, y0: word.baselinePx - sizePx, y1: word.baselinePx };
+}
+
 /** Every operator for one page, already in display space. */
 function pageOperators(
   page: PDFPage,
@@ -111,7 +123,7 @@ function pageOperators(
   const { scaleX, scaleY } = rasterScale(display, recognized.widthPx, recognized.heightPx);
   const fontKey = page.node.newFontDictionary(font.name, font.ref);
   const body = recognized.words.flatMap((word) =>
-    wordOperators(word, font, fontKey, charset, wordRect(word.box, scaleX, scaleY, display))
+    wordOperators(word, font, fontKey, charset, wordRect(placedBox(word), scaleX, scaleY, display))
   );
   if (body.length === 0) return [];
   return [

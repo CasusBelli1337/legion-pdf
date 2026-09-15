@@ -28,6 +28,8 @@ export interface Graded {
 export interface GradeOptions {
   /** Side-by-side PNGs; off for very long documents. */
   png?: boolean;
+  /** Measure against this PDF instead of the source (a scan is measured against what was scanned). */
+  truthPath?: string;
 }
 
 export async function grade(
@@ -42,7 +44,8 @@ export async function grade(
   const docxPath = path.join(outputDir, `${name}.docx`);
   await writeFile(docxPath, build.bytes);
   const renderedPath = await renderWithWord(docxPath, outputDir);
-  const fidelity = compareDocuments(await wordsOf(sourcePath), await wordsOf(renderedPath));
+  const truthPath = options.truthPath ?? sourcePath;
+  const fidelity = compareDocuments(await wordsOf(truthPath), await wordsOf(renderedPath));
   const summary = summarize(fidelity);
   await writeFile(
     path.join(outputDir, `${name}.fidelity.json`),
@@ -60,7 +63,7 @@ export async function grade(
     )
   );
   if (options.png !== false) {
-    await rasterizePages(sourcePath, path.join(outputDir, 'png', `src-${name}`));
+    await rasterizePages(truthPath, path.join(outputDir, 'png', `src-${name}`));
     await rasterizePages(renderedPath, path.join(outputDir, 'png', name));
   }
   return { name, fidelity, summary, notes: build.notes, docxPath, renderedPath };

@@ -18,6 +18,8 @@ export interface CorpusFixture {
   wordsTolerance: number;
   /** True when the pages carry pleading line numbers that must all land within 0.5 pt. */
   lineNumbers: boolean;
+  /** The PDF the export is measured against when the fixture itself is a scan of it. */
+  truth?: string;
 }
 
 export const CORPUS: readonly CorpusFixture[] = [
@@ -39,6 +41,7 @@ export const CORPUS: readonly CorpusFixture[] = [
     p95Dy: 4,
     wordsTolerance: 12,
     lineNumbers: true,
+    truth: 'pleading-word',
   },
   {
     name: 'pleading-scan-ocr',
@@ -48,6 +51,7 @@ export const CORPUS: readonly CorpusFixture[] = [
     p95Dy: 4,
     wordsTolerance: 12,
     lineNumbers: true,
+    truth: 'pleading-word',
   },
   {
     name: 'filing-mixed',

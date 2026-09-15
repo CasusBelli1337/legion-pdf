@@ -39,7 +39,7 @@ const DEEP_INDENT = 60;
  * New Roman is a hair wider than the PDF's Times here and there; without this
  * a line that filled the block exactly wraps its last word.
  */
-const WRAP_SLACK = 1;
+const WRAP_SLACK = 4;
 
 export interface ParagraphOptions {
   frame: BodyFrame;
