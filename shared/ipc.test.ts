@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { IPC, PUSH_CHANNELS, invokeChannelsOf } from './ipc';
 
-const GROUPS = ['file', 'ops', 'stamp', 'ocr', 'redact', 'ai', 'app', 'raster', 'esign'] as const;
+const GROUPS = [
+  'file',
+  'ops',
+  'stamp',
+  'ocr',
+  'redact',
+  'ai',
+  'app',
+  'raster',
+  'esign',
+  'convert',
+  'export',
+  'edit',
+  'layout',
+] as const;
 
 function everyChannel(): string[] {
   return GROUPS.flatMap((group) => Object.values(IPC[group]));
@@ -27,7 +41,7 @@ describe('IPC channel constants', () => {
 
   it('classifies every channel as invokable or push/send, never both', () => {
     const invokable = GROUPS.flatMap((group) => invokeChannelsOf(group)) as string[];
-    const nonInvokable = [...PUSH_CHANNELS, IPC.raster.response] as string[];
+    const nonInvokable = [...PUSH_CHANNELS, IPC.raster.response, IPC.layout.response] as string[];
 
     expect([...invokable, ...nonInvokable].sort()).toEqual(everyChannel().sort());
     expect(invokable.filter((channel) => nonInvokable.includes(channel))).toEqual([]);
@@ -40,7 +54,8 @@ describe('invokeChannelsOf', () => {
     expect(invokeChannelsOf('ops')).toContain(IPC.ops.merge);
   });
 
-  it('leaves the raster group with no invokable channels', () => {
+  it('leaves the raster and layout groups with no invokable channels', () => {
     expect(invokeChannelsOf('raster')).toEqual([]);
+    expect(invokeChannelsOf('layout')).toEqual([]);
   });
 });

@@ -7,9 +7,22 @@
 
 import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, EyeOff, FormInput, Hash, LayoutGrid, PenLine, ScanText, Stamp } from 'lucide-react';
+import {
+  Bot,
+  Combine,
+  EyeOff,
+  FileOutput,
+  FormInput,
+  Hash,
+  LayoutGrid,
+  PenLine,
+  ScanText,
+  Stamp,
+} from 'lucide-react';
 import { CenturionPanel } from '@renderer/features/centurion';
+import { CombinePanel } from '@renderer/features/combine';
 import { EsignPanel } from '@renderer/features/esign';
+import { ExportPanel } from '@renderer/features/export';
 import { FormsPanel } from '@renderer/features/forms';
 import { OcrPanel } from '@renderer/features/ocr';
 import { OrganizePanel } from '@renderer/features/organize';
@@ -28,12 +41,14 @@ export interface ToolPanel {
 
 export const TOOL_PANELS: readonly ToolPanel[] = [
   { id: 'organize', title: 'Organize Pages', icon: LayoutGrid, panel: OrganizePanel },
+  { id: 'combine', title: 'Combine Files', icon: Combine, panel: CombinePanel },
   { id: 'bates', title: 'Bates Numbering', icon: Hash, panel: BatesPanel },
   { id: 'stamps', title: 'Stamps & Marks', icon: Stamp, panel: StampsPanel },
   { id: 'forms', title: 'Fill Forms', icon: FormInput, panel: FormsPanel },
   { id: 'ocr', title: 'Text Recognition', icon: ScanText, panel: OcrPanel },
   { id: 'redact', title: 'Redaction', icon: EyeOff, panel: RedactPanel },
   { id: 'esign', title: 'E-Sign', icon: PenLine, panel: EsignPanel },
+  { id: 'export', title: 'Export', icon: FileOutput, panel: ExportPanel },
   { id: 'centurion', title: 'Centurion', icon: Bot, panel: CenturionPanel },
 ];
 

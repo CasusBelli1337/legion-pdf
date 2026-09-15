@@ -7,6 +7,10 @@
 export type * from './tool-options';
 export type * from './centurion-tools';
 export type * from './options-esign';
+export type * from './options-export';
+export type * from './options-convert';
+export type * from './options-edit';
+export type * from './layout-model';
 
 /** A point in PDF user space: origin bottom-left, units are points (1/72"). */
 export interface PdfPoint {
@@ -180,6 +184,12 @@ export interface UndoResult extends UndoState {
 export interface OpenFilesEvent {
   /** Absolute paths, in the order the OS listed them. */
   paths: string[];
+  /**
+   * What the OS asked for. 'open' (the default) opens a tab per path;
+   * 'combine' is Explorer's "Combine in Legion PDF" verb — every path arrives
+   * in one event and the Combine Files panel opens with them listed.
+   */
+  intent?: 'open' | 'combine';
 }
 
 /** Answer to `app:version` — shown in Help > About and the status footer. */
@@ -193,8 +203,11 @@ export interface AppVersionInfo {
 /** Menu actions the main process forwards to the renderer over `app:menu`. */
 export type MenuAction =
   | 'open'
+  | 'createPdf'
+  | 'combineFiles'
   | 'save'
   | 'saveAs'
+  | 'exportAs'
   | 'print'
   | 'undo'
   | 'redo'

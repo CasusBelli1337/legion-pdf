@@ -28,6 +28,7 @@ describe('the keyboard shortcuts the hidden menu registers', () => {
     ['CmdOrCtrl+O', 'open'],
     ['CmdOrCtrl+S', 'save'],
     ['CmdOrCtrl+Shift+S', 'saveAs'],
+    ['CmdOrCtrl+Shift+E', 'exportAs'],
     ['CmdOrCtrl+P', 'print'],
     ['CmdOrCtrl+Z', 'undo'],
     ['CmdOrCtrl+Y', 'redo'],
@@ -54,6 +55,18 @@ describe('the keyboard shortcuts the hidden menu registers', () => {
 });
 
 describe('the rest of the menu', () => {
+  it.each([
+    ['Create PDF from File...', 'createPdf'],
+    ['Combine Files...', 'combineFiles'],
+  ] as const)('"%s" sends "%s" without a shortcut', (label, action) => {
+    const { send, template } = build();
+    const entry = items(template).find((candidate) => candidate.label === label);
+    expect(entry, `no menu item is labelled ${label}`).toBeDefined();
+    expect(entry?.accelerator).toBeUndefined();
+    entry?.click?.(undefined as never, undefined as never, undefined as never);
+    expect(send).toHaveBeenCalledWith(action);
+  });
+
   it('names the product on Quit and About', () => {
     const { template } = build();
     const labels = items(template).map((entry) => entry.label);

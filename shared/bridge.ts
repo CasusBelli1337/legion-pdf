@@ -19,6 +19,7 @@ import type {
   BulkOcrResult,
   CenturionToolDecision,
   CloseChoice,
+  ConvertSupport,
   DeletePagesOptions,
   DocumentSession,
   EsignEmailRequest,
@@ -30,6 +31,8 @@ import type {
   EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  ExportOptions,
+  ExportResult,
   FillableFormDetail,
   FillableFormOptions,
   ExtractDetail,
@@ -41,6 +44,8 @@ import type {
   HighlightOptions,
   InsertBlankOptions,
   InsertFromOptions,
+  LayoutRequest,
+  LayoutResponse,
   MenuAction,
   MergeDetail,
   MergeOptions,
@@ -57,6 +62,8 @@ import type {
   RecentFile,
   RedactApplyOptions,
   RedactVerifyResult,
+  ReplaceTextDetail,
+  ReplaceTextOptions,
   ReorderOptions,
   RotateOptions,
   SaveResult,
@@ -68,6 +75,8 @@ import type {
   SplitDetail,
   SplitOptions,
   TextBoxOptions,
+  TextEditBlock,
+  TextEditProbe,
   UndoResult,
   UndoState,
   WatermarkOptions,
@@ -216,6 +225,31 @@ export interface RasterBridge {
   respond(response: RasterResponse): void;
 }
 
+export interface ConvertBridge {
+  /** Which non-PDF file types can be opened (converted) on this computer, and how. */
+  support(): Promise<ConvertSupport>;
+}
+
+export interface ExportBridge {
+  /** Writes the document out in another format; streams `export:progress`. */
+  run(docId: string, options: ExportOptions): Promise<ExportResult>;
+  /** Stops after the page in flight; files already written stay. */
+  cancel(docId: string): Promise<void>;
+}
+
+export interface EditBridge {
+  /** The paragraph of existing text under a click, or null when there is none. */
+  inspect(docId: string, probe: TextEditProbe): Promise<TextEditBlock | null>;
+  /** Rewrites that paragraph in place. `dryRun` reports the plan without changing bytes. */
+  replaceText(docId: string, options: ReplaceTextOptions): Promise<OpResult<ReplaceTextDetail>>;
+}
+
+export interface LayoutBridge {
+  /** Main asks the renderer (the zone holding pdfjs) for one page's layout. */
+  onRequest(callback: (request: LayoutRequest) => void): Unsubscribe;
+  respond(response: LayoutResponse): void;
+}
+
 export interface LibrariusBridge {
   file: FileBridge;
   ops: OpsBridge;
@@ -226,6 +260,10 @@ export interface LibrariusBridge {
   esign: EsignBridge;
   app: AppBridge;
   raster: RasterBridge;
+  convert: ConvertBridge;
+  export: ExportBridge;
+  edit: EditBridge;
+  layout: LayoutBridge;
   /** Subscribe to a batch op's page-level progress. Returns an unsubscribe fn. */
   onProgress(channel: ProgressChannel, callback: (event: ProgressEvent) => void): Unsubscribe;
   /** Escape hatch for any main→renderer push channel, still fully typed. */

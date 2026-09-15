@@ -76,7 +76,19 @@ Channel groups:
              per-signer links), emailRequests (Gmail SMTP), status,
              exportFillable (AcroForm copy for Acrobat users), service/mail
              settings (safeStorage; secrets never reach the renderer)
-- `app:*`    print, openPath, version, `app:openFiles` push (OS file opens)
+- `app:*`    print, openPath, version, `app:openFiles` push (OS file opens;
+             `intent: 'combine'` when Explorer's Combine verb sent them)
+- `convert:*` support (which non-PDF types this machine can open as PDFs).
+             The conversion itself rides inside `file:open` / `ops:merge`:
+             a .docx or .png path comes back as an unsaved PDF session.
+             Streams `convert:progress`.
+- `export:*` run (png/jpeg/tiff/txt/docx, see `shared/export-formats.ts`),
+             cancel; streams `export:progress`
+- `edit:*`   inspect (the paragraph under a click), replaceText (rewrite it
+             in place, reflowed, in the document's own font when it can)
+- `layout:*` main ↔ renderer round-trip like `raster:*`: main asks for a
+             page's text/image/rule layout (`shared/layout-model.ts`), which
+             only the renderer's pdfjs can read. The Word exporter's input.
 
 Channels whose lane has not landed yet are declared here in full and
 registered by `electron/ipc/not-implemented.ts`, so they reject with
@@ -144,6 +156,13 @@ Config over code: new tool = new entry here, zero shell changes.
 | E Redaction | redact agent | core/redact/**, src/features/redact/**, electron/ipc/redact.ts |
 | F Centurion | ai agent | electron/services/anthropic.ts, electron/services/keystore.ts, src/features/centurion/**, electron/ipc/ai.ts |
 | G E-Sign | esign agent | core/esign/**, src/features/esign/**, electron/services/esign-*.ts, electron/ipc/esign*.ts |
+| H Print | print agent | src/components/viewer/print*, electron/ipc/app.ts (print handler only) |
+| I Page rail | rail agent | src/components/thumbnails/**, src/features/organize/selection*.ts (shared arithmetic only) |
+| J Convert | convert agent | electron/services/convert/**, electron/ipc/convert.ts, electron/services/pdf-intake.ts, electron/services/native-dialogs.ts (filters), electron/services/doc-store.ts (openFile), electron/ipc/ops.ts (merge sources) |
+| K Explorer combine | combine agent | build/installer.nsh, electron-builder.yml, electron/services/open-files.ts, electron/main.ts (argv only), src/features/combine/** |
+| L Export | export agent | electron/services/export/**, electron/ipc/export.ts, core/image/** (TIFF encoder), src/features/export/** |
+| M Word export | word agent | core/export/**, src/lib/layout/**, electron/services/layout-bridge.ts, electron/services/export/docx-exporter.ts |
+| N Text edit | text-edit agent | core/edit/**, electron/ipc/edit.ts, src/features/text/**, src/features/stamps/text-section.tsx |
 
 Shared files (`shared/ipc.ts`, `tool-registry.ts`, `package.json`) are
 owned by the orchestrator; agents REQUEST additions in their final report

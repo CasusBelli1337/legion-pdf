@@ -23,6 +23,7 @@ import type {
   BulkOcrResult,
   CenturionToolDecision,
   CloseChoice,
+  ConvertSupport,
   DeletePagesOptions,
   DocumentSession,
   EsignEmailRequest,
@@ -34,6 +35,8 @@ import type {
   EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  ExportOptions,
+  ExportResult,
   FillableFormDetail,
   FillableFormOptions,
   ExtractDetail,
@@ -56,6 +59,8 @@ import type {
   RecentFile,
   RedactApplyOptions,
   RedactVerifyResult,
+  ReplaceTextDetail,
+  ReplaceTextOptions,
   ReorderOptions,
   RotateOptions,
   SaveResult,
@@ -67,6 +72,8 @@ import type {
   SplitDetail,
   SplitOptions,
   TextBoxOptions,
+  TextEditBlock,
+  TextEditProbe,
   UndoResult,
   UndoState,
   WatermarkOptions,
@@ -260,4 +267,36 @@ export interface IpcInvokeContract {
   'app:version': { request: []; response: AppVersionInfo };
   /** Native three-way prompt before a tab with unsaved work is dropped. */
   'app:confirmClose': { request: [fileName: string]; response: CloseChoice };
+
+  /**
+   * Which non-PDF file types this computer can turn into PDFs, and how. The
+   * conversion itself has no channel: `file:open` on a .docx or .png returns an
+   * unsaved DocumentSession, and `ops:merge` accepts those paths as sources.
+   * Progress streams on `convert:progress` while a conversion runs.
+   */
+  'convert:support': { request: []; response: ConvertSupport };
+
+  /**
+   * Writes the document out in another format — per-page images into a folder,
+   * or one TIFF/TXT/DOCX file. Streams `export:progress`; resolves with every
+   * file written. The Word format is served by the Word lane's exporter.
+   */
+  'export:run': { request: [docId: string, options: ExportOptions]; response: ExportResult };
+  /** Stops the run after the page in flight; files already written stay. */
+  'export:cancel': { request: [docId: string]; response: void };
+
+  /** The paragraph of existing text under a click, or null when there is none. */
+  'edit:inspect': {
+    request: [docId: string, probe: TextEditProbe];
+    response: TextEditBlock | null;
+  };
+  /**
+   * Rewrites a paragraph the page already carries, re-flowing it in the
+   * document's own font when that font can set the new text. `dryRun` reports
+   * the plan (font mode, missing characters) without touching the bytes.
+   */
+  'edit:replaceText': {
+    request: [docId: string, options: ReplaceTextOptions];
+    response: OpResult<ReplaceTextDetail>;
+  };
 }
