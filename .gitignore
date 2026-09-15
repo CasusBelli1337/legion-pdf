@@ -35,8 +35,11 @@ CLAUDE.local.md
 # OS
 .DS_Store
 Thumbs.db
-qa/fixtures/
+qa/fixtures/*
 !build/icon.png
 # Legibility proofs from `npm run build:icon`; regenerate, never commit.
 build/icon-check-*.png
 src/public/pdfjs/
+
+# The Word-export corpus is made by real Word on this machine and cannot be regenerated elsewhere
+!qa/fixtures/word-export/

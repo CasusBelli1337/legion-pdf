@@ -9,9 +9,15 @@
  * A two-column page is two flows, each settled from the top of the body; the
  * second opens with a column break so Word starts it in its own column.
  *
- * On pleading paper the gaps become EMPTY PARAGRAPHS instead, because Word's
- * line numbering counts paragraphs' lines, not white space: a blank numbered
- * line has to be a line.
+ * On pleading paper the gaps become EMPTY PARAGRAPHS on the pitch, so a blank
+ * numbered line is a line the attorney can click into, as it is in the
+ * templates the filing came from.
+ *
+ * Two paragraphs' line boxes must never overlap: the space between them is
+ * space-before, which cannot go negative, so an overlap would push the lower
+ * paragraph down the page. A lone line's box is shrunk to fit above the
+ * paragraph below it; a multi-line paragraph keeps its pitch and the one
+ * above it gives way instead.
  */
 
 import type { LayoutTextRun, PageLayout, ScanPictureMode } from '@shared/types';
@@ -22,8 +28,11 @@ import type { BodyFrame, Paragraph, TextParagraph } from './model';
 import type { SectionGeometry } from './page-setup';
 import { columnRunsOf } from './page-setup';
 import { paragraphsOf } from './paragraphs';
-import { LINE_NUMBERS_NOTE, PLEADING_NOTE, pleadingOf, type Pleading } from './pleading';
+import { LINE_NUMBERS_NOTE, NUMBERED_LINES_NOTE, PLEADING_NOTE, type Pleading } from './pleading';
 import { ruledTablesOf } from './tables';
+
+/** Word will not set a line tighter than this. */
+const MIN_LEADING = 1;
 
 export interface PageOptions {
   scanPictures: ScanPictureMode;
@@ -45,6 +54,23 @@ export interface PageBuild {
   box: PageBox;
 }
 
+/**
+ * A transcript: numbered lines set in a monospaced face. Court reporters'
+ * software writes every line as its own paragraph, and attorneys cite
+ * testimony by page and line, so the lines are kept exactly as they were
+ * rather than flowed into paragraphs Word would re-wrap.
+ */
+export function isTranscript(layout: PageLayout): boolean {
+  const weights = new Map<boolean, number>();
+  for (const run of layout.runs) {
+    if (run.role !== 'body') continue;
+    const font = layout.fonts[run.fontKey];
+    const mono = font?.family === 'monospace' || /courier|mono/i.test(font?.name ?? '');
+    weights.set(mono, (weights.get(mono) ?? 0) + run.text.length);
+  }
+  return (weights.get(true) ?? 0) > (weights.get(false) ?? 0);
+}
+
 /** Top and bottom of a paragraph's box on the page, the way Word will lay it. */
 function boxOf(paragraph: Paragraph): PageBox {
   if (paragraph.kind === 'image') {
@@ -53,6 +79,9 @@ function boxOf(paragraph: Paragraph): PageBox {
   if (paragraph.kind === 'table') return { top: paragraph.top, bottom: paragraph.bottom };
   const first = paragraph.lines[0];
   const last = paragraph.lines.at(-1);
+  // A blank numbered line placed by position: its box is exactly one leading tall.
+  if (first === undefined)
+    return { top: paragraph.top, bottom: paragraph.top - paragraph.leadingPt };
   return {
     top: (first?.baseline ?? 0) + BASELINE_SHARE * paragraph.leadingPt,
     bottom: (last?.baseline ?? 0) - (1 - BASELINE_SHARE) * paragraph.leadingPt,
@@ -100,10 +129,38 @@ function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[]
   for (const paragraph of paragraphs) {
     const blanks = Math.floor(paragraph.spaceBeforePt / pitchPt + 0.05);
     for (let count = 0; count < blanks; count += 1) out.push(blankLine(pitchPt));
-    paragraph.spaceBeforePt = Math.max(0, paragraph.spaceBeforePt - blanks * pitchPt);
+    const remainder = paragraph.spaceBeforePt - blanks * pitchPt;
+    // Under a third of a point is measurement noise, not a gap the page had.
+    paragraph.spaceBeforePt = remainder < 0.3 ? 0 : remainder;
     out.push(paragraph);
   }
   return out;
+}
+
+/** A body run sits on this baseline, within a couple of points. */
+function hasTextAt(layout: PageLayout, y: number): boolean {
+  return layout.runs.some(
+    (run) => run.role === 'body' && run.text.trim().length > 0 && Math.abs(run.y - y) <= 2
+  );
+}
+
+/**
+ * When the numbers followed the text (Word's own numbering), a printed number
+ * with no text beside it was an empty paragraph, and Word must be given one
+ * of the same height there so its numbering counts the same lines.
+ */
+function numberedBlanks(layout: PageLayout, pleading: Pleading): TextParagraph[] {
+  const numbers = layout.runs
+    .filter((run) => run.role === 'line-number' && /^\d{1,2}$/.test(run.text.trim()))
+    .sort((a, b) => b.y - a.y);
+  return numbers.flatMap((run, index) => {
+    if (hasTextAt(layout, run.y)) return [];
+    const next = numbers[index + 1];
+    const leading = next === undefined ? pleading.pitchPt : run.y - next.y;
+    const blank = blankLine(leading);
+    blank.top = run.y + BASELINE_SHARE * leading;
+    return [blank];
+  });
 }
 
 function byPosition(a: Paragraph, b: Paragraph): number {
@@ -140,7 +197,11 @@ function columnFlow(
   const ruled = ruledTablesOf(lines, layout.rules, frame);
   const text = paragraphsOf(
     lines.filter((line) => !ruled.consumed.has(line)),
-    { frame, ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }) }
+    {
+      frame,
+      ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }),
+      linePerParagraph: pleading !== null && isTranscript(layout),
+    }
   );
   const images = layout.images.filter((image) => {
     const centre = image.rect.x + image.rect.width / 2;
@@ -152,7 +213,8 @@ function columnFlow(
     scanPictures: options.scanPictures,
   });
   notes.push(...plan.notes);
-  return [...text, ...ruled.tables, ...plan.paragraphs].sort(byPosition);
+  const blanks = pleading !== null && !pleading.grid ? numberedBlanks(layout, pleading) : [];
+  return [...text, ...blanks, ...ruled.tables, ...plan.paragraphs].sort(byPosition);
 }
 
 /** The page's paragraphs in reading order, per column, with the box they occupy. */
@@ -161,19 +223,58 @@ export function pageParagraphs(
   geometry: SectionGeometry,
   options: PageOptions = { scanPictures: 'omit' }
 ): PageBuild {
-  const pleading = pleadingOf(layout);
+  const { pleading } = geometry;
   const columns = columnRunsOf(layout);
   const frames = columnFrames(geometry, columns);
   const notes: string[] = [];
   const flows = columns.map((runs, index) =>
     columnFlow(layout, runs, frames[index] ?? geometry.frame, pleading, notes, options)
   );
-  if (pleading !== null) notes.push(PLEADING_NOTE);
+  if (pleading !== null) notes.push(pleading.grid ? PLEADING_NOTE : NUMBERED_LINES_NOTE);
   else if (layout.runs.some((run) => run.role === 'line-number')) notes.push(LINE_NUMBERS_NOTE);
   return { columns: flows, notes, pleading, box: pageBox(flows.flat(), pleading) };
 }
 
+function firstBaseline(paragraph: TextParagraph): number {
+  return paragraph.lines[0]?.baseline ?? 0;
+}
+
+function lastBaseline(paragraph: TextParagraph): number {
+  return paragraph.lines.at(-1)?.baseline ?? 0;
+}
+
+/** Shrinks leadings, top down, until no paragraph's box reaches into the one above. */
+function resolveOverlaps(paragraphs: Paragraph[], topOfBody: number): void {
+  let previous: Paragraph | null = null;
+  let previousBottom = topOfBody;
+  for (const paragraph of paragraphs) {
+    if (paragraph.kind === 'text' && paragraph.lines.length > 0) {
+      const top = firstBaseline(paragraph) + BASELINE_SHARE * paragraph.leadingPt;
+      if (top > previousBottom) giveWay(previous, paragraph, previousBottom);
+    }
+    previousBottom = boxOf(paragraph).bottom;
+    previous = paragraph;
+  }
+}
+
+/** The lone line above gives way; otherwise the lower paragraph tightens. */
+function giveWay(previous: Paragraph | null, current: TextParagraph, previousBottom: number): void {
+  if (previous?.kind === 'text' && previous.lines.length === 1 && current.lines.length > 1) {
+    const room =
+      lastBaseline(previous) - (firstBaseline(current) + BASELINE_SHARE * current.leadingPt);
+    previous.leadingPt = Math.max(MIN_LEADING, room / (1 - BASELINE_SHARE));
+    if (
+      lastBaseline(previous) - (1 - BASELINE_SHARE) * previous.leadingPt >=
+      firstBaseline(current) + BASELINE_SHARE * current.leadingPt
+    )
+      return;
+  }
+  const room = previousBottom - firstBaseline(current);
+  current.leadingPt = Math.max(MIN_LEADING, room / BASELINE_SHARE);
+}
+
 function settleColumn(paragraphs: Paragraph[], topOfBody: number): void {
+  resolveOverlaps(paragraphs, topOfBody);
   let previousBottom = topOfBody;
   for (const paragraph of paragraphs) {
     const box = boxOf(paragraph);
@@ -191,7 +292,7 @@ export function settlePage(build: PageBuild, topOfBody: number): Paragraph[] {
   return build.columns.flatMap((column, index) => {
     settleColumn(column, topOfBody);
     const settled =
-      build.pleading === null ? column : asNumberedBlanks(column, build.pleading.pitchPt);
+      build.pleading?.grid === true ? asNumberedBlanks(column, build.pleading.pitchPt) : column;
     const first = settled[0];
     if (index > 0 && first !== undefined) first.columnBreakBefore = true;
     return settled;

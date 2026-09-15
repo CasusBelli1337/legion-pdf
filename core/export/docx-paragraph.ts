@@ -53,6 +53,7 @@ function runOptions(run: StyledRun, fonts: Fonts): IRunOptions {
     italics: style.italic,
     color: run.colorHex,
     ...(run.underline ? { underline: {} } : {}),
+    ...(run.superscript === true ? { superScript: true } : {}),
   };
 }
 
@@ -75,6 +76,25 @@ function flow(joined: StyledRun[], run: StyledRun): void {
   else joined.push({ ...run });
 }
 
+/**
+ * Prefixes that keep their hyphen at a line's end: "self-" + "employed" is
+ * "self-employed", not "selfemployed". Config over code — a new one is a row.
+ */
+const HYPHENATED_PREFIXES =
+  /(^|[^a-z])(self|non|pre|post|anti|co|cross|well|half|ex|multi|semi|sub|over|under|out|off|re|de|pro|quasi|vice|all|full|long|short|high|low|one|two|three|first|second|third|mid|inter|intra|extra|pseudo|so|mother|father|sister|brother)-$/i;
+
+/**
+ * A word broken at the line's end was hyphenated by the typesetter unless the
+ * hyphen is one the word owns: a compound that already has a hyphen
+ * ("meet-and-" + "confer") or a prefix that takes one.
+ */
+export function healsHyphen(previous: string, next: string): boolean {
+  if (!/[a-z]-$/.test(previous) || !/^[a-z]/.test(next)) return false;
+  const word = previous.slice(previous.lastIndexOf(' ') + 1);
+  if (word.slice(0, -1).includes('-')) return false;
+  return !HYPHENATED_PREFIXES.test(word);
+}
+
 /** "signa-" + "ture" → "signature"; otherwise lines meet at a space. */
 export function joinLines(lines: readonly Line[]): StyledRun[] {
   const joined: StyledRun[] = [];
@@ -83,8 +103,7 @@ export function joinLines(lines: readonly Line[]): StyledRun[] {
     const previous = joined.at(-1);
     const next = runs[0];
     if (previous !== undefined && next !== undefined && index > 0) {
-      const heals = /[a-z]-$/.test(previous.text) && /^[a-z]/.test(next.text);
-      if (heals) previous.text = previous.text.slice(0, -1);
+      if (healsHyphen(previous.text, next.text)) previous.text = previous.text.slice(0, -1);
       else if (!previous.text.endsWith(' ')) previous.text += ' ';
     }
     for (const run of runs) flow(joined, run);
@@ -123,6 +142,8 @@ function indentOf(paragraph: TextParagraph): IParagraphOptions['indent'] | undef
 
 export interface ParagraphPlacement {
   pageBreakBefore: boolean;
+  /** A rule drawn against the paragraph, e.g. the line above a pleading's footer. */
+  border?: IParagraphOptions['border'];
 }
 
 /** A column break run ahead of the children when the paragraph opens column two. */
@@ -150,6 +171,7 @@ export function docxTextParagraph(
       position: twips(stop),
     })),
     pageBreakBefore: placement.pageBreakBefore,
+    ...(placement.border === undefined ? {} : { border: placement.border }),
     children: withColumnBreak(paragraph, childrenOf(paragraph, fonts)),
   });
 }

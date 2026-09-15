@@ -64,11 +64,12 @@ describe('sectionGeometry', () => {
     expect(geometry.frame.textRight).toBe(480);
   });
 
-  it('never goes under half an inch, and defaults to an inch with no body text', () => {
+  it('never goes under half an inch on the left or a quarter on the right, and defaults to an inch with no body text', () => {
     const cramped = page([run('x'.repeat(100), 10, 780, { width: 592 })]);
     const geometry = sectionGeometry([cramped]);
     expect(geometry.margins.left).toBe(36);
-    expect(geometry.margins.right).toBe(36);
+    // The right margin only has to let the widest line through, so it may be tighter.
+    expect(geometry.margins.right).toBe(18);
     expect(sectionGeometry([page([])]).margins).toEqual({
       top: 72,
       right: 72,

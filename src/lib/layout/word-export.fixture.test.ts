@@ -14,94 +14,13 @@ import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { buildDocx } from '@core/export';
-import type { PageLayout } from '@shared/types';
-import { createSelectCopyEngine } from '@renderer/features/select-copy/engine';
-import { createPdfjsSource } from '@renderer/features/select-copy/pdfjs-source';
-import { extractPageLayout } from './extract-page-layout';
-import type { PageLike, RasterizedImage } from './extract-page-layout';
-import { rolesOf } from './page-roles';
+import { layoutsOf } from './node-pipeline.testkit';
 import { encodeRgbPng } from './test-png';
 
 const ROOT = path.join(import.meta.dirname, '../../..');
 const FIXTURES = path.join(ROOT, 'qa/fixtures');
 const OUTPUT = path.join(ROOT, 'qa/output/docx-export');
-const STANDARD_FONTS = path.join(ROOT, 'node_modules/pdfjs-dist/standard_fonts/');
 const built = existsSync(path.join(FIXTURES, 'pleading-fixture.pdf'));
-
-interface PdfJsLike {
-  OPS: Readonly<Record<string, number>>;
-  getDocument(parameters: {
-    data: Uint8Array;
-    useSystemFonts: boolean;
-    standardFontDataUrl: string;
-    isOffscreenCanvasSupported: boolean;
-  }): { promise: Promise<PdfJsDocument> };
-}
-
-interface PdfJsDocument {
-  numPages: number;
-  getPage(page: number): Promise<unknown>;
-  loadingTask: { destroy(): Promise<void> };
-}
-
-async function pdfjs(): Promise<PdfJsLike> {
-  return (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfJsLike;
-}
-
-async function openBytes(bytes: Uint8Array) {
-  const { getDocument } = await pdfjs();
-  // pdfjs takes the buffer with it; the caller's copy stays whole.
-  return getDocument({
-    data: new Uint8Array(bytes),
-    useSystemFonts: false,
-    standardFontDataUrl: STANDARD_FONTS,
-    isOffscreenCanvasSupported: false,
-  }).promise;
-}
-
-/** Node has no canvas: pdfjs hands raw pixels, which core's PNG encoder takes. */
-async function rasterizeInNode(image: unknown): Promise<RasterizedImage | null> {
-  const { width, height, kind, data } = image as {
-    width: number;
-    height: number;
-    kind?: number;
-    data?: Uint8ClampedArray;
-  };
-  if (data === undefined) return null;
-  const rgb = new Uint8Array(width * height * 3);
-  const stride = kind === 3 ? 4 : 3;
-  if (kind !== 2 && kind !== 3) return null;
-  for (let pixel = 0; pixel < width * height; pixel += 1) {
-    rgb.set(data.subarray(pixel * stride, pixel * stride + 3), pixel * 3);
-  }
-  return {
-    png: encodeRgbPng({ widthPx: width, heightPx: height, rgb }),
-    widthPx: width,
-    heightPx: height,
-  };
-}
-
-async function layoutsOf(bytes: Uint8Array): Promise<PageLayout[]> {
-  const { OPS } = await pdfjs();
-  const document = await openBytes(bytes);
-  const engine = createSelectCopyEngine(createPdfjsSource(document as never, 'fixture'));
-  const layouts: PageLayout[] = [];
-  for (let page = 1; page <= document.numPages; page += 1) {
-    const classification = await engine.classifyPage(page);
-    const pdfPage = (await document.getPage(page)) as unknown as PageLike;
-    layouts.push(
-      await extractPageLayout(pdfPage, {
-        page,
-        ops: OPS as unknown as Readonly<Record<string, number>>,
-        roles: rolesOf(classification),
-        printedPageNumber: classification.printedPageNumber,
-        rasterize: rasterizeInNode,
-      })
-    );
-  }
-  await document.loadingTask.destroy();
-  return layouts;
-}
 
 async function exportFixture(name: string, bytes: Uint8Array) {
   const layouts = await layoutsOf(bytes);
@@ -111,12 +30,14 @@ async function exportFixture(name: string, bytes: Uint8Array) {
   await writeFile(path.join(OUTPUT, `${name}.pdf`), bytes);
   const zip = await JSZip.loadAsync(build.bytes);
   const read = async (entry: string) => (await zip.file(entry)?.async('string')) ?? '';
+  const headers = Object.keys(zip.files).filter((name) => /^word\/header\d+\.xml$/.test(name));
+  const footers = Object.keys(zip.files).filter((name) => /^word\/footer\d+\.xml$/.test(name));
   return {
     layouts,
     build,
     document: await read('word/document.xml'),
-    header: await read('word/header1.xml'),
-    footer: await read('word/footer1.xml'),
+    header: (await Promise.all(headers.map(read))).join('\n'),
+    footer: (await Promise.all(footers.map(read))).join('\n'),
   };
 }
 
@@ -155,7 +76,7 @@ async function pictureFixture(): Promise<Uint8Array> {
 }
 
 describe.skipIf(!built)('Word export of the real fixtures', () => {
-  it('pleading-fixture.pdf: body text flows, line numbers become Word numbering, head and foot are real', async () => {
+  it('pleading-fixture.pdf: body text flows, line numbers become a header table, head and foot are real', async () => {
     const bytes = new Uint8Array(await readFile(path.join(FIXTURES, 'pleading-fixture.pdf')));
     const { layouts, build, document, header, footer } = await exportFixture(
       'pleading-fixture',
@@ -164,11 +85,12 @@ describe.skipIf(!built)('Word export of the real fixtures', () => {
     expect(layouts).toHaveLength(8);
     expect(layouts[2]?.runs.some((run) => run.role === 'line-number')).toBe(true);
     expect(document).toContain('only the signature page that Mr. Pemberton');
-    expect(document).toContain('w:lnNumType');
+    expect(document).not.toContain('w:lnNumType');
     expect(document).toContain('w:rFonts w:ascii="Times New Roman"');
     expect(header).toContain('ASHFORD v. ASHFORD');
+    expect(header).toMatch(/<w:t[^>]*>28<\/w:t>/);
     expect(footer).toContain('PAGE');
-    expect(build.notes.join(' ')).toMatch(/line numbering/);
+    expect(build.notes.join(' ')).toMatch(/line numbers and rules/);
     expect(build.notes.join(' ')).toMatch(/Bates/);
   });
 
