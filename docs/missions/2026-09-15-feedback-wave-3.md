@@ -38,3 +38,11 @@ shared/export-formats.ts, shared/convert-inputs.ts, menu + dock stubs).
 H → I → L → J → K → M → N (orchestrator merges each lane branch into `main`,
 re-running the gates after each). Package as v0.5.0 on the Windows host,
 silent-install, verify Explorer verbs and print from the installed build.
+
+## Outcome (2026-09-15, end of session)
+
+All seven lanes merged into `main` in the order above, plus lane O (split
+view + tab names) and two orchestrator fixes found along the way (Ctrl+S on a
+never-saved document → Save As; tab switch restores the exact spot). Gates on
+merged main: 2,167 tests green. Report: `qa/reports/2026-09-15-feedback-wave-3.md`.
+Worktrees removed; the `lane/*` branches remain as history.
