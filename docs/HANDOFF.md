@@ -34,7 +34,16 @@ the report `qa/reports/2026-09-15-word-export.md`. The reference is
   `manifest.txt`; `subset/` holds symlinks to the hard ones).
 - `qa/word-export-proof.mjs` drives the BUILT app through a real export.
 
-**State at handoff:** MEASURED_STATE_LINE
+**State at handoff:** 2,288 tests green; v0.6.0 built on the host
+(`LegionPDF-0.6.0-Setup.exe`, copied to OneDrive `#Legion/Product/Armory -
+Librarius/`) and silent-installed (Apps shows Legion PDF 0.6.0). On the
+corpus: every fixture keeps its page count; every pleading line number on the
+Word-made pleading, the scan, the OCR'd scan and the transcript is on its
+line; median baseline drift under a point everywhere (under half a point on
+Word-made sources). `npm run test:word` still reports three known fixture
+defects (caption cells 2–3 pt low on `pleading-word` p1; footnote lines under
+line 28 of `filing-mixed` p2 wrap; Word's numbering of that filing's
+signature page) — see the report § 3. Real filings: report § 4–5.
 
 **Open — what the real filings still break** (measured, see the report § 5):
 MEASURED_OPEN_LIST
