@@ -98,6 +98,32 @@ describe('gridOf', () => {
     expect(gridOf([...CAPTION, horizontal(80, 688, 60)])?.rowEdges).toEqual([700, 660, 620, 580]);
   });
 
+  it('is not a table when pleading paper rules its own margin', () => {
+    // Two vertical rules six points apart beside the numbers, and rules above
+    // and below the type block: they cross, but no column of a table is six
+    // points wide, and the filing's caption must not be swallowed by one.
+    const pleading = [
+      horizontal(60, 720, 480),
+      horizontal(60, 680, 480),
+      horizontal(60, 100, 480),
+      vertical(60, 100, 620),
+      vertical(66, 100, 620),
+    ];
+    expect(gridOf(pleading)).toBeNull();
+  });
+
+  it('keeps a narrow column that is still wide enough to hold a character', () => {
+    const narrow = [
+      horizontal(72, 700, 468),
+      horizontal(72, 660, 468),
+      horizontal(72, 620, 468),
+      vertical(72, 620, 80),
+      vertical(92, 620, 80),
+      vertical(540, 620, 80),
+    ];
+    expect(gridOf(narrow)?.columnEdges).toEqual([72, 92, 540]);
+  });
+
   it('ignores a filled panel — a rule is thin', () => {
     expect(gridOf([rule(72, 580, 468, 120)])).toBeNull();
   });
