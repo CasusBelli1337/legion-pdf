@@ -46,7 +46,27 @@ line 28 of `filing-mixed` p2 wrap; Word's numbering of that filing's
 signature page) — see the report § 3. Real filings: report § 4–5.
 
 **Open — what the real filings still break** (measured, see the report § 5):
-MEASURED_OPEN_LIST
+
+- Acrobat PDFMaker briefs with a table of authorities, footnotes and block
+  quotes (01): pages 1–3 exact, then one wrapped TOA entry or footnote block
+  puts every later page a line out and adds pages. Next lever: real Word
+  footnotes for the small text under line 28, TOC/TOA entries as Word TOC
+  paragraphs with their own right indent.
+- Court orders from Aspose (03): untagged, one run per word, single-spaced
+  findings on a 21.85 pt grid; the stamp and caption are right, the body
+  still doubles its pages. Treat per-word-run producers without a structure
+  tree as recognised text is treated (one paragraph per line, full width).
+- A declaration whose exhibits are scans and pen strokes (05): the four text
+  pages are exact; each exhibit page should become one page picture through
+  the exporter's `requestRaster`, not recognised fragments.
+- The Distiller filing (06) and the scanned cross-complaint raw and OCR'd
+  (12, 13): page counts still multiply; the footer-band work at the end of
+  the session (bands placed exactly, margins widened to their reach,
+  recognised text kept out of the bands unless at the edge) was the last
+  change and the subset re-measure in the report § 4 is its first result.
+- Fixture-level: caption cells 2–3 pt low on `pleading-word` p1; footnote
+  lines under line 28 wrap on `filing-mixed` p2; the signature page of
+  `filing-mixed` numbered differently by Word's own numbering.
 
 **Gotchas learned this session** (all in `docs/references/word-export.md`
 or `docs/TROUBLESHOOTING.md`): pdftotext's glyph boxes differ between two
