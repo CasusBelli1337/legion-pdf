@@ -107,10 +107,20 @@ scan's lines broke, and flowing them would let Word re-wrap a page onto two.
 Every paragraph keeps its **own** pitch (a single-spaced block quote inside
 a double-spaced brief stays single-spaced); a lone line takes the pitch it
 followed; where two line boxes would overlap, the lone line above gives way
-(`resolveOverlaps`). A paragraph is set exactly as wide as its widest line,
-plus a hair, and never wide enough for a word that began a line in the PDF
-to fit on the line above it in Word (`wrapCeiling`) — the two conditions
-that keep Word's line breaks where the PDF's were.
+(`resolveOverlaps`). A paragraph is set as wide as its widest line plus
+about one per cent (some producers' Times is a hair narrower than Word's),
+never wide enough for a word that began a line in the PDF to fit on the line
+above it in Word (`wrapCeiling`), and always at least a point wider than its
+widest line — the conditions that keep Word's line breaks where the PDF's
+were. Left indents may go negative (a firm's slug in the margin of the
+foot); so may right ones (a caption cell past the margin).
+
+Running heads and feet are placed exactly, each line on its own pitch from
+the band's top edge, and Word's header and footer distances are set from the
+band's real edges; the body's margins are widened to the bands' reach,
+because Word never lets a footer overlap the body — it pushes the body up
+instead, and the page spills. Recognised runs with no three letters or
+digits in a row (scanner noise) never enter a band.
 
 ## What is preserved
 
