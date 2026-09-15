@@ -56,11 +56,14 @@ function styled(
   const superscript =
     run.sizePt < SUPERSCRIPT_SIZE * line.sizePt &&
     run.y - line.baseline > SUPERSCRIPT_RISE * line.sizePt;
+  // An OCR layer's size is a box height, not a type size: it takes the line's,
+  // to the half point, so a recognised line is one size in Word.
+  const sizePt = run.hidden === true ? Math.round(line.sizePt * 2) / 2 : run.sizePt;
   return {
     text: run.text,
     fontKey: run.fontKey,
     // Word sizes a superscript itself; the run keeps the line's size.
-    sizePt: superscript ? line.sizePt : run.sizePt,
+    sizePt: superscript ? line.sizePt : sizePt,
     colorHex: hexColor(run.colorHex),
     underline: isUnderlined(run, rules),
     hidden: run.hidden === true,

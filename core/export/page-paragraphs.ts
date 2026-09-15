@@ -87,6 +87,14 @@ export function isRecognized(runs: readonly LayoutTextRun[]): boolean {
   return total > 0 && hidden > 0.5 * total;
 }
 
+/** A bare number sitting in the numbered column that the classifier did not claim (an OCR misread). */
+function withoutStrayNumbers(runs: LayoutTextRun[], pleading: Pleading | null): LayoutTextRun[] {
+  if (pleading === null) return runs;
+  return runs.filter(
+    (run) => !(/^\d{1,2}$/.test(run.text.trim()) && run.x + run.width <= pleading.numberRight + 2)
+  );
+}
+
 /** Top and bottom of a paragraph's box on the page, the way Word will lay it. */
 function boxOf(paragraph: Paragraph): PageBox {
   if (paragraph.kind === 'image') {
@@ -209,7 +217,7 @@ function columnFlow(
   notes: string[],
   options: PageOptions
 ): Paragraph[] {
-  const lines = linesOf(runs, layout.rules);
+  const lines = linesOf(withoutStrayNumbers(runs, pleading), layout.rules);
   const ruled = ruledTablesOf(lines, layout.rules, frame);
   const recognized = isRecognized(runs);
   const text = paragraphsOf(
