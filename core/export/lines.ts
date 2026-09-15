@@ -18,8 +18,12 @@ const BASELINE_TOLERANCE = 0.35;
 /** A run this much smaller than the line (× size), raised this much (× size), is a superscript. */
 const SUPERSCRIPT_SIZE = 0.8;
 const SUPERSCRIPT_RISE = 0.15;
-/** A gap this wide (× size) reads as a space between words. */
-const SPACE_GAP = 0.18;
+/**
+ * A gap this wide (× size) reads as a space between words. Justified text and
+ * some producers (Aspose, court e-filing systems) set spaces at barely an
+ * eighth of an em; kerned fragments inside a word sit closer than that.
+ */
+const SPACE_GAP = 0.12;
 /** A gap this wide (× size) reads as a column boundary, not a word space. */
 const COLUMN_GAP = 2.2;
 

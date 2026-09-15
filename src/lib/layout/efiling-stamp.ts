@@ -10,12 +10,13 @@
 import type { LayoutTextRun } from '@shared/types';
 
 /** The stamp lives in this corner: the top share of the page, the right share of the width. */
-const TOP_SHARE = 0.82;
+const TOP_SHARE = 0.72;
 const RIGHT_SHARE = 0.55;
 /** At least this many distinct baselines make a stamp block. */
 const MIN_LINES = 3;
 /** The stamp's opening words, whatever the county. */
-const STAMP_TEXT = /electronically\s*filed|e-?filed|filed\s+by\s+superior|envelope|reviewed\s+by/i;
+const STAMP_TEXT =
+  /electronically\s*filed|e-?filed|^\s*filed\b|filed\s+by\s+superior|clerk\s+of\s+the\s+court|envelope|reviewed\s+by|\bby:\s*[A-Z]/i;
 
 function dominantFont(runs: readonly LayoutTextRun[]): string | null {
   const weight = new Map<string, number>();
