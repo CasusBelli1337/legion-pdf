@@ -39,7 +39,7 @@ const DEEP_INDENT = 60;
  * New Roman is a hair wider than the PDF's Times here and there; without this
  * a line that filled the block exactly wraps its last word.
  */
-const WRAP_SLACK = 4;
+const WRAP_SLACK = 6;
 
 export interface ParagraphOptions {
   frame: BodyFrame;
@@ -311,7 +311,10 @@ function indentsOf(
   // The paragraph is as wide as its widest line plus a hair for Word's metrics,
   // but never wide enough for a word that began a line in the PDF to fit on
   // the line above it in Word — that would move every break after it.
-  const slack = Math.max(WRAP_SLACK, 0.004 * (widest - paragraphLeft));
+  // Six points, or 1.2% of the width: a court's Aspose-set order comes out a
+  // hair narrower than Word's Times, and one per cent over a full line is what
+  // it takes to keep the last word from dropping.
+  const slack = Math.max(WRAP_SLACK, 0.012 * (widest - paragraphLeft));
   // At least a point past the widest line whatever the ceiling says: a line
   // held to its exact width wraps its last word (a superscript, a period) when
   // Word's metrics differ by a hair, and an orphan word is the worse failure.
