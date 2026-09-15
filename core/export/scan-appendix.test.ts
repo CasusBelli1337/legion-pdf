@@ -44,9 +44,9 @@ describe('the appendix in the built file', () => {
     // The body's own section, then one per scan.
     expect(xml.match(/<w:sectPr>/g)).toHaveLength(3);
     expect(xml.match(/<wp:inline/g)).toHaveLength(2);
-    // Zero side and bottom margins; the first sheet reserves the heading band.
-    expect(xml).toContain('<w:pgMar w:top="600" w:right="0" w:bottom="0" w:left="0"');
-    expect(xml).toContain('<w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0"');
+    // Edge to edge on every appendix sheet; the heading band comes off the
+    // first PICTURE, not the margin, so the heading cannot cost a whole page.
+    expect(xml.match(/<w:pgMar w:top="0" w:right="0" w:bottom="0" w:left="0"/g)).toHaveLength(2);
   });
 
   it('fits each picture inside its own sheet, never past it', async () => {
@@ -55,8 +55,8 @@ describe('the appendix in the built file', () => {
     const extent = /<wp:extent cx="(\d+)" cy="(\d+)"/.exec(xml);
     const emuPerPoint = (96 / 72) * 9525;
     expect(Number(extent![1])).toBeLessThanOrEqual(Math.round(612 * emuPerPoint));
-    // 792pt sheet less the 30pt heading band.
-    expect(Number(extent![2])).toBeLessThanOrEqual(Math.round(762 * emuPerPoint) + emuPerPoint);
+    // 792pt sheet less the 36pt heading band.
+    expect(Number(extent![2])).toBeLessThanOrEqual(Math.round(756 * emuPerPoint) + emuPerPoint);
   });
 
   it('keeps a legal-size scan on legal-size paper', async () => {

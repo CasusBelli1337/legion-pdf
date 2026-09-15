@@ -76,9 +76,9 @@ describe('what becomes of a scan picture', () => {
     const anchor = plan.paragraphs[0]!;
     expect(isBehindPage(anchor)).toBe(true);
     expect(anchor).toMatchObject({ widthPt: 612, heightPt: 792 });
-    // Top and bottom of the box are the same point, at the top of the text, so
-    // the gap arithmetic above and below it adds up to what it was.
-    expect(anchor.top).toBeCloseTo(700 + 0.8 * 12);
+    // Top and bottom of the box are the same point, BELOW the last line, so the
+    // anchor sorts last and displaces no paragraph at all.
+    expect(anchor.top).toBeCloseTo(700 - 0.25 * 12);
     expect(anchor.image.rect.y).toBeCloseTo(anchor.top);
   });
 

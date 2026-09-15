@@ -102,15 +102,20 @@ function inline(image: LayoutImage, frame: BodyFrame): ImageParagraph {
 }
 
 /**
- * The scan as a floating anchor. Its box is a POINT on the page — top and
- * bottom both at the top of the body text — so the gap arithmetic in
- * `settlePage` is unchanged: the space above it plus the space below it is the
- * space that was there before, and the anchor itself is an exact 1-twip line
- * (docx-image.ts). An anchor whose box had the picture's real height would
- * swallow the whole page and collapse every gap under it to nothing.
+ * The scan as a floating anchor. The picture is positioned against the PAGE, so
+ * the only thing the anchor's paragraph has to do is sit on the right sheet
+ * without moving the recognised text — which is why its box is a POINT, at the
+ * very BOTTOM of the page's text, and its line is one twip (docx-image.ts).
+ *
+ * The bottom, not the top, and measured in real Word (2026-09-15): an anchor
+ * above the first paragraph took the gap between the top margin and the first
+ * line for itself, and the first line could not climb back up — every page came
+ * out 2.2 pt low. Below the last line there is no paragraph left to displace.
+ * (An anchor box of the picture's real HEIGHT would be worse still: it would
+ * swallow the page and collapse every gap under it to nothing.)
  */
 function behindPage(image: LayoutImage, layout: PageLayout): ImageParagraph {
-  const anchor = bodyExtents(layout)?.top ?? image.rect.y + image.rect.height;
+  const anchor = bodyExtents(layout)?.bottom ?? image.rect.y;
   const size = pageSizeOf(layout);
   const paragraph: ImageParagraph = {
     kind: 'image',
