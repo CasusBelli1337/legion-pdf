@@ -1,0 +1,192 @@
+/**
+ * One page's body as a sequence of paragraphs — text and pictures in reading
+ * order, each carrying the space that separated it from the one above. The
+ * vertical arithmetic here is what keeps a page in Word the same height as the
+ * page in the PDF: every paragraph's line box is exact, Word puts the baseline
+ * 80% of the way down that box (BASELINE_SHARE), and the gaps between boxes
+ * become space-before.
+ *
+ * A two-column page is two flows, each settled from the top of the body; the
+ * second opens with a column break so Word starts it in its own column.
+ *
+ * On pleading paper the gaps become EMPTY PARAGRAPHS instead, because Word's
+ * line numbering counts paragraphs' lines, not white space: a blank numbered
+ * line has to be a line.
+ */
+
+import type { LayoutTextRun, PageLayout } from '@shared/types';
+import { planImages } from './images';
+import { linesOf } from './lines';
+import { BASELINE_SHARE } from './model';
+import type { BodyFrame, Paragraph, TextParagraph } from './model';
+import type { SectionGeometry } from './page-setup';
+import { columnRunsOf } from './page-setup';
+import { paragraphsOf } from './paragraphs';
+import { LINE_NUMBERS_NOTE, PLEADING_NOTE, pleadingOf, type Pleading } from './pleading';
+
+export interface PageBox {
+  /** Top of the first line box on the page. */
+  top: number;
+  /** Bottom of the last line box on the page. */
+  bottom: number;
+}
+
+export interface PageBuild {
+  /** One flow per column, each in reading order; `spaceBeforePt` is settled by `settlePage`. */
+  columns: Paragraph[][];
+  notes: string[];
+  pleading: Pleading | null;
+  /** Where the page's content boxes begin and end — what sets the section's margins. */
+  box: PageBox;
+}
+
+/** Top and bottom of a paragraph's box on the page, the way Word will lay it. */
+function boxOf(paragraph: Paragraph): PageBox {
+  if (paragraph.kind === 'image') {
+    return { top: paragraph.top, bottom: paragraph.image.rect.y };
+  }
+  const first = paragraph.lines[0];
+  const last = paragraph.lines.at(-1);
+  return {
+    top: (first?.baseline ?? 0) + BASELINE_SHARE * paragraph.leadingPt,
+    bottom: (last?.baseline ?? 0) - (1 - BASELINE_SHARE) * paragraph.leadingPt,
+  };
+}
+
+/** The page's content box: its paragraphs', widened to the numbered column on pleading paper. */
+function pageBox(paragraphs: readonly Paragraph[], pleading: Pleading | null): PageBox {
+  const boxes = paragraphs.map(boxOf);
+  if (pleading !== null) {
+    boxes.push({
+      top: pleading.firstBaseline + BASELINE_SHARE * pleading.pitchPt,
+      bottom: pleading.lastBaseline - (1 - BASELINE_SHARE) * pleading.pitchPt,
+    });
+  }
+  if (boxes.length === 0) return { top: 0, bottom: 0 };
+  return {
+    top: Math.max(...boxes.map((box) => box.top)),
+    bottom: Math.min(...boxes.map((box) => box.bottom)),
+  };
+}
+
+function blankLine(pitchPt: number): TextParagraph {
+  return {
+    kind: 'text',
+    lines: [],
+    alignment: 'left',
+    leadingPt: pitchPt,
+    indentLeftPt: 0,
+    indentRightPt: 0,
+    firstLinePt: 0,
+    spaceBeforePt: 0,
+    tabStopsPt: [],
+    top: 0,
+  };
+}
+
+/**
+ * On pleading paper, space above a paragraph is so many numbered blank lines;
+ * what is left over (never a whole line) stays as space, so nothing is pushed
+ * down by a line that the PDF did not have.
+ */
+function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[] {
+  const out: Paragraph[] = [];
+  for (const paragraph of paragraphs) {
+    const blanks = Math.floor(paragraph.spaceBeforePt / pitchPt + 0.05);
+    for (let count = 0; count < blanks; count += 1) out.push(blankLine(pitchPt));
+    paragraph.spaceBeforePt = Math.max(0, paragraph.spaceBeforePt - blanks * pitchPt);
+    out.push(paragraph);
+  }
+  return out;
+}
+
+function byPosition(a: Paragraph, b: Paragraph): number {
+  return b.top - a.top;
+}
+
+/** The frame each column's paragraphs are measured against. */
+function columnFrames(geometry: SectionGeometry, columns: readonly LayoutTextRun[][]): BodyFrame[] {
+  const { frame } = geometry;
+  if (geometry.columns.count !== 2 || columns.length !== 2) return [frame];
+  const [first = 0, second = 0] = geometry.columns.widths;
+  const textRight = (runs: readonly LayoutTextRun[]) =>
+    Math.max(...runs.map((run) => run.x + run.width));
+  return [
+    { left: frame.left, right: frame.left + first, textRight: textRight(columns[0] ?? []) },
+    {
+      left: geometry.columns.secondLeft,
+      right: geometry.columns.secondLeft + second,
+      textRight: textRight(columns[1] ?? []),
+    },
+  ];
+}
+
+/** One column's flow: its text paragraphs and the pictures that sit in it, by position. */
+function columnFlow(
+  layout: PageLayout,
+  runs: LayoutTextRun[],
+  frame: BodyFrame,
+  pleading: Pleading | null,
+  notes: string[]
+): Paragraph[] {
+  const text = paragraphsOf(linesOf(runs, layout.rules), {
+    frame,
+    ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }),
+  });
+  const images = layout.images.filter((image) => {
+    const centre = image.rect.x + image.rect.width / 2;
+    return centre >= frame.left - 1 && centre <= frame.right + 1;
+  });
+  const plan = planImages({ ...layout, images }, frame, {
+    hasText: runs.length > 0,
+    hasHiddenText: runs.some((run) => run.hidden === true),
+  });
+  notes.push(...plan.notes);
+  return [...text, ...plan.paragraphs].sort(byPosition);
+}
+
+/** The page's paragraphs in reading order, per column, with the box they occupy. */
+export function pageParagraphs(layout: PageLayout, geometry: SectionGeometry): PageBuild {
+  const pleading = pleadingOf(layout);
+  const columns = columnRunsOf(layout);
+  const frames = columnFrames(geometry, columns);
+  const notes: string[] = [];
+  const flows = columns.map((runs, index) =>
+    columnFlow(layout, runs, frames[index] ?? geometry.frame, pleading, notes)
+  );
+  if (pleading !== null) notes.push(PLEADING_NOTE);
+  else if (layout.runs.some((run) => run.role === 'line-number')) notes.push(LINE_NUMBERS_NOTE);
+  return { columns: flows, notes, pleading, box: pageBox(flows.flat(), pleading) };
+}
+
+function settleColumn(paragraphs: Paragraph[], topOfBody: number): void {
+  let previousBottom = topOfBody;
+  for (const paragraph of paragraphs) {
+    const box = boxOf(paragraph);
+    paragraph.spaceBeforePt = Math.max(0, previousBottom - box.top);
+    previousBottom = box.bottom;
+  }
+}
+
+/**
+ * Space-before for each paragraph from the gap above it, each column starting
+ * at the top of the body; on pleading paper, as numbered blank lines instead.
+ * Returns the page's paragraphs in one flow, column two opening with a break.
+ */
+export function settlePage(build: PageBuild, topOfBody: number): Paragraph[] {
+  return build.columns.flatMap((column, index) => {
+    settleColumn(column, topOfBody);
+    const settled =
+      build.pleading === null ? column : asNumberedBlanks(column, build.pleading.pitchPt);
+    const first = settled[0];
+    if (index > 0 && first !== undefined) first.columnBreakBefore = true;
+    return settled;
+  });
+}
+
+/** True when any paragraph on the page was set as tab-stop columns. */
+export function hasTabColumns(paragraphs: readonly Paragraph[]): boolean {
+  return paragraphs.some(
+    (paragraph) => paragraph.kind === 'text' && paragraph.tabStopsPt.length > 0
+  );
+}
