@@ -327,8 +327,12 @@ function indentsOf(
 }
 
 function describe(group: Line[], leading: number, options: ParagraphOptions): TextParagraph {
-  // Cells set with tab stops are placed by their first cell's indent, never by their outer edges.
-  const alignment = group.some(isTabular) ? 'left' : alignmentOf(group, options.frame);
+  // Cells set with tab stops, and recognised lines placed by where the scan
+  // had them, are set by their first cell's indent, never by their outer edges.
+  const alignment =
+    group.some(isTabular) || options.fullWidth === true
+      ? 'left'
+      : alignmentOf(group, options.frame);
   const indents = indentsOf(group, options.frame, alignment, options.fullWidth);
   const own = group.length >= 2 ? medianLeading(group) : (options.leadingPt ?? leading);
   return {

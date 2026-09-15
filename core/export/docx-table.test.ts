@@ -136,7 +136,9 @@ describe('docxTable', () => {
     // The page set the two lines 15 pt apart (690, 675) in 12 pt type: the
     // cell's own pitch is 15 pt, so both lines get exact 15 pt boxes (300
     // twips) that tile with no space between them.
-    expect(count(xml, /<w:spacing w:after="0" w:before="0" w:line="300" w:lineRule="exact"\/>/g)).toBe(2);
+    expect(
+      count(xml, /<w:spacing w:after="0" w:before="0" w:line="300" w:lineRule="exact"\/>/g)
+    ).toBe(2);
   });
 
   it('keeps a lone line on the pitch it followed, not the cell\u2019s median', async () => {

@@ -34,6 +34,8 @@ const INNER_RULE_REACH = 30;
 const RIGHT_RULE_SHARE = 0.72;
 /** Body runs left of the numbers that make the numbers a list inside the body, not a margin. */
 const MAX_STRAYS = 3;
+/** More than this share of the numbers off the fitted grid says they follow the text. */
+const OFF_GRID_SHARE = 0.2;
 /** A number this far (× pitch) off the fitted grid says the numbers follow the text, not a grid. */
 const GRID_TOLERANCE = 0.25;
 
@@ -179,11 +181,14 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
   if (!(fitted.pitchPt > 0)) return null;
   const count = Math.max(...column.map((entry) => entry.value));
   const sample = column[0] as Numbered;
-  const offGrid = column.some(
+  // A few numbers off the fitted line are an OCR's misreads ("12" read as "2");
+  // more than a fifth of them means the numbers follow the text, not a grid.
+  const off = column.filter(
     (entry) =>
       Math.abs(fitted.firstBaseline - (entry.value - 1) * fitted.pitchPt - entry.y) >
       GRID_TOLERANCE * fitted.pitchPt
-  );
+  ).length;
+  const offGrid = off > OFF_GRID_SHARE * column.length;
   // Numbers that follow the text have no grid to fit: their pitch is the usual
   // gap between neighbours and "line 1" is simply the topmost number.
   const { pitchPt, firstBaseline } = offGrid ? followedGrid(column) : fitted;
