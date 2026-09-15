@@ -212,7 +212,9 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
     if (cell === undefined || gap > COLUMN_GAP * size || ruled) {
       cells.push({ x: run.x, runs: [styled(run, rules, line)] });
     } else {
-      appendRun(cell, styled(run, rules, line), gap > SPACE_GAP * size);
+      // An OCR layer's runs are whole words by construction: any gap is a space.
+      const spaced = gap > SPACE_GAP * size || (run.hidden === true && gap > 0.3);
+      appendRun(cell, styled(run, rules, line), spaced);
     }
     cursor = Math.max(cursor, run.x + run.width);
   }
