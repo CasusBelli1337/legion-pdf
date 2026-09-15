@@ -166,7 +166,9 @@ function cellParagraphs(build: Build, row: number, column: number): DocxParagrap
   const breaks = build.pageBreakBefore && row === 0 && column === 0;
   if (cell.lines.length === 0) return [new DocxParagraph({ pageBreakBefore: breaks })];
   const frame = cellFrame(build, cell, column);
-  const paragraphs = cell.lines.flatMap((line) => paragraphsOf([line], { frame }));
+  // A cell's line may run to the cell's edge: held to its own width plus a hair,
+  // a line that reached the rule wraps its last word in Word and drops the cell.
+  const paragraphs = cell.lines.flatMap((line) => paragraphsOf([line], { frame, fullWidth: true }));
   const ruled = build.table.borders.horizontal[row]?.[column] === true;
   settle(paragraphs, edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0));
   return paragraphs.map((paragraph, index) =>
