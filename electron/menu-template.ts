@@ -19,14 +19,22 @@ function item(label: string, accelerator: string, action: MenuAction, send: Send
   return { label, accelerator, click: () => send(action) } satisfies MenuItemConstructorOptions;
 }
 
+/** A menu entry with no shortcut of its own. */
+function plain(label: string, action: MenuAction, send: SendAction) {
+  return { label, click: () => send(action) } satisfies MenuItemConstructorOptions;
+}
+
 function fileMenu(send: SendAction): MenuItemConstructorOptions {
   return {
     label: '&File',
     submenu: [
       item('Open...', 'CmdOrCtrl+O', 'open', send),
+      plain('Create PDF from File...', 'createPdf', send),
+      plain('Combine Files...', 'combineFiles', send),
       { type: 'separator' },
       item('Save', 'CmdOrCtrl+S', 'save', send),
       item('Save As...', 'CmdOrCtrl+Shift+S', 'saveAs', send),
+      item('Export As...', 'CmdOrCtrl+Shift+E', 'exportAs', send),
       { type: 'separator' },
       item('Print...', 'CmdOrCtrl+P', 'print', send),
       { type: 'separator' },

@@ -20,6 +20,8 @@ import type {
 import type { LibrariusBridge, Unsubscribe } from '@shared/bridge';
 import type {
   AiChunk,
+  LayoutRequest,
+  LayoutResponse,
   MenuAction,
   OpenFilesEvent,
   ProgressEvent,
@@ -141,6 +143,22 @@ const bridge: LibrariusBridge = {
     onRequest: (callback: (request: RasterRequest) => void) =>
       subscribe(IPC.raster.request, callback),
     respond: (response: RasterResponse) => ipcRenderer.send(IPC.raster.response, response),
+  },
+  convert: {
+    support: () => invoke(IPC.convert.support),
+  },
+  export: {
+    run: (docId, options) => invoke(IPC.export.run, docId, options),
+    cancel: (docId) => invoke(IPC.export.cancel, docId),
+  },
+  edit: {
+    inspect: (docId, probe) => invoke(IPC.edit.inspect, docId, probe),
+    replaceText: (docId, options) => invoke(IPC.edit.replaceText, docId, options),
+  },
+  layout: {
+    onRequest: (callback: (request: LayoutRequest) => void) =>
+      subscribe(IPC.layout.request, callback),
+    respond: (response: LayoutResponse) => ipcRenderer.send(IPC.layout.response, response),
   },
   onProgress: (channel: ProgressChannel, callback: (event: ProgressEvent) => void) =>
     subscribe(channel, callback),

@@ -4,14 +4,26 @@
  */
 
 import type { MenuAction } from '@shared/types';
-import { openDialog, printActive, saveActive, saveActiveAs, showVersion } from './document-actions';
+import {
+  combineFiles,
+  createPdfFromFiles,
+  exportActive,
+  openDialog,
+  printActive,
+  saveActive,
+  saveActiveAs,
+  showVersion,
+} from './document-actions';
 import { redoActive, undoActive } from './undo-actions';
 import { useAppStore } from './store';
 
 export const MENU_ACTIONS: Record<MenuAction, () => void> = {
   open: () => void openDialog(),
+  createPdf: () => void createPdfFromFiles(),
+  combineFiles: () => combineFiles(),
   save: () => void saveActive(),
   saveAs: () => void saveActiveAs(),
+  exportAs: () => exportActive(),
   print: () => void printActive(),
   undo: () => void undoActive(),
   redo: () => void redoActive(),

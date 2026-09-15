@@ -11,6 +11,8 @@
 import type { IpcInvokeContract } from './ipc-contract';
 import type {
   AiChunk,
+  LayoutRequest,
+  LayoutResponse,
   MenuAction,
   OpenFilesEvent,
   ProgressEvent,
@@ -114,6 +116,23 @@ export const IPC = {
     setMail: 'esign:setMail',
     clearMail: 'esign:clearMail',
   },
+  convert: {
+    support: 'convert:support',
+    progress: 'convert:progress',
+  },
+  export: {
+    run: 'export:run',
+    cancel: 'export:cancel',
+    progress: 'export:progress',
+  },
+  edit: {
+    inspect: 'edit:inspect',
+    replaceText: 'edit:replaceText',
+  },
+  layout: {
+    request: 'layout:request',
+    response: 'layout:response',
+  },
 } as const;
 
 export type InvokeChannel = keyof IpcInvokeContract;
@@ -126,16 +145,21 @@ export interface IpcMainToRendererContract {
   'stamp:progress': ProgressEvent;
   'ocr:progress': ProgressEvent;
   'redact:progress': ProgressEvent;
+  'convert:progress': ProgressEvent;
+  'export:progress': ProgressEvent;
   'ai:chunk': AiChunk;
   'app:menu': MenuAction;
   /** Paths the OS handed the app (double-click, drop on icon, command line). */
   'app:openFiles': OpenFilesEvent;
   'raster:request': RasterRequest;
+  /** Main asks the renderer (the zone holding pdfjs) for a page's layout. */
+  'layout:request': LayoutRequest;
 }
 
 /** Renderer → main fire-and-forget sends. */
 export interface IpcRendererToMainContract {
   'raster:response': RasterResponse;
+  'layout:response': LayoutResponse;
 }
 
 export type PushChannel = keyof IpcMainToRendererContract;
@@ -143,7 +167,12 @@ export type SendChannel = keyof IpcRendererToMainContract;
 
 /** Channels that stream `ProgressEvent`s — what the UI subscribes to for "Page 37/214". */
 export type ProgressChannel =
-  'ops:progress' | 'stamp:progress' | 'ocr:progress' | 'redact:progress';
+  | 'ops:progress'
+  | 'stamp:progress'
+  | 'ocr:progress'
+  | 'redact:progress'
+  | 'convert:progress'
+  | 'export:progress';
 
 /** Every channel the preload is allowed to relay. Anything else is rejected. */
 export const PUSH_CHANNELS: readonly PushChannel[] = [
@@ -151,10 +180,13 @@ export const PUSH_CHANNELS: readonly PushChannel[] = [
   'stamp:progress',
   'ocr:progress',
   'redact:progress',
+  'convert:progress',
+  'export:progress',
   'ai:chunk',
   'app:menu',
   'app:openFiles',
   'raster:request',
+  'layout:request',
 ];
 
 type ChannelGroup = keyof typeof IPC;
@@ -176,7 +208,11 @@ export type EveryContractEntryHasAChannel = Assert<
   IsNever<Exclude<InvokeChannel, DeclaredInvokeChannel>>
 >;
 
-const NON_INVOKE_CHANNELS: readonly string[] = [...PUSH_CHANNELS, 'raster:response'];
+const NON_INVOKE_CHANNELS: readonly string[] = [
+  ...PUSH_CHANNELS,
+  'raster:response',
+  'layout:response',
+];
 
 /** The invokable channels of one group — what a lane's handler module registers. */
 export function invokeChannelsOf(group: ChannelGroup): InvokeChannel[] {

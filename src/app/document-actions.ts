@@ -67,6 +67,26 @@ function activeId(): string | null {
   return useAppStore.getState().activeId;
 }
 
+/**
+ * File > Create PDF from File... — the Open dialog, which accepts every file
+ * type Legion PDF can turn into a PDF. The conversion happens inside
+ * `file:open` (convert lane), so a chosen .docx arrives as an unsaved PDF tab.
+ */
+export async function createPdfFromFiles(): Promise<void> {
+  await openDialog();
+}
+
+/** File > Combine Files... opens the Combine Files tool in the dock. */
+export function combineFiles(): void {
+  useAppStore.getState().setActiveTool('combine');
+}
+
+/** File > Export As... opens the Export tool for the document in front. */
+export function exportActive(): void {
+  if (activeId() === null) return;
+  useAppStore.getState().setActiveTool('export');
+}
+
 export async function saveActive(): Promise<void> {
   const docId = activeId();
   if (docId === null) return;
