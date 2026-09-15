@@ -11,7 +11,7 @@ import type { ProgressChannel } from '@shared/ipc';
 import { PRODUCT_NAME } from '@shared/product';
 import type { MenuAction, ProgressEvent, RasterRequest } from '@shared/types';
 import { DocStore } from './services/doc-store';
-import { OpenFilesRelay, pdfPathsFromArgv } from './services/open-files';
+import { OpenFilesRelay, launchIntentFromArgv } from './services/open-files';
 import { MainRasterBridge } from './services/raster-bridge';
 import { registerIpcHandlers } from './ipc';
 import { installAppMenu } from './menu';
@@ -116,7 +116,7 @@ function bootstrap(): void {
   // Before the window exists: the guard attaches to `browser-window-created`.
   installUnsavedGuard(store, getWindow);
   mainWindow = createWindow();
-  openFiles.offer(pdfPathsFromArgv(process.argv, process.cwd()));
+  openFiles.offer(launchIntentFromArgv(process.argv, process.cwd()));
 }
 
 /** A second launch belongs to the window that is already open. */
@@ -141,7 +141,7 @@ function start(): void {
   }
 
   app.on('second-instance', (_event, argv: string[], workingDirectory: string) => {
-    openFiles.offer(pdfPathsFromArgv(argv, workingDirectory));
+    openFiles.offer(launchIntentFromArgv(argv, workingDirectory));
     focusMainWindow();
   });
 
