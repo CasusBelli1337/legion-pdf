@@ -312,7 +312,10 @@ function indentsOf(
   // but never wide enough for a word that began a line in the PDF to fit on
   // the line above it in Word — that would move every break after it.
   const slack = Math.max(WRAP_SLACK, 0.004 * (widest - paragraphLeft));
-  const blockRight = Math.max(widest, Math.min(widest + slack, wrapCeiling(lines) - 0.5));
+  // At least a point past the widest line whatever the ceiling says: a line
+  // held to its exact width wraps its last word (a superscript, a period) when
+  // Word's metrics differ by a hair, and an orphan word is the worse failure.
+  const blockRight = Math.max(widest + 1, Math.min(widest + slack, wrapCeiling(lines) - 0.5));
   // Negative when the line reaches past the margin (a running head at the paper's
   // edge, a caption cell): Word lets a paragraph hang into the margin, and the
   // alternative is a word per line.
