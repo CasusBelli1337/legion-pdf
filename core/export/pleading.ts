@@ -120,6 +120,16 @@ function gridOf(column: readonly Numbered[]): { pitchPt: number; firstBaseline: 
   return { pitchPt, firstBaseline: meanY + pitchPt * (meanValue - 1) };
 }
 
+/** The usual gap between neighbouring numbers, and the topmost number's baseline. */
+function followedGrid(column: readonly Numbered[]): { pitchPt: number; firstBaseline: number } {
+  const sorted = [...column].sort((a, b) => a.value - b.value);
+  const gaps = sorted
+    .slice(1)
+    .map((entry, index) => (sorted[index]?.y ?? 0) - entry.y)
+    .filter((gap) => gap > 0);
+  return { pitchPt: median(gaps), firstBaseline: Math.max(...column.map((entry) => entry.y)) };
+}
+
 function rulesOf(layout: PageLayout, numberRight: number): PleadingRules {
   const vertical = layout.rules
     .filter(
@@ -165,14 +175,18 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
     (run) => run.role === 'body' && run.text.trim().length > 0 && run.x < numberRight - 2
   );
   if (strays.length >= MAX_STRAYS) return null;
-  const { pitchPt, firstBaseline } = gridOf(column);
-  if (!(pitchPt > 0)) return null;
+  const fitted = gridOf(column);
+  if (!(fitted.pitchPt > 0)) return null;
   const count = Math.max(...column.map((entry) => entry.value));
   const sample = column[0] as Numbered;
   const offGrid = column.some(
     (entry) =>
-      Math.abs(firstBaseline - (entry.value - 1) * pitchPt - entry.y) > GRID_TOLERANCE * pitchPt
+      Math.abs(fitted.firstBaseline - (entry.value - 1) * fitted.pitchPt - entry.y) >
+      GRID_TOLERANCE * fitted.pitchPt
   );
+  // Numbers that follow the text have no grid to fit: their pitch is the usual
+  // gap between neighbours and "line 1" is simply the topmost number.
+  const { pitchPt, firstBaseline } = offGrid ? followedGrid(column) : fitted;
   return {
     grid: !offGrid,
     pitchPt,

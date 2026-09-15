@@ -99,7 +99,10 @@ indent, a line that stopped short followed by one at the same edge or well
 to the right, a deep shift of the left edge, a change between centred and
 flush. A monospaced page with line numbers is a **transcript**: every line
 stays its own paragraph, as court reporters' software writes them and as
-page:line cites need them.
+page:line cites need them. **Recognised text** (an OCR layer under a scan)
+is treated the same way and runs to the margin: its words are set in a face
+the scan never used, so their natural widths say nothing about where the
+scan's lines broke, and flowing them would let Word re-wrap a page onto two.
 
 Every paragraph keeps its **own** pitch (a single-spaced block quote inside
 a double-spaced brief stays single-spaced); a lone line takes the pitch it
