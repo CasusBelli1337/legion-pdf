@@ -65,9 +65,11 @@ Two facts about Word, both measured in real Word (2026-09-15) and encoded:
   tall — a spacer, never counted by line numbering — and so does a table,
   which cannot carry space above it at all.
 
-`pleading.ts` reads the grid off the printed numbers: the pitch and line 1 by
-a least-squares fit through every number (a producer that rounds baselines
-to a twip leaves every gap a hair off), the count from the largest number,
+`pleading.ts` reads the grid off the printed numbers: the pitch and line 1
+from medians first (an OCR's "11" read as "1" cannot drag line 1 ten lines
+down) and then a least-squares fit through the numbers that agree (a producer
+that rounds baselines to a twip leaves every gap a hair off), the count from
+the largest number,
 the numbers' own face and size, the rules from the page's thin vertical
 rectangles (double when two sit within 4 pt). A section's pages share one
 grid (`pleadingOfSection`), so a scanned page whose OCR dropped number 28
