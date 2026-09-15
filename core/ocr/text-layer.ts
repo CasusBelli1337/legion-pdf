@@ -106,7 +106,11 @@ function wordOperators(
 function placedBox(word: OcrWord): PixelBox {
   if (word.baselinePx === undefined) return word.box;
   const sizePx = word.sizePx ?? word.box.y1 - word.box.y0;
-  return { x0: word.box.x0, x1: word.box.x1, y0: word.baselinePx - sizePx, y1: word.baselinePx };
+  // A bare number has no descenders: its box bottom IS its baseline, and it is
+  // often a pleading line number Tesseract folded into the text line beside
+  // it, whose baseline sits elsewhere.
+  const baselinePx = /^\d+$/.test(word.text) ? word.box.y1 : word.baselinePx;
+  return { x0: word.box.x0, x1: word.box.x1, y0: baselinePx - sizePx, y1: baselinePx };
 }
 
 /** Every operator for one page, already in display space. */

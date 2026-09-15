@@ -183,3 +183,28 @@ pages" section.
 
 T → S → (P is on main throughout); the E2E suite runs on merged main against
 the whole corpus before the version bump.
+
+## Outcome (2026-09-15, end of session)
+
+All three lanes merged into `main` (T, then S, then the orchestrator's own
+lane P was already there), lane T's three upstream requests folded in, and the
+fidelity suite run on the merged result against the corpus and against twelve
+real served filings copied from Arthur's OneDrive (kept outside the repo).
+Version bumped to 0.6.0. Report: `qa/reports/2026-09-15-word-export.md`.
+
+What shipped, in one line each:
+
+- **Pleading paper rebuilt the way the templates draw it** — header table of
+  numbers on the fitted grid, rules as borders, fixed top margin; Word's own
+  numbering kept only where the source used it (`lane P`).
+- **Tagged PDFs decide their own paragraphs**; deliberate line breaks, centred
+  blocks, superscripts, dot leaders, hyphenated compounds all survive (`P`).
+- **Ruled tables are Word tables**, including the L-shaped caption box (`T`).
+- **Scans are recognised before export**, with a picture choice, a confidence
+  note per page, the plan shown before the button, and a kept / left-out
+  receipt (`S`); the OCR layer itself now sits on Tesseract's line baselines.
+- **A Word-rendered fidelity suite** (`npm run test:word`) and a corpus from
+  real producers (`npm run corpus:word`), plus a grader for private filings.
+
+Still open after this session — see the report's "What the real filings still
+break" section for the measured list.

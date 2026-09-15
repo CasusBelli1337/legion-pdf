@@ -45,10 +45,13 @@ type Fonts = Readonly<Record<string, LayoutFont>>;
 
 const UNNAMED_FONT: LayoutFont = { name: '', family: 'serif', bold: false, italic: false };
 
+/** What a scan's recognised text is set in: the OCR layer's own face is a placeholder. */
+const RECOGNIZED_FONT = 'Times New Roman';
+
 function runOptions(run: StyledRun, fonts: Fonts): IRunOptions {
   const style = runStyleFor(fonts[run.fontKey] ?? UNNAMED_FONT);
   return {
-    font: style.wordFont,
+    font: run.hidden ? RECOGNIZED_FONT : style.wordFont,
     size: halfPoints(run.sizePt),
     bold: style.bold,
     italics: style.italic,
