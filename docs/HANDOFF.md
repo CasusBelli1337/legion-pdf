@@ -1,4 +1,57 @@
-# Handoff — Legion PDF text-editing stretch goal (updated 2026-08-11)
+# Handoff — Legion PDF (updated 2026-09-15, v0.5.0)
+
+## v0.5 update (2026-09-15) — feedback wave 3; read this first
+
+Arthur's third feedback batch (10 items) shipped in one session as seven
+parallel lanes plus the orchestrator's own lane — see
+`docs/missions/2026-09-15-feedback-wave-3.md` (lane table, contracts, merge
+order) and the report `qa/reports/2026-09-15-feedback-wave-3.md` (what each
+request became, how it was proven, screenshots under
+`qa/output/2026-09-15-wave-3/`). Highlights:
+
+- **Print doubling fixed** (each page spilled onto a blank second sheet):
+  pdf.js's one-sheet-per-page layout + `@page size` from the document;
+  `qa/print-proof.mjs` proves sheet counts with Chromium's own engine.
+- **Page rail**: multi-select, right-click delete/extract/rotate, drag reorder.
+- **Convert to PDF** on open: Word/Excel/PowerPoint through Office COM,
+  images (multi-page TIFF), text/HTML through built-ins; converted files are
+  unsaved tabs. `docs/references/convert-to-pdf.md`.
+- **Explorer verbs** "Combine in Legion PDF" / "Convert to PDF with Legion
+  PDF" (`build/installer.nsh`, per-user registry) + Combine Files panel;
+  launches funnel into one batch. TROUBLESHOOTING § Explorer verbs.
+- **Export panel**: PNG/JPEG/multi-page TIFF (own encoder)/TXT/DOCX.
+  `docs/references/export.md`, `docs/references/word-export.md`.
+- **Edit existing text** — the stretch goal — `docs/references/text-editing.md`.
+  Proven on a Word-written PDF (`qa/fixtures/word-letter.pdf`, made by
+  `qa/make-word-letter.mjs` + the docx-render skill) and in the real app
+  (`qa/text-edit-proof.mjs`).
+- **Side by side** view (Ctrl+\); tab-name findings: duplicate-open and
+  tail-truncation fixed, derived names (`X extracted.pdf`, `Combined.pdf`,
+  `X (redacted).pdf`) are by design; Ctrl+S on a never-saved doc → Save As.
+
+State: 2,059+ tests green; v0.5.0 packaged on the Windows host and installed
+(see the report's Packaging section for the exact commit). Worktrees for the
+lanes live at `../legion-librarius-wt/<lane>` on branches `lane/<lane>`, all
+merged; safe to `git worktree remove` them.
+
+Open / next: Explorer's 15-file verb limit (documented); `doc:changed` push
+so a main-side rename reaches the renderer (quit-guard edge case); recent
+list path line still tail-truncates; the fold-in of lane I's extended QA
+driver commands (`modclick`, `rightclick`, `dragdrop`) into
+`.claude/skills/run-legion-pdf/driver.mjs`; `describeError`/`plainError`
+consolidation across panels; Word export fidelity items listed in
+`docs/references/word-export.md`.
+
+Gotchas learned: `npm run lint` breaks if an older pdfjs asset layout is left
+in `src/public/` (eslint now ignores `src/public/**`); `pkill -f` patterns
+must be bracketed (`legion-pdf-driver-rai[l]`) or they kill the caller's
+shell; pdf-lib's `PDFContentStream`s cannot be re-read in place — save and
+reload before verifying an edit; Node's `TextDecoder('windows-1252')` returns
+C1 controls for 0x80–0x9F, so WinAnsi is spelled out in `core/edit/encodings.ts`.
+
+---
+
+# (previous) Handoff — Legion PDF text-editing stretch goal (updated 2026-08-11)
 
 ## v0.4 update (2026-08-22) — e-signature shipped; read this first
 
