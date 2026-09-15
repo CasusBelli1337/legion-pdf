@@ -65,8 +65,15 @@ function pieces(text: string): (string | typeof PageNumber.CURRENT)[] {
     .filter((part) => part !== '');
 }
 
-function textRun(run: StyledRun, fonts: Fonts): TextRun {
-  return new TextRun({ ...runOptions(run, fonts), children: pieces(run.text) });
+/** One TextRun per hard line break, so a "\n" in the text becomes a Word line break. */
+function textRun(run: StyledRun, fonts: Fonts): TextRun[] {
+  const options = runOptions(run, fonts);
+  return run.text
+    .split('\n')
+    .map(
+      (part, index) =>
+        new TextRun({ ...options, ...(index > 0 ? { break: 1 } : {}), children: pieces(part) })
+    );
 }
 
 /** Adds a run to the flow, merging it into the last one when the style is the same. */
@@ -95,15 +102,37 @@ export function healsHyphen(previous: string, next: string): boolean {
   return !HYPHENATED_PREFIXES.test(word);
 }
 
-/** "signa-" + "ture" → "signature"; otherwise lines meet at a space. */
+/** A run's first word, in points, from its share of the line. */
+function firstWordWidth(line: Line): number {
+  const cell = line.cells[0];
+  const run = cell?.runs[0];
+  if (cell === undefined || run === undefined || run.text.length === 0) return 0;
+  const chars = cell.runs.reduce((sum, entry) => sum + entry.text.length, 0);
+  const word = run.text.trimStart().split(/\s/)[0] ?? '';
+  return chars === 0 ? 0 : ((line.right - line.x) * word.length) / chars;
+}
+
+/**
+ * A line that stopped short of the paragraph's edge by more than the next
+ * line's first word was broken on purpose — an address block typed with
+ * Shift+Enter — and Word must break there too, not flow the lines together.
+ */
+export function breaksHard(line: Line, next: Line, widest: number): boolean {
+  return line.right + 0.25 * line.sizePt + firstWordWidth(next) < widest;
+}
+
+/** "signa-" + "ture" → "signature"; a deliberate break stays a break; otherwise lines meet at a space. */
 export function joinLines(lines: readonly Line[]): StyledRun[] {
   const joined: StyledRun[] = [];
+  const widest = Math.max(...lines.map((line) => line.right));
   lines.forEach((line, index) => {
     const runs = line.cells.flatMap((cell) => cell.runs);
     const previous = joined.at(-1);
     const next = runs[0];
-    if (previous !== undefined && next !== undefined && index > 0) {
+    const above = lines[index - 1];
+    if (previous !== undefined && next !== undefined && above !== undefined) {
       if (healsHyphen(previous.text, next.text)) previous.text = previous.text.slice(0, -1);
+      else if (breaksHard(above, line, widest)) previous.text += '\n';
       else if (!previous.text.endsWith(' ')) previous.text += ' ';
     }
     for (const run of runs) flow(joined, run);
@@ -114,7 +143,7 @@ export function joinLines(lines: readonly Line[]): StyledRun[] {
 /** A tabular line: cells separated by tabs, each cell's runs kept. */
 function tabbedChildren(line: Line, fonts: Fonts): TextRun[] {
   return line.cells.flatMap((cell, index) => {
-    const runs = cell.runs.map((run) => textRun(run, fonts));
+    const runs = cell.runs.flatMap((run) => textRun(run, fonts));
     if (index === 0) return runs;
     const first = cell.runs[0];
     const tab = new TextRun({ ...(first ? runOptions(first, fonts) : {}), children: [new Tab()] });
@@ -126,7 +155,7 @@ function childrenOf(paragraph: TextParagraph, fonts: Fonts): TextRun[] {
   if (paragraph.tabStopsPt.length > 0) {
     return paragraph.lines.flatMap((line) => tabbedChildren(line, fonts));
   }
-  return joinLines(paragraph.lines).map((run) => textRun(run, fonts));
+  return joinLines(paragraph.lines).flatMap((run) => textRun(run, fonts));
 }
 
 function indentOf(paragraph: TextParagraph): IParagraphOptions['indent'] | undefined {
@@ -172,6 +201,8 @@ export function docxTextParagraph(
     })),
     pageBreakBefore: placement.pageBreakBefore,
     ...(placement.border === undefined ? {} : { border: placement.border }),
+    // Word's line numbering counts every paragraph line; a spacer is not one.
+    ...(paragraph.spacer === true ? { suppressLineNumbers: true } : {}),
     children: withColumnBreak(paragraph, childrenOf(paragraph, fonts)),
   });
 }

@@ -17,6 +17,7 @@ import type {
 import { alignTextStyles } from './colour-align';
 import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
+import { stampRunIndexes } from './efiling-stamp';
 import { blockOfEachText, blocksOf } from './struct-tags';
 import type { BlockRef, MarkedItemLike, StructNodeLike } from './struct-tags';
 
@@ -198,6 +199,11 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     const style = styles[index] ?? { colorHex: '#000000', hidden: false };
     runs.push(runOf(item, index, input, style, blocks[index]));
   });
+  const size = { width: x1 - x0, height: y1 - y0 };
+  for (const index of stampRunIndexes(runs, size)) {
+    const run = runs[index];
+    if (run !== undefined) run.role = 'stamp';
+  }
   const images: LayoutImage[] = [];
   for (const op of walk.images) {
     const image = await imageOf(page, op, input);
@@ -205,7 +211,7 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
   }
   return {
     page: input.page,
-    size: { width: x1 - x0, height: y1 - y0 },
+    size,
     rotation: page.rotate,
     fonts: await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles),
     runs,

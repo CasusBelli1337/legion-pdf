@@ -90,7 +90,13 @@ describe('pleadingOf — rules, grid, and what is not a column', () => {
       run(String(index + 1), 120, 700 - index * 24, { role: 'line-number', width: 6 })
     );
     expect(
-      pleadingOf(page([...list, run('Item text', 140, 700), run('Full line', 90, 730)]))
+      pleadingOf(
+        page([
+          ...list,
+          run('Item text', 140, 700),
+          ...[730, 250, 226].map((y) => run('A full line of body text left of the list', 90, y)),
+        ])
+      )
     ).toBeNull();
   });
 });

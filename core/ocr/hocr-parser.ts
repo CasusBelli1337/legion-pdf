@@ -13,9 +13,14 @@ import { HocrParseError } from './types';
 
 const PAGE_ELEMENT = /<div[^>]*\bclass=['"]ocr_page['"][^>]*>/i;
 const WORD_ELEMENT = /<span[^>]*\bclass=['"]ocrx_word['"][^>]*>/gi;
+/** The line-level elements Tesseract nests words in; all carry a baseline in their title. */
+const LINE_ELEMENT = /<span[^>]*\bclass=['"]ocr_(?:line|textfloat|header|caption)['"][^>]*>/gi;
 const TITLE_ATTRIBUTE = /\btitle=(?:'([^']*)'|"([^"]*)")/i;
 const BBOX = /\bbbox\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/;
 const CONFIDENCE = /\bx_wconf\s+(-?[\d.]+)/;
+/** "baseline 0.002 -5": slope, then the offset of the baseline from the line box's bottom. */
+const BASELINE = /\bbaseline\s+(-?[\d.]+)\s+(-?[\d.]+)/;
+const X_SIZE = /\bx_size\s+(-?[\d.]+)/;
 
 const ENTITIES: Record<string, string> = {
   amp: '&',
@@ -86,10 +91,63 @@ export function wordTextOf(inner: string): string {
     .trim();
 }
 
+/** A line's baseline as Tesseract fitted it, and the type size it measured. */
+interface LineMetrics {
+  /** Where the line element starts in the html — words after it belong to it. */
+  at: number;
+  box: PixelBox;
+  /** Slope and the baseline's offset from the line box's bottom (negative = above); null when Tesseract gave none. */
+  baseline: { slope: number; intercept: number } | null;
+  sizePx: number | null;
+}
+
+/** Every line element on the page, in document order, with its baseline. */
+function lineMetricsOf(hocr: string): LineMetrics[] {
+  const lines: LineMetrics[] = [];
+  LINE_ELEMENT.lastIndex = 0;
+  let match = LINE_ELEMENT.exec(hocr);
+  while (match !== null) {
+    const title = titleOf(match[0]);
+    const baseline = BASELINE.exec(title);
+    const size = X_SIZE.exec(title);
+    if (BBOX.test(title)) {
+      lines.push({
+        at: match.index,
+        box: boxOf(title, 'A line'),
+        baseline:
+          baseline === null ? null : { slope: Number(baseline[1]), intercept: Number(baseline[2]) },
+        sizePx: size === null ? null : Number(size[1]),
+      });
+    }
+    match = LINE_ELEMENT.exec(hocr);
+  }
+  return lines;
+}
+
+/** The baseline under a word's centre and the line's size, from the line the word sits in. */
+function baselineOf(
+  lines: readonly LineMetrics[],
+  wordAt: number,
+  box: PixelBox
+): Pick<OcrWord, 'baselinePx' | 'sizePx'> {
+  let line: LineMetrics | undefined;
+  for (const candidate of lines) {
+    if (candidate.at > wordAt) break;
+    line = candidate;
+  }
+  if (line === undefined || line.baseline === null) return {};
+  const centre = (box.x0 + box.x1) / 2;
+  const { slope, intercept } = line.baseline;
+  const baselinePx = line.box.y1 + intercept + slope * (centre - line.box.x0);
+  const sizePx = line.sizePx ?? line.box.y1 - line.box.y0;
+  return sizePx > 0 ? { baselinePx, sizePx } : { baselinePx };
+}
+
 function wordAt(
   html: string,
   openTag: string,
-  contentStart: number
+  contentStart: number,
+  lines: readonly LineMetrics[]
 ): { word: OcrWord | null; end: number } {
   const { inner, end } = innerHtmlOf(html, contentStart);
   const text = wordTextOf(inner);
@@ -102,7 +160,13 @@ function wordAt(
     );
   }
   const confidence = CONFIDENCE.exec(title);
-  return { word: { text, box, confidence: confidence === null ? 0 : Number(confidence[1]) }, end };
+  const word: OcrWord = {
+    text,
+    box,
+    confidence: confidence === null ? 0 : Number(confidence[1]),
+    ...baselineOf(lines, contentStart, box),
+  };
+  return { word, end };
 }
 
 function pageSizeOf(hocr: string): { widthPx: number; heightPx: number } {
@@ -123,10 +187,11 @@ export function parseHocr(hocr: string): HocrPage {
     throw new HocrParseError(`The hOCR page bbox is empty (${widthPx} x ${heightPx} px).`);
   }
   const words: OcrWord[] = [];
+  const lines = lineMetricsOf(hocr);
   WORD_ELEMENT.lastIndex = 0;
   let match = WORD_ELEMENT.exec(hocr);
   while (match !== null) {
-    const { word, end } = wordAt(hocr, match[0], match.index + match[0].length);
+    const { word, end } = wordAt(hocr, match[0], match.index + match[0].length, lines);
     if (word !== null) words.push(word);
     WORD_ELEMENT.lastIndex = end;
     match = WORD_ELEMENT.exec(hocr);

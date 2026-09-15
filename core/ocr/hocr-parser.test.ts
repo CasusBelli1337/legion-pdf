@@ -59,7 +59,7 @@ describe('parseHocr', () => {
       'CALIFORNIA',
       'ASHFORD000123',
     ]);
-    expect(page.words[0]).toEqual({
+    expect(page.words[0]).toMatchObject({
       text: 'SUPERIOR',
       box: { x0: 306, y0: 328, x1: 702, y1: 384 },
       confidence: 96,
@@ -158,5 +158,28 @@ describe('characterCount', () => {
         'CALIFORNIA'.length +
         'ASHFORD000123'.length
     );
+  });
+});
+
+describe('parseHocr — line baselines', () => {
+  it('puts each word on its line’s fitted baseline at the line’s type size', () => {
+    const hocr = `<div class='ocr_page' title='bbox 0 0 2550 3300'>
+      <span class='ocr_line' title='bbox 400 600 1400 660; baseline 0.01 -12; x_size 42; x_descenders 9; x_ascenders 11'>
+        <span class='ocrx_word' title='bbox 400 610 520 650; x_wconf 95'>dog</span>
+        <span class='ocrx_word' title='bbox 1300 610 1400 640; x_wconf 92'>dot</span>
+      </span>
+      <span class='ocr_line' title='bbox 400 700 900 740'>
+        <span class='ocrx_word' title='bbox 400 705 500 738; x_wconf 90'>plain</span>
+      </span>
+    </div>`;
+    const page = parseHocr(hocr);
+    const [dog, dot, plain] = page.words;
+    // Baseline = line bottom (660) − 12, plus the slope × distance from the line's left edge.
+    expect(dog?.baselinePx).toBeCloseTo(660 - 12 + 0.01 * 60, 3);
+    expect(dot?.baselinePx).toBeCloseTo(660 - 12 + 0.01 * 950, 3);
+    expect(dog?.sizePx).toBe(42);
+    expect(dot?.sizePx).toBe(42);
+    // A line without a baseline in its title leaves the word on its own box.
+    expect(plain?.baselinePx).toBeUndefined();
   });
 });

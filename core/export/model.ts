@@ -77,6 +77,8 @@ export interface TextParagraph {
   top: number;
   /** First paragraph of a page's second column. */
   columnBreakBefore?: boolean;
+  /** An empty line standing in for space Word would drop; never a numbered line. */
+  spacer?: boolean;
 }
 
 export interface ImageParagraph {

@@ -22,6 +22,14 @@ export interface OcrWord {
   box: PixelBox;
   /** Tesseract's `x_wconf`, 0–100. */
   confidence: number;
+  /**
+   * The line's baseline under this word and its x-height-based type size, in
+   * raster pixels (top-left origin), from the hOCR `ocr_line` title. A word
+   * box alone says nothing about where the baseline is — "dog" and "dot" have
+   * different bottoms — and text placed on box bottoms jitters by a descender.
+   */
+  baselinePx?: number;
+  sizePx?: number;
 }
 
 /** One `ocr_page` element of an hOCR document. */
