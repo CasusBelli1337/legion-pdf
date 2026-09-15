@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, it } from 'vitest';
-import { pleadingOf } from '@core/export';
+import { buildDocx, documentXmlOf, pleadingOf } from '@core/export';
 import { layoutsOf } from '@renderer/lib/layout/node-pipeline.testkit';
 import { readPdf, recognizeScannedPages } from './ocr';
 
@@ -31,6 +31,18 @@ describe.skipIf(target === undefined)('layout dump', () => {
         1
       )
     );
+    if (process.env.WORD_DUMP_TEXT === '1') {
+      const build = await buildDocx(layouts, { title: name });
+      const xml = await documentXmlOf(build.bytes);
+      const paragraphs = xml.match(/<w:p\b[^>]*>.*?<\/w:p>/gs) ?? [];
+      const lines = paragraphs.map((paragraph) =>
+        (paragraph.match(/<w:t[^>]*>[^<]*<\/w:t>|<w:br\/>|<w:tab\/>/g) ?? [])
+          .map((piece) => (piece === '<w:br/>' ? '⏎' : piece === '<w:tab/>' ? '⇥' : piece.replace(/<[^>]*>/g, '')))
+          .join('')
+      );
+      await writeFile(path.join(OUTPUT, `${name}.text.txt`), lines.join('\n'));
+      process.stdout.write(`wrote ${lines.length} paragraphs of text\n`);
+    }
     for (const layout of layouts) {
       const roles = new Map<string, number>();
       for (const run of layout.runs) roles.set(run.role, (roles.get(run.role) ?? 0) + 1);
