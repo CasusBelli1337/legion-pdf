@@ -32,7 +32,7 @@ import type { ParagraphPlacement } from './docx-paragraph';
 import { docxTextParagraph } from './docx-paragraph';
 import { BASELINE_SHARE, twips } from './model';
 import type { BodyFrame, TableBorders, TableCell, TableParagraph, TextParagraph } from './model';
-import { paragraphsOf } from './paragraphs';
+import { medianLeading, paragraphsOf } from './paragraphs';
 
 type Fonts = Readonly<Record<string, LayoutFont>>;
 
@@ -168,7 +168,17 @@ function cellParagraphs(build: Build, row: number, column: number): DocxParagrap
   const frame = cellFrame(build, cell, column);
   // A cell's line may run to the cell's edge: held to its own width plus a hair,
   // a line that reached the rule wraps its last word in Word and drops the cell.
-  const paragraphs = cell.lines.flatMap((line) => paragraphsOf([line], { frame, fullWidth: true }));
+  // Each line is its own paragraph on the cell's own pitch (the gap between its
+  // lines): a lone line handed 1.2 × its size sits a couple of points low, and
+  // every line after it in the cell a little lower still.
+  const leadingPt = cell.lines.length > 1 ? medianLeading(cell.lines) : undefined;
+  const paragraphs = cell.lines.flatMap((line) =>
+    paragraphsOf([line], {
+      frame,
+      fullWidth: true,
+      ...(leadingPt === undefined ? {} : { leadingPt }),
+    })
+  );
   const ruled = build.table.borders.horizontal[row]?.[column] === true;
   settle(paragraphs, edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0));
   return paragraphs.map((paragraph, index) =>
