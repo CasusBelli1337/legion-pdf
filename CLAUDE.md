@@ -29,6 +29,10 @@ PDF text (whiteout-and-retype ships instead).
 
 - `npm run dev` — electron-vite dev mode (hot reload)
 - `npm test` — Vitest
+- `npm run test:word` — the Word-export fidelity suite: exports each corpus
+  fixture, renders it in REAL Word on the Windows host, and measures it against
+  the source (skips itself cleanly without Word); `npm run corpus:word` rebuilds
+  the corpus (see `docs/references/word-export.md`)
 - `npm run typecheck` — tsc --noEmit (node + web tsconfigs)
 - `npm run lint` — ESLint + Prettier check
 - `npm run build:icon` — rasterise `resources/brand/fav.svg` → `build/icon.png`
