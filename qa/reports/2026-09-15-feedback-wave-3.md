@@ -15,7 +15,7 @@ independent tools (poppler, Pillow, pdf-lib page counts) on saved bytes.
 | 4 | Convert Word docs, images, etc. into PDFs | DONE. `.docx/.doc/.rtf` through your installed Word, `.xlsx` Excel, `.pptx` PowerPoint; PNG/JPEG/TIFF (multi-page)/BMP/GIF/WebP; `.txt`/`.html`. Converted files open as UNSAVED tabs — originals never overwritten. | `convert/` — `converted-docx`, `converted-xlsx`, `converted-tiff` |
 | 5 | Select PDFs + Word docs in Explorer → right-click → combine (Acrobat-style) | DONE. "Combine in Legion PDF" + "Convert to PDF with Legion PDF" verbs (per-user registry, installed by the setup); launches gathered into one batch; Combine Files panel with drag reorder. Integration: PDF + `.docx` → 3-page document. | `combine/` — `combine-01…03`, `combine-04-second-instance-batch`; `integration/02-combined.png` |
 | 6 | Export to Word, PNG, TIFF, etc. | DONE. Export panel + File › Export As (Ctrl+Shift+E): PNG, JPEG, multi-page TIFF (own encoder; Pillow read back 8 frames), plain text, and Word (see 7). | `export/` — `00-export-panel`, `11-progress`, `13-receipt`, `21-tiff-receipt` |
-| 7 | Export to .docx preserving styles / formatting | See the Word export section below. | `word/` |
+| 7 | Export to .docx preserving styles / formatting | DONE. A real, flowing Word document: same fonts, sizes, bold/italic, colour, margins, exact line spacing, page breaks; running head and page number as a Word header/footer; pictures in place; pleading paper becomes Word's own 1–28 line numbering. Checked page by page in real Word. | `word/` — pleading-fixture, condensed-transcript, exhibit-part-a, picture-letter compare PNGs |
 | 8 | Edit the text directly in the PDF | DONE — the deferred stretch goal. Click a paragraph, retype, Ctrl+Enter; re-wraps in the document's OWN embedded font. Verified on a PDF Word itself wrote. | `text-edit/` — `02-paragraph-open`, `03-retyped-with-plan-note`, `04-applied`; `before-1` / `after-1` |
 | 9 | Tabs: side-by-side view | DONE. Toolbar "Side by side" / Ctrl+\: reference pane with its own page + zoom, Swap, Scroll together, drag a tab onto it. Tearing a tab into a separate Windows window is not possible in Electron. | `split/` — `02-split-open`, `03-right-pane-scrolled-zoomed`, `04-swapped` |
 | 10 | "Sometimes the name in the tab isn't the actual name" | TWO DEFECTS FIXED + one by-design behaviour explained (below). | `split/13-same-file-opened-again.png`, `10-long-names.png`, `16-extract-derived-name.png` |
@@ -24,7 +24,7 @@ independent tools (poppler, Pillow, pdf-lib page counts) on saved bytes.
 ## Gates
 
 `npm run typecheck && npm run lint && npm test` green on merged main:
-2,059 tests passing (was 1,735 at the start of the session). Installer:
+2,167 tests passing (was 1,735 at the start of the session). Installer:
 `LegionPDF-0.5.0-Setup.exe` (see Packaging below).
 
 ## 1. Printing — root cause in plain English
@@ -80,6 +80,29 @@ Limits (plain English): one font per paragraph (a bold word inside a paragraph
 is re-set in the paragraph's face — the note says so); scanned pages and text
 drawn through reusable graphics are refused with a pointer to Cover and retype;
 a paragraph that grows longer may overlap what follows (the note warns).
+
+## 7. Export to Word — what is kept, what is not
+
+The exporter reads each page's layout through the viewer's own pdf.js (text
+runs with fonts, sizes, colour, images, rules, and the selection engine's
+roles: body / header / footer / line number / page number), rebuilds
+paragraphs the way a typesetter reads them, and writes a `.docx` with the
+`docx` library — then re-opens the zip and verifies the text before returning.
+
+Fidelity, rendered in REAL Word (docx-render skill) and compared with
+`pdftoppm` of the source (`word/*.png`):
+
+| Fixture | Result |
+| --- | --- |
+| pleading-fixture (8 pp) | 8/8 pages; Times 11 pt; running head as a Word header; page number as a PAGE field; line numbers 1–28 produced by Word's numbering on the 24 pt pitch; Q/A each their own paragraph; "signa-/ture" healed; baselines within 0.05 pt |
+| condensed-transcript (4-up landscape) | 4/4 pages; two Word columns; mini-pages 41/42 then 43/44 in order, no interleaving |
+| exhibit-part-a | 2/2; Arial 18 pt at the same spot |
+| picture letter | 1/1; bold centred heading, justified paragraph, photo at exact position and size |
+
+Not carried over, and said so in the export's notes: Bates stamps and
+condensed-sheet mini line numbers are dropped; ruled tables become
+tab-separated lines; Word numbers pages from 1 even when the PDF's cover
+sheets were unnumbered. Details: `docs/references/word-export.md`.
 
 ## 10. Tab names — findings
 
