@@ -18,8 +18,8 @@ independent tools (poppler, Pillow, pdf-lib page counts) on saved bytes.
 | 7 | Export to .docx preserving styles / formatting | See the Word export section below. | `word/` |
 | 8 | Edit the text directly in the PDF | DONE — the deferred stretch goal. Click a paragraph, retype, Ctrl+Enter; re-wraps in the document's OWN embedded font. Verified on a PDF Word itself wrote. | `text-edit/` — `02-paragraph-open`, `03-retyped-with-plan-note`, `04-applied`; `before-1` / `after-1` |
 | 9 | Tabs: side-by-side view | DONE. Toolbar "Side by side" / Ctrl+\: reference pane with its own page + zoom, Swap, Scroll together, drag a tab onto it. Tearing a tab into a separate Windows window is not possible in Electron. | `split/` — `02-split-open`, `03-right-pane-scrolled-zoomed`, `04-swapped` |
-| 11 | "When I switch between tabs, it is not saving where I was looking" | FIXED. The viewer remembered only the page number and snapped to its top, and a zoom refit on the way back scrolled from a stale page. It now remembers the exact spot (page + position within it) and lands it after the zoom settles: tab A 4950→4950 px, tab B 2500→2500 px (were 4374 and 1458). | `qa/tab-switch-proof.mjs` |
 | 10 | "Sometimes the name in the tab isn't the actual name" | TWO DEFECTS FIXED + one by-design behaviour explained (below). | `split/13-same-file-opened-again.png`, `10-long-names.png`, `16-extract-derived-name.png` |
+| 11 | "When I switch between tabs, it is not saving where I was looking" | FIXED. The viewer remembered only the page number and snapped to its top, and a zoom refit on the way back scrolled from a stale page. It now remembers the exact spot (page + position within it) and lands it after the zoom settles: tab A 4950→4950 px, tab B 2500→2500 px (were 4374 and 1458). | `qa/tab-switch-proof.mjs` |
 
 ## Gates
 
