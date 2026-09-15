@@ -38,6 +38,7 @@ import {
   type Placement,
   type PlacementMode,
 } from './use-placement';
+import { usePanelRequest } from './panel-request';
 import type { StampRunner } from './use-stamp-runner';
 
 /**
@@ -141,6 +142,17 @@ function useOpenOnClick(
   }, [point, clear]);
 }
 
+/** The toolbar button and the Edit menu arm a tool from outside the panel. */
+function useToolRequests(setTool: (tool: TextTool) => void, cancel: () => void): void {
+  const seq = usePanelRequest((state) => state.seq);
+  useEffect(() => {
+    const requested = usePanelRequest.getState().take();
+    if (requested === null) return;
+    cancel();
+    setTool(requested);
+  }, [cancel, seq, setTool]);
+}
+
 export function useTextEditing(session: DocumentSession, runner: StampRunner): TextEditing {
   const [tool, setTool] = useState<TextTool>('off');
   const [seed, setSeed] = useState<TextDraft>(DEFAULT_DRAFT);
@@ -175,6 +187,9 @@ export function useTextEditing(session: DocumentSession, runner: StampRunner): T
 
   useAutoCover(tool === 'cover' ? drawn : null, ops.cover);
   useOpenOnClick(tool === 'edit' ? placement.point : null, blockEditing.open, clear);
+  useToolRequests(setTool, cancel);
+  const noteArmed = usePanelRequest((state) => state.noteArmed);
+  useEffect(() => noteArmed(tool), [noteArmed, tool]);
 
   const busyEditing = editing !== null || blockEditing.block !== null;
   return {

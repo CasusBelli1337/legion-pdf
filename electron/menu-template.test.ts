@@ -32,6 +32,7 @@ describe('the keyboard shortcuts the hidden menu registers', () => {
     ['CmdOrCtrl+P', 'print'],
     ['CmdOrCtrl+Z', 'undo'],
     ['CmdOrCtrl+Y', 'redo'],
+    ['CmdOrCtrl+E', 'editText'],
     ['CmdOrCtrl+Plus', 'zoomIn'],
     ['CmdOrCtrl+-', 'zoomOut'],
     ['CmdOrCtrl+0', 'zoomReset'],

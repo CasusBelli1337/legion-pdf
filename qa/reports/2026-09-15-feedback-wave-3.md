@@ -21,6 +21,14 @@ independent tools (poppler, Pillow, pdf-lib page counts) on saved bytes.
 | 10 | "Sometimes the name in the tab isn't the actual name" | TWO DEFECTS FIXED + one by-design behaviour explained (below). | `split/13-same-file-opened-again.png`, `10-long-names.png`, `16-extract-derived-name.png` |
 | 11 | "When I switch between tabs, it is not saving where I was looking" | FIXED. The viewer remembered only the page number and snapped to its top, and a zoom refit on the way back scrolled from a stale page. It now remembers the exact spot (page + position within it) and lands it after the zoom settles: tab A 4950→4950 px, tab B 2500→2500 px (were 4374 and 1458). | `qa/tab-switch-proof.mjs` |
 
+## v0.5.1 (same day): Edit text where you can see it
+
+Arthur: "add an edit text somewhere obvious instead of buried three menus
+deep." A toolbar button beside Undo/Redo and Edit › Edit Text on Page (Ctrl+E)
+open Stamps & Marks on its Text tab with the Edit tool armed; pressing again
+puts it away (`text-edit/toolbar-edit-text-armed.png`). Tab switching now
+returns to the exact reading spot (row 11 above).
+
 ## Gates
 
 `npm run typecheck && npm run lint && npm test` green on merged main:

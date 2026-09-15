@@ -13,6 +13,7 @@ import { useActiveSession } from '@renderer/app/store';
 import { SignatureSection } from '@renderer/features/signature';
 import { ExhibitSection } from './exhibit-section';
 import { PageNumberSection } from './page-number-section';
+import { usePanelRequest } from './panel-request';
 import { EmptyPanel, Problem, Receipt, Working } from './stamp-views';
 import { TextSection } from './text-section';
 import { useStampRunner, type StampRunner } from './use-stamp-runner';
@@ -61,7 +62,14 @@ function TabBar({ active, onSelect }: { active: string; onSelect(id: string): vo
 
 function StampsBody({ session }: { session: DocumentSession }) {
   const runner = useStampRunner(session.id);
-  const [activeId, setActiveId] = useState(TABS[0]?.id ?? 'exhibit');
+  // A request from the toolbar or the Edit menu lands on the Text tab (the tab
+  // must be showing before the Text section can take the request itself); a
+  // tab the attorney picks afterwards wins until the next request. Derived
+  // during render from the request number, so no effect has to set state.
+  const requestSeq = usePanelRequest((state) => state.seq);
+  const [chosen, setChosen] = useState({ seq: 0, id: TABS[0]?.id ?? 'exhibit' });
+  const activeId = chosen.seq < requestSeq ? 'text' : chosen.id;
+  const setActiveId = (id: string): void => setChosen({ seq: requestSeq, id });
   const active = TABS.find((tab) => tab.id === activeId) ?? TABS[0];
   const Section = active?.section ?? ExhibitSection;
 

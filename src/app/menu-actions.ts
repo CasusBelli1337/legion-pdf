@@ -15,6 +15,7 @@ import {
   showVersion,
 } from './document-actions';
 import { redoActive, undoActive } from './undo-actions';
+import { requestTextTool } from '@renderer/features/stamps/panel-request';
 import { useAppStore } from './store';
 
 export const MENU_ACTIONS: Record<MenuAction, () => void> = {
@@ -27,6 +28,7 @@ export const MENU_ACTIONS: Record<MenuAction, () => void> = {
   print: () => void printActive(),
   undo: () => void undoActive(),
   redo: () => void redoActive(),
+  editText: () => requestTextTool('edit'),
   zoomIn: () => useAppStore.getState().nudgeZoom(1),
   zoomOut: () => useAppStore.getState().nudgeZoom(-1),
   zoomReset: () => useAppStore.getState().setZoom(1),

@@ -211,6 +211,7 @@ export type MenuAction =
   | 'print'
   | 'undo'
   | 'redo'
+  | 'editText'
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomReset'

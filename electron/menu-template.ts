@@ -57,6 +57,8 @@ function editMenu(send: SendAction): MenuItemConstructorOptions {
       item('Undo', 'CmdOrCtrl+Z', 'undo', send),
       item('Redo', 'CmdOrCtrl+Y', 'redo', send),
       { type: 'separator' },
+      item('Edit Text on Page', 'CmdOrCtrl+E', 'editText', send),
+      { type: 'separator' },
       { role: 'cut' },
       { role: 'copy' },
       { role: 'paste' },

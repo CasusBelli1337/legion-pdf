@@ -4,6 +4,7 @@
  */
 
 export { BusyIndicator } from './busy-indicator';
+export { EditTextButton } from './edit-text-button';
 export { FileActions } from './file-actions';
 export { IdleToolbar } from './idle-toolbar';
 export { ThemeToggle } from './theme-toggle';

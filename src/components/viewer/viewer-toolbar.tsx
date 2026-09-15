@@ -20,13 +20,14 @@ import {
 } from 'lucide-react';
 import {
   BusyIndicator,
+  EditTextButton,
   FileActions,
-  ThemeToggle,
   TOOLBAR_BUTTON,
   TOOLBAR_DIVIDER,
   TOOLBAR_PRESET,
   TOOLBAR_ROW,
   TOOLBAR_TRAILING,
+  ThemeToggle,
 } from '../../app/shell/toolbar';
 import { useAppStore } from '../../app/store';
 import { redoActive, undoActive } from '../../app/undo-actions';
@@ -247,6 +248,8 @@ export function ViewerToolbar(props: ViewerToolbarProps) {
       <FileActions />
       <span className={TOOLBAR_DIVIDER} />
       <HistoryGroup />
+      <span className={TOOLBAR_DIVIDER} />
+      <EditTextButton />
       <span className={TOOLBAR_DIVIDER} />
       <PageJump
         currentPage={props.currentPage}
