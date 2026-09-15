@@ -40,6 +40,8 @@ export interface LayoutTextRun {
   role: LayoutTextRole;
   /** True when pdfjs marked the end of a line after this run. */
   eol: boolean;
+  /** Text render mode 3 — invisible, i.e. an OCR layer over a scan. */
+  hidden?: boolean;
 }
 
 export interface LayoutImage {

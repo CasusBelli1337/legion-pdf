@@ -11,6 +11,7 @@
 import { useEffect } from 'react';
 import { DocumentRail } from '../components/thumbnails';
 import { ViewerApiProvider } from '../components/viewer';
+import { registerLayoutResponder } from '../lib/layout';
 import { registerRasterResponder } from '../lib/rasterize';
 import { closeDocument, openDialog, openPaths } from './document-actions';
 import { runMenuAction } from './menu-actions';
@@ -22,6 +23,7 @@ import { ViewerSlot } from './shell/viewer-slot';
 
 function useShellWiring(): void {
   useEffect(() => registerRasterResponder(getSessionBytes), []);
+  useEffect(() => registerLayoutResponder(getSessionBytes), []);
   useEffect(() => window.librarius.app.onMenuAction(runMenuAction), []);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
