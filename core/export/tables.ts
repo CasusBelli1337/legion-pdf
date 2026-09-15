@@ -16,9 +16,11 @@
  */
 
 import type { LayoutRule } from '@shared/types';
+import { BASELINE_SHARE } from './model';
 import type { BodyFrame, Line, TableCell, TableParagraph } from './model';
-import type { Grid } from './table-grid';
-import { gridsOf } from './table-grid';
+import { medianLeading } from './paragraphs';
+import type { Edge, Grid } from './table-grid';
+import { edgesIn, gridsOf, outerSpan, reaches } from './table-grid';
 
 export interface RuledTables {
   tables: TableParagraph[];
@@ -36,12 +38,19 @@ const EDGE_SLACK = 2;
 const FRAME_SLACK = 18;
 /** An average Latin character is about half an em wide. */
 const HALF_EM = 0.5;
+/**
+ * lines.ts only starts a new cell where the gap ran wider than a couple of
+ * ems (its COLUMN_GAP), so a cell's text certainly ends at least that far
+ * before the next cell begins. Kept a shade under COLUMN_GAP so it stays a
+ * bound whatever that is tuned to.
+ */
+const GAP_EMS = 2;
 
 /**
  * Where a cell's text ends. Exact for the line's last cell (the line knows its
- * own right edge); before that it is estimated from the characters and capped
- * at the next cell's start, which is enough to tell text that crosses a
- * vertical rule from text that stops short of one.
+ * own right edge); before that it is the narrower of what the characters
+ * measure and where the column gap proves the text had stopped — enough to
+ * tell text that crosses a vertical rule from text that stops short of one.
  */
 function cellRight(line: Line, index: number): number {
   const cell = line.cells[index];
@@ -49,7 +58,8 @@ function cellRight(line: Line, index: number): number {
   const next = line.cells[index + 1];
   if (next === undefined) return line.right;
   const width = cell.runs.reduce((sum, run) => sum + run.text.length * run.sizePt * HALF_EM, 0);
-  return Math.min(cell.x + width, next.x);
+  const gap = GAP_EMS * (next.runs[0]?.sizePt ?? line.sizePt);
+  return Math.max(cell.x, Math.min(cell.x + width, next.x - gap));
 }
 
 type Placement = number | 'outside' | 'straddles';
@@ -158,6 +168,75 @@ function fill(grid: Grid, lines: readonly Line[], frame: BodyFrame): Filled | nu
   return { table: tableOf(grid, cells, frame), consumed };
 }
 
+/**
+ * The commonest California caption box is not a box at all: one vertical rule
+ * between the parties and the case number, and one rule under the LEFT cell
+ * only — an L. There is no closed grid to find, so the text is the evidence:
+ * a rule with a column of lines running down BOTH sides of it, for its whole
+ * height, closed at the foot. Fewer lines than this and it is a stray mark.
+ */
+const MIN_CAPTION_LINES = 6;
+/** How near the foot rule has to come to the end of the upright one. */
+const MEETS = 3;
+/** Air between the caption's text and the edges its rules never drew. */
+const CAPTION_AIR = 2;
+/** No cell of a caption is narrower than an em. */
+const MIN_CAPTION_CELL = 12;
+
+function sideCount(lines: readonly Line[], test: (x: number) => boolean): number {
+  return lines.filter((line) => line.cells.some((cell) => test(cell.x))).length;
+}
+
+/** The top of the text, the way settlePage measures a paragraph's box. */
+function textTop(lines: readonly Line[]): number {
+  const leading = medianLeading(lines);
+  return Math.max(...lines.map((line) => line.baseline + BASELINE_SHARE * leading));
+}
+
+function captionAt(rule: Edge, feet: readonly Edge[], lines: readonly Line[], frame: BodyFrame) {
+  const span = outerSpan(rule);
+  const foot = feet.find((edge) => {
+    const reach = outerSpan(edge);
+    return (
+      Math.abs(edge.at - span.from) <= MEETS && reach.from <= rule.at && reach.to >= rule.at - MEETS
+    );
+  });
+  if (foot === undefined) return null;
+  const inside = lines.filter((line) => line.baseline > foot.at && line.baseline <= span.to);
+  if (sideCount(inside, (x) => x < rule.at) < MIN_CAPTION_LINES) return null;
+  if (sideCount(inside, (x) => x > rule.at) < MIN_CAPTION_LINES) return null;
+  const left = Math.min(frame.left, Math.min(...inside.map((line) => line.x)) - CAPTION_AIR);
+  const right = Math.max(...inside.map((line) => line.right)) + CAPTION_AIR;
+  if (rule.at - left < MIN_CAPTION_CELL || right - rule.at < MIN_CAPTION_CELL) return null;
+  return {
+    columnEdges: [left, rule.at, right],
+    rowEdges: [Math.max(span.to, textTop(inside)), foot.at],
+    borders: {
+      // Only the upright rule and the foot under the left cell were drawn,
+      // unless the foot runs on under the right cell too.
+      horizontal: [
+        [false, false],
+        [true, reaches(foot, rule.at, right)],
+      ],
+      vertical: [[false, true, false]],
+    },
+  };
+}
+
+/** The caption box drawn as an L, or null when these rules are not one. */
+function captionGridOf(
+  rules: readonly LayoutRule[],
+  lines: readonly Line[],
+  frame: BodyFrame
+): Grid | null {
+  const { horizontal, vertical } = edgesIn(rules);
+  for (const rule of vertical) {
+    const grid = captionAt(rule, horizontal, lines, frame);
+    if (grid !== null) return grid;
+  }
+  return null;
+}
+
 /** A grid belongs to the column of the page it sits in, and to no other. */
 function insideFrame(grid: Grid, frame: BodyFrame): boolean {
   return (
@@ -179,7 +258,7 @@ export function ruledTablesOf(
 ): RuledTables {
   const tables: TableParagraph[] = [];
   const consumed = new Set<Line>();
-  for (const grid of gridsOf(rules)) {
+  for (const grid of gridsOf(rules, (drawing) => captionGridOf(drawing, lines, frame))) {
     if (!insideFrame(grid, frame)) continue;
     const filled = fill(grid, lines, frame);
     if (filled === null) continue;

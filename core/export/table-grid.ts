@@ -37,7 +37,7 @@ const MIN_EDGES = 3;
  */
 const MIN_COLUMN = 12;
 
-interface Span {
+export interface Span {
   from: number;
   to: number;
 }
@@ -49,7 +49,7 @@ interface Mark {
 }
 
 /** A line of the grid: where it sits, and the stretches of it actually drawn. */
-interface Edge {
+export interface Edge {
   at: number;
   spans: Span[];
 }
@@ -112,7 +112,7 @@ function covered(edge: Edge, from: number, to: number): number {
   );
 }
 
-function reaches(edge: Edge, from: number, to: number): boolean {
+export function reaches(edge: Edge, from: number, to: number): boolean {
   return to > from && covered(edge, from, to) >= COVERAGE * (to - from);
 }
 
@@ -128,7 +128,7 @@ function widestEdge(edges: readonly Edge[]): Edge | undefined {
   return [...edges].sort((a, b) => length(b) - length(a))[0];
 }
 
-function outerSpan(edge: Edge): Span {
+export function outerSpan(edge: Edge): Span {
   return { from: edge.spans[0]?.from ?? 0, to: edge.spans.at(-1)?.to ?? 0 };
 }
 
@@ -178,11 +178,15 @@ function bordersOf(
   };
 }
 
+/** The rules of one drawing, clustered into the edges they sit on. */
+export function edgesIn(rules: readonly LayoutRule[]): { horizontal: Edge[]; vertical: Edge[] } {
+  const marks = marksOf(rules);
+  return { horizontal: edgesOf(marks.horizontal), vertical: edgesOf(marks.vertical) };
+}
+
 /** One touching set of rules as a grid, or null when they do not make a table. */
 export function gridOf(rules: readonly LayoutRule[]): Grid | null {
-  const marks = marksOf(rules);
-  const horizontals = edgesOf(marks.horizontal);
-  const verticals = edgesOf(marks.vertical);
+  const { horizontal: horizontals, vertical: verticals } = edgesIn(rules);
   const seed = widestEdge(horizontals);
   if (seed === undefined) return null;
   const { from: left, to: right } = outerSpan(seed);
@@ -238,10 +242,18 @@ export function componentsOf(rules: readonly LayoutRule[]): LayoutRule[][] {
   return groups;
 }
 
-/** Every ruled grid on the page, top of the page first. */
-export function gridsOf(rules: readonly LayoutRule[]): Grid[] {
+/**
+ * Every ruled grid on the page, top of the page first. `also` is asked about
+ * any drawing the closed-grid reader turned down — that is where the caption
+ * box drawn as an L (one vertical rule, one rule under the left cell) is
+ * recognised, since telling one from a stray pair of rules takes the text.
+ */
+export function gridsOf(
+  rules: readonly LayoutRule[],
+  also: (drawing: readonly LayoutRule[]) => Grid | null = () => null
+): Grid[] {
   return componentsOf(rules)
-    .map(gridOf)
+    .map((drawing) => gridOf(drawing) ?? also(drawing))
     .filter((grid): grid is Grid => grid !== null)
     .sort((a, b) => (b.rowEdges[0] ?? 0) - (a.rowEdges[0] ?? 0));
 }
