@@ -300,7 +300,7 @@ function indentsOf(
   const first = lines[0];
   if (first === undefined || alignment === 'center') return { left: 0, right: 0, first: 0 };
   if (fullWidth) {
-    const left = Math.max(0, Math.min(...lines.map((line) => line.x)) - frame.left);
+    const left = Math.min(...lines.map((line) => line.x)) - frame.left;
     const widest = Math.max(...lines.map((line) => line.right));
     return { left, right: Math.min(0, frame.right - widest - 1), first: 0 };
   }
@@ -319,8 +319,11 @@ function indentsOf(
   // Negative when the line reaches past the margin (a running head at the paper's
   // edge, a caption cell): Word lets a paragraph hang into the margin, and the
   // alternative is a word per line.
+  // A left indent may be negative too: a firm's slug in the left margin of the
+  // foot sits outside the frame, and held to the margin its narrow column
+  // would have no width at all and wrap letter by letter.
   return {
-    left: alignment === 'right' ? 0 : Math.max(0, paragraphLeft - frame.left),
+    left: alignment === 'right' ? 0 : paragraphLeft - frame.left,
     right: frame.right - blockRight,
     first: Math.abs(firstLine) < 2 ? 0 : firstLine,
   };
