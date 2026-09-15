@@ -1,11 +1,12 @@
 /**
- * Center stage: the drop target and the empty state around the viewer itself.
+ * Center stage: the drop target and the empty state around the viewer itself,
+ * and the choice between one viewer and the side-by-side pair.
  */
 
 import { useCallback, useState } from 'react';
 import type { DragEvent } from 'react';
-import { PdfViewer } from '../../components/viewer';
-import { useActiveSession } from '../store';
+import { hasTabDrag, PdfViewer, SplitView } from '../../components/viewer';
+import { useActiveSession, useAppStore } from '../store';
 import { EmptyState } from './empty-state';
 import { IdleToolbar } from './toolbar';
 
@@ -21,6 +22,7 @@ function pdfPathsFrom(event: DragEvent<HTMLElement>): string[] {
 
 export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
   const session = useActiveSession();
+  const isSplitOpen = useAppStore((state) => state.isSplitOpen);
   const [isDragging, setIsDragging] = useState(false);
 
   const onDrop = useCallback(
@@ -39,6 +41,9 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
         isDragging ? 'ring-2 ring-brand-700 ring-inset' : ''
       }`}
       onDragOver={(event) => {
+        // A tab being dragged to the reference pane is not a file to open, so
+        // it must not light the whole workspace up as a drop target.
+        if (hasTabDrag(event.dataTransfer)) return;
         event.preventDefault();
         setIsDragging(true);
       }}
@@ -52,6 +57,8 @@ export function ViewerSlot({ onOpenPaths }: ViewerSlotProps) {
             <EmptyState />
           </div>
         </>
+      ) : isSplitOpen ? (
+        <SplitView session={session} />
       ) : (
         <PdfViewer key={session.id} session={session} />
       )}

@@ -35,6 +35,7 @@ describe('the keyboard shortcuts the hidden menu registers', () => {
     ['CmdOrCtrl+Plus', 'zoomIn'],
     ['CmdOrCtrl+-', 'zoomOut'],
     ['CmdOrCtrl+0', 'zoomReset'],
+    ['CmdOrCtrl+\\', 'splitView'],
   ];
 
   it.each(expected)('%s sends "%s"', (accelerator, action) => {

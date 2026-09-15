@@ -94,7 +94,9 @@ export interface PageRoles {
   request(page: number): void;
 }
 
-const NO_ROLES: PageRoles = { rolesFor: () => null, request: () => undefined };
+/** No classifier: every span is plain selectable text. The reference pane
+ *  uses this directly — it is for reading, not for smart copy. */
+export const NO_ROLES: PageRoles = { rolesFor: () => null, request: () => undefined };
 
 /**
  * One classifier per open document, with each page classified the first time it
