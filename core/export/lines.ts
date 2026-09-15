@@ -26,6 +26,8 @@ const SUPERSCRIPT_RISE = 0.15;
 const SPACE_GAP = 0.12;
 /** A gap this wide (× size) reads as a column boundary, not a word space. */
 const COLUMN_GAP = 2.2;
+/** A run of dots (a table of contents' leader) between an entry and its page number. */
+const DOT_LEADER = /^[.\s·…]{5,}$/;
 
 interface Draft {
   baseline: number;
@@ -201,33 +203,77 @@ function ruledBetween(
   );
 }
 
+interface Cursor {
+  /** Right edge of everything placed so far. */
+  right: number;
+  /** A dot leader was just passed: the next run opens a right-tabbed cell. */
+  leader: boolean;
+}
+
+/** Whether `run` opens a new cell: a wide gap, a rule between, or a leader just crossed. */
+function opensCell(
+  run: LayoutTextRun,
+  cursor: Cursor,
+  rules: readonly LayoutRule[],
+  baseline: number
+): boolean {
+  const gap = run.x - cursor.right;
+  return (
+    cursor.leader ||
+    gap > COLUMN_GAP * Math.max(run.sizePt, 1) ||
+    ruledBetween(rules, cursor.right, run.x, baseline)
+  );
+}
+
+/** Adds one run to the cells: opening a cell, or joining the last one with a space where the gap says so. */
+function placeRun(
+  cells: Cell[],
+  run: LayoutTextRun,
+  styledRun: StyledRun,
+  cursor: Cursor,
+  opens: boolean
+): void {
+  const cell = cells.at(-1);
+  if (cell === undefined || opens) {
+    cells.push({
+      x: run.x,
+      right: run.x + run.width,
+      runs: [styledRun],
+      ...(cursor.leader ? { leader: 'dot' } : {}),
+    });
+    return;
+  }
+  const gap = run.x - cursor.right;
+  // An OCR layer's runs are whole words by construction: any gap is a space.
+  const spaced = gap > SPACE_GAP * Math.max(run.sizePt, 1) || (run.hidden === true && gap > 0.3);
+  appendRun(cell, styledRun, spaced);
+  cell.right = Math.max(cell.right, run.x + run.width);
+}
+
 /** One line's runs, left to right, joined into cells with spaces where the gaps say so. */
 function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
   const ordered = [...draft.runs].sort((a, b) => a.x - b.x);
   const sizePt = dominantSize(ordered);
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];
-  let cursor = Number.NEGATIVE_INFINITY;
+  const cursor: Cursor = { right: Number.NEGATIVE_INFINITY, leader: false };
   for (const run of ordered) {
-    const gap = run.x - cursor;
-    const size = Math.max(run.sizePt, 1);
-    const cell = cells.at(-1);
-    const ruled = ruledBetween(rules, cursor, run.x, line.baseline);
-    if (cell === undefined || gap > COLUMN_GAP * size || ruled) {
-      cells.push({ x: run.x, runs: [styled(run, rules, line)] });
+    if (DOT_LEADER.test(run.text) && cells.length > 0) {
+      // The dots are not text; the cell after them is a right-tabbed page number.
+      cursor.leader = true;
     } else {
-      // An OCR layer's runs are whole words by construction: any gap is a space.
-      const spaced = gap > SPACE_GAP * size || (run.hidden === true && gap > 0.3);
-      appendRun(cell, styled(run, rules, line), spaced);
+      const opens = opensCell(run, cursor, rules, line.baseline);
+      placeRun(cells, run, styled(run, rules, line), cursor, opens);
+      cursor.leader = false;
     }
-    cursor = Math.max(cursor, run.x + run.width);
+    cursor.right = Math.max(cursor.right, run.x + run.width);
   }
   const first = ordered[0];
   return {
     cells,
     baseline: line.baseline,
     x: first?.x ?? 0,
-    right: cursor,
+    right: cursor.right,
     sizePt,
     blockId: blockIdOf(ordered),
   };

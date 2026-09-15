@@ -29,7 +29,18 @@ export interface StyledRun {
 export interface Cell {
   /** Left edge of the cell's first glyph. */
   x: number;
+  /** Right edge of the cell's last glyph. */
+  right: number;
   runs: StyledRun[];
+  /** The cell was reached across a row of dots (a table of contents entry's page number). */
+  leader?: 'dot';
+}
+
+/** A tab stop, measured from the section's left margin. */
+export interface TabStop {
+  positionPt: number;
+  align: 'left' | 'right';
+  leader?: 'dot';
 }
 
 export interface Line {
@@ -71,8 +82,8 @@ export interface TextParagraph {
   /** Positive: first line indented. Negative: hanging indent (first line outdented). */
   firstLinePt: number;
   spaceBeforePt: number;
-  /** Tab stops measured from the section's left margin, when the lines read as columns. */
-  tabStopsPt: number[];
+  /** Tab stops, when the lines read as columns. */
+  tabStops: TabStop[];
   /** Baseline of the first line — ordering key against images. */
   top: number;
   /** First paragraph of a page's second column. */

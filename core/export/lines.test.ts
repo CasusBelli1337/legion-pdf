@@ -75,3 +75,19 @@ describe('isUnderlined', () => {
     expect(isUnderlined(word, [{ rect: { x: 70, y: 702, width: 60, height: 0.6 } }])).toBe(false);
   });
 });
+
+describe('linesOf — dot leaders', () => {
+  it('drops a table-of-contents leader and marks the page number as a right-tabbed cell', () => {
+    const line = linesOf([
+      run('I.  INTRODUCTION', 72, 700),
+      run('.....................................', 180, 700, { width: 300 }),
+      run('3', 500, 700, { width: 6 }),
+    ])[0];
+    expect(line?.cells.map((cell) => cell.runs.map((r) => r.text).join(''))).toEqual([
+      'I.  INTRODUCTION',
+      '3',
+    ]);
+    expect(line?.cells[1]?.leader).toBe('dot');
+    expect(line?.cells[1]?.right).toBe(506);
+  });
+});

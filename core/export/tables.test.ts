@@ -179,7 +179,7 @@ describe('ruledTablesOf', () => {
     const { tables, consumed, lines } = tablesOf(runs, rules);
     expect(tables).toEqual([]);
     expect(consumed.size).toBe(0);
-    expect(tabStopsOf(lines, FRAME)).toEqual([218, 258]);
+    expect(tabStopsOf(lines, FRAME).map((stop) => stop.positionPt)).toEqual([218, 258]);
   });
 
   it('reads the caption box drawn as an L: one upright rule, one rule under the left cell', () => {
@@ -261,6 +261,8 @@ describe('tabStopsOf', () => {
       run('$250', 302, 686),
       run('Paid', 452, 686),
     ]);
-    expect(tabStopsOf(lines, { left: 72, right: 540, textRight: 540 })).toEqual([228, 378]);
+    expect(
+      tabStopsOf(lines, { left: 72, right: 540, textRight: 540 }).map((stop) => stop.positionPt)
+    ).toEqual([228, 378]);
   });
 });

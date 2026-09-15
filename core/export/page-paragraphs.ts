@@ -114,7 +114,7 @@ function blankLine(pitchPt: number): TextParagraph {
     indentRightPt: 0,
     firstLinePt: 0,
     spaceBeforePt: 0,
-    tabStopsPt: [],
+    tabStops: [],
     top: 0,
   };
 }
@@ -330,7 +330,5 @@ export function settlePage(build: PageBuild, topOfBody: number): Paragraph[] {
 
 /** True when any paragraph on the page was set as tab-stop columns. */
 export function hasTabColumns(paragraphs: readonly Paragraph[]): boolean {
-  return paragraphs.some(
-    (paragraph) => paragraph.kind === 'text' && paragraph.tabStopsPt.length > 0
-  );
+  return paragraphs.some((paragraph) => paragraph.kind === 'text' && paragraph.tabStops.length > 0);
 }

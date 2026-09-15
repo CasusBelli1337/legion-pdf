@@ -12,6 +12,7 @@
 import {
   AlignmentType,
   ColumnBreak,
+  LeaderType,
   LineRuleType,
   PageNumber,
   Paragraph as DocxParagraph,
@@ -162,7 +163,7 @@ function tabbedChildren(line: Line, fonts: Fonts): TextRun[] {
 }
 
 function childrenOf(paragraph: TextParagraph, fonts: Fonts): TextRun[] {
-  if (paragraph.tabStopsPt.length > 0) {
+  if (paragraph.tabStops.length > 0) {
     return paragraph.lines.flatMap((line) => tabbedChildren(line, fonts));
   }
   return joinLines(paragraph.lines, paragraph.alignment).flatMap((run) => textRun(run, fonts));
@@ -205,9 +206,10 @@ export function docxTextParagraph(
       after: 0,
     },
     ...(indent === undefined ? {} : { indent }),
-    tabStops: paragraph.tabStopsPt.map((stop) => ({
-      type: TabStopType.LEFT,
-      position: twips(stop),
+    tabStops: paragraph.tabStops.map((stop) => ({
+      type: stop.align === 'right' ? TabStopType.RIGHT : TabStopType.LEFT,
+      position: twips(stop.positionPt),
+      ...(stop.leader === 'dot' ? { leader: LeaderType.DOT } : {}),
     })),
     pageBreakBefore: placement.pageBreakBefore,
     ...(placement.border === undefined ? {} : { border: placement.border }),

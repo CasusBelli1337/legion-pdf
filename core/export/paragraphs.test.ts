@@ -90,8 +90,8 @@ describe('paragraphsOf — where a paragraph ends', () => {
     ]);
     const paragraphs = paragraphsOf(lines, { frame: FRAME });
     expect(paragraphs).toHaveLength(2);
-    expect(paragraphs[0]!.tabStopsPt).toEqual([228]);
-    expect(paragraphs[1]!.tabStopsPt).toEqual([230]);
+    expect(paragraphs[0]!.tabStops).toEqual([{ positionPt: 228, align: 'left' }]);
+    expect(paragraphs[1]!.tabStops).toEqual([{ positionPt: 230, align: 'left' }]);
   });
 });
 

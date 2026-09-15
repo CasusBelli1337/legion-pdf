@@ -201,7 +201,9 @@ export function withVerticalMargins(
   geometry: SectionGeometry,
   boxes: readonly { top: number; bottom: number }[]
 ): SectionGeometry {
-  if (geometry.pleading?.grid === true) return withPleadingMargins(geometry, geometry.pleading);
+  if (geometry.pleading?.grid === true) {
+    return withPleadingMargins(geometry, geometry.pleading, boxes);
+  }
   if (boxes.length === 0) return geometry;
   const top = geometry.size.height - Math.max(...boxes.map((box) => box.top));
   const bottom = Math.min(...boxes.map((box) => box.bottom)) - RIGHT_SLACK;
@@ -217,13 +219,23 @@ export function withVerticalMargins(
 
 /**
  * On pleading paper the body's top is line 1's box top, exactly, and the
- * bottom leaves room for every numbered line: the numbers in the header are
- * placed from the same figure, which is what keeps line k beside number k.
+ * bottom leaves room for every numbered line — and for whatever the page set
+ * below the last one (footnotes sit under line 28, above the footer): the
+ * numbers in the header are placed from the same figure, which is what keeps
+ * line k beside number k.
  */
-function withPleadingMargins(geometry: SectionGeometry, pleading: Pleading): SectionGeometry {
+function withPleadingMargins(
+  geometry: SectionGeometry,
+  pleading: Pleading,
+  boxes: readonly { top: number; bottom: number }[]
+): SectionGeometry {
   const lineOneTop = pleading.firstBaseline + BASELINE_SHARE * pleading.pitchPt;
   const top = geometry.size.height - lineOneTop;
-  const bottom = lineOneTop - (pleading.count + 0.5) * pleading.pitchPt;
+  const lowest = Math.min(...boxes.map((box) => box.bottom), Number.POSITIVE_INFINITY);
+  const bottom = Math.min(
+    lineOneTop - (pleading.count + 0.5) * pleading.pitchPt,
+    lowest - RIGHT_SLACK
+  );
   return {
     ...geometry,
     margins: { ...geometry.margins, top: Math.max(0, top), bottom: Math.max(0, bottom) },

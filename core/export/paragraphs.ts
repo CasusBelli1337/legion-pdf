@@ -321,7 +321,7 @@ function describe(group: Line[], leading: number, options: ParagraphOptions): Te
     indentRightPt: indents.right,
     firstLinePt: indents.first,
     spaceBeforePt: 0,
-    tabStopsPt: group.some(isTabular) ? tabStopsOf(group, options.frame) : [],
+    tabStops: group.some(isTabular) ? tabStopsOf(group, options.frame) : [],
     top: group[0]?.baseline ?? 0,
   };
 }

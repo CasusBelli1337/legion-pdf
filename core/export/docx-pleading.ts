@@ -82,9 +82,10 @@ export function pleadingFrame(pleading: Pleading, geometry: SectionGeometry): Pl
     lineOneTop,
     headerPt,
     numbersBefore: lineOneTop - headerPt,
-    bottomPt: Math.max(
-      0,
-      height - (lineOneTop + (pleading.count + BOTTOM_SLACK) * pleading.pitchPt)
+    // The section already settled its bottom (the grid, or lower for footnotes under line 28).
+    bottomPt: Math.min(
+      geometry.margins.bottom,
+      Math.max(0, height - (lineOneTop + (pleading.count + BOTTOM_SLACK) * pleading.pitchPt))
     ),
     tableLeft: Math.max(0, pleading.numberLeft - NUMBER_PAD),
     boundary,
