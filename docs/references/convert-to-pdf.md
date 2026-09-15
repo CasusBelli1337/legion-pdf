@@ -186,14 +186,17 @@ tmux session `lpdf-convert`).
 | `.bmp` / `.gif` / `.webp` | *Real app only* (needs Chromium): 1 page each. |
 | `ops:merge` mixed list | `electron/ipc/ops-convert.test.ts` — PDF(3) + PNG + PDF(2) = 6 pages. |
 | unsaved / Save As | `electron/services/doc-store-convert.test.ts` |
+| `.docx` without Word (mammoth half) | `builtin-word.test.ts` — a real .docx read into HTML; only `printToPDF` is left to the real app. |
 | unsupported type | *Real app*: "Legion PDF cannot open .xyz files." |
 | `convert:progress` | `convert-file.test.ts`. *Real app*: `Converting scan.tif 0/1 → 1/3 → 2/3 → 3/3 → 3/3`. |
 
 ## Not covered by Vitest
 
-`.bmp`, `.gif`, `.webp`, `.html` and the `builtin-word` fallback all need a
-Chromium window, which does not exist in a Node test run. They are exercised in
-the real app and in the Windows live QA pass. `builtin-word` additionally only
-fires on a machine with no Word, which this one is not — it is covered by the
-registry tests (ordering, availability, wording) and by the real-app check on a
-Word-less machine at QA time.
+`.bmp`, `.gif`, `.webp`, `.html` and the printing half of `builtin-word` all need
+a Chromium window, which does not exist in a Node test run. They are exercised in
+the real app and in the Windows live QA pass.
+
+`builtin-word` also only fires on a machine with no Word, which this one is not.
+Its reading half runs under Vitest (`builtin-word.test.ts`) and its routing and
+wording are covered by `registry.test.ts`; the end-to-end path wants one QA pass
+on a Word-less machine.
