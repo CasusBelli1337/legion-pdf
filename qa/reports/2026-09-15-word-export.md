@@ -45,7 +45,41 @@ MEASURED_PRIVATE_TABLE
 
 ## 5. What the real filings still break
 
-MEASURED_OPEN_ITEMS
+The corpus fixtures made by Word come through on the numbers; the real
+filings show where the next session's work is. Measured on the final run
+(§ 4), in the order an attorney would meet them:
+
+1. **Acrobat PDFMaker briefs with a table of authorities, footnotes and block
+   quotes** (01, the 16-page reply): pages 1–3 land within a point, then a
+   table-of-authorities entry or a footnote block wraps one line differently
+   and every page after it is a line out; the cascade costs three extra
+   pages. The next lever is real Word footnotes (`FootnoteReferenceRun`) for
+   the small text under line 28, and TOC/TOA entries as Word's own TOC
+   paragraphs with a right-indent read off the entry's own lines.
+2. **Court-issued orders (Aspose, untagged)** (03): the clerk's FILED stamp
+   is now left out and the caption is placed, but Aspose sets each word as
+   its own run with narrow spaces and no structure tags, and the 21.85-pt
+   grid carries single-spaced findings; the geometry heuristics still merge
+   or split enough lines to double the page count. These need the
+   per-word-run producers handled as recognised text is (one paragraph per
+   line, full width) whenever no structure tree is present.
+3. **Scanned exhibits inside a declaration** (05, 107 pages): the four text
+   pages are exact; the scanned exhibits (Nebo/MyScript handwriting, pen
+   strokes as hundreds of tiny pictures) still explode the page count. The
+   many-pictures guard drops the strokes, but each exhibit page should be
+   exported as one page picture (the scan's own raster through the
+   exporter's `requestRaster`), not as recognised fragments.
+4. **A firm's letter-spaced slug in the margin of the foot** (06, Distiller):
+   fixed at the end of the session (negative indents, bands placed exactly,
+   margins widened to the bands' reach) — the final run is the first
+   measurement of it.
+5. **Scans**: the app's own OCR layer now sits on Tesseract's line baselines
+   and the pleading grid is fitted from the recognised numbers robustly;
+   the corpus scan fixtures are the measurement, § 3.
+6. **The signature-page numbering in `filing-mixed`** (Word's own numbering
+   skips a page's short signature lines the way the source does not): eight
+   numbers on one page; cosmetic, noted.
+
 
 ## 6. In the real app
 
