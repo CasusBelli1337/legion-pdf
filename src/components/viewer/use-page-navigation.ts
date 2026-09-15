@@ -2,7 +2,9 @@
  * Virtualized continuous scroll. Only the visible pages (plus a couple either
  * side) exist in the DOM, so a 2,000-page document scrolls like a short one.
  * This hook also keeps the store's page number honest and remembers where each
- * tab was left.
+ * tab was left — the exact spot, not just the page: coming back to a tab must
+ * land the reader where they were, and the page number alone is up to a whole
+ * page off (the owner-reported tab-switch bug).
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
@@ -11,9 +13,10 @@ import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 import { useAppStore } from '../../app/store';
 import { pageBoxAt } from './page-geometry';
 import { NOTHING_OWED, afterRestore, isPageOwed, onViewerRender } from './page-restore';
-import type { RestoreState } from './page-restore';
+import type { RestoreState, ViewPosition } from './page-restore';
 import { readTabView, writeTabView } from './tab-view-state';
 import type { PageSizeIndex } from './use-page-sizes';
+import { positionAt, scrollTopFor } from './view-position';
 import type { ViewerController } from './viewer-controller';
 
 /** Vertical space between pages (py-3 top and bottom). */
@@ -41,6 +44,23 @@ interface NavigationOptions {
   isReady: boolean;
 }
 
+/** Scrolls so `position` sits under the top edge, on the rows as measured now. */
+function scrollToPosition(
+  virtualizer: PageVirtualizer,
+  position: ViewPosition,
+  pageCount: number
+): void {
+  const index = Math.min(Math.max(position.page, 1), Math.max(pageCount, 1)) - 1;
+  // Asking for the offset measures the rows up to it, which fills the cache.
+  const start = virtualizer.getOffsetForIndex(index, 'start')?.[0];
+  const size = virtualizer.measurementsCache[index]?.size;
+  if (start === undefined || size === undefined) {
+    virtualizer.scrollToIndex(index, { align: 'start' });
+    return;
+  }
+  virtualizer.scrollToOffset(scrollTopFor(position, { index, start, size }), { align: 'start' });
+}
+
 export function usePageNavigation(options: NavigationOptions): PageNavigation {
   const { controller, docId, isReady, pageCount, scrollRef, sizes, zoom } = options;
   const setCurrentPage = useAppStore((state) => state.setCurrentPage);
@@ -56,13 +76,13 @@ export function usePageNavigation(options: NavigationOptions): PageNavigation {
     overscan: 2,
   });
 
-  // The page is filed against the tab as it changes, never from an effect
+  // The position is filed against the tab as it changes, never from an effect
   // watching the store: on a tab switch the store still holds the outgoing
   // tab's page for one render.
-  const rememberPage = useCallback(
-    (page: number) => {
-      setCurrentPage(page);
-      writeTabView(docId, { page });
+  const remember = useCallback(
+    (position: ViewPosition) => {
+      setCurrentPage(position.page);
+      writeTabView(docId, position);
     },
     [docId, setCurrentPage]
   );
@@ -70,56 +90,80 @@ export function usePageNavigation(options: NavigationOptions): PageNavigation {
   const goToPage = useCallback(
     (page: number) => {
       const target = Math.min(Math.max(Math.trunc(page), 1), Math.max(pageCount, 1));
-      rememberPage(target);
+      remember({ page: target, offset: 0 });
       virtualizer.scrollToIndex(target - 1, { align: 'start' });
     },
-    [pageCount, rememberPage, virtualizer]
+    [pageCount, remember, virtualizer]
   );
 
-  useMeasurement(virtualizer, zoom, sizes.version);
-  const pending = usePendingPage(docId, isReady);
-  useScrollTracking(virtualizer, scrollRef, rememberPage, pending.isOwed);
+  const pending = usePendingPosition(docId, isReady, setCurrentPage);
+  useMeasurement(virtualizer, zoom, sizes.version, docId, pageCount, pending.isOwed);
+  useScrollTracking(virtualizer, scrollRef, remember, pending.isOwed);
   useEffect(() => controller.attachScroller(goToPage), [controller, goToPage]);
 
   // Come back to where the document was left — on a tab switch, and after every
   // byte swap, which unmounts the page run and drops the scroll to the top.
-  // Page sizes have to be in before the scroll lands on the right page.
+  // Page sizes have to be in before the scroll can land on the right spot, and
+  // the rows are only MEASURED once they have been drawn at this zoom, so the
+  // position is applied again over the next two frames before the viewer is
+  // handed back to the reader (tracking stays off until then).
   useEffect(() => {
     if (!isReady || pageCount === 0 || sizes.version === 0) return;
-    const page = pending.take();
-    if (page === null) return;
+    const position = pending.peek();
+    if (position === null) return;
     virtualizer.measure();
-    virtualizer.scrollToIndex(Math.min(page, pageCount) - 1, { align: 'start' });
+    scrollToPosition(virtualizer, position, pageCount);
+    let frame = requestAnimationFrame(() => {
+      scrollToPosition(virtualizer, position, pageCount);
+      frame = requestAnimationFrame(() => {
+        scrollToPosition(virtualizer, position, pageCount);
+        pending.settle();
+      });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [isReady, pageCount, pending, sizes.version, virtualizer]);
 
   return { virtualizer, goToPage };
 }
 
-interface PendingPage {
-  /** The page still owed, taken exactly once. Null when there is nothing owed. */
-  take(): number | null;
-  /** True while a page is owed — any scroll then is the collapse, not the reader. */
+interface PendingPosition {
+  /** The position still owed, or null when nothing is owed. */
+  peek(): ViewPosition | null;
+  /** The owed position has landed; the viewer is the reader's again. */
+  settle(): void;
+  /** True while a position is owed — any scroll then is the collapse, not the reader. */
   isOwed(): boolean;
 }
 
 /**
- * The page a re-mounted page run owes the attorney — ./page-restore holds the
- * rule and its tests; this is the ref that runs it. The capture happens in the
- * LAYOUT phase, before the collapsing container can fire its scroll event.
+ * The position a re-mounted page run owes the attorney — ./page-restore holds
+ * the rule and its tests; this is the ref that runs it. The capture happens in
+ * the LAYOUT phase, before the collapsing container can fire its scroll event,
+ * and the store's page number is set from memory in the same phase so the
+ * footer never shows the previous tab's page.
  */
-function usePendingPage(docId: string, isReady: boolean): PendingPage {
+function usePendingPosition(
+  docId: string,
+  isReady: boolean,
+  setCurrentPage: (page: number) => void
+): PendingPosition {
   const state = useRef<RestoreState>(NOTHING_OWED);
 
   useLayoutEffect(() => {
-    state.current = onViewerRender(state.current, docId, isReady, readTabView(docId).page);
-  }, [docId, isReady]);
+    const remembered = readTabView(docId);
+    const wasDocument = state.current.docId;
+    state.current = onViewerRender(state.current, docId, isReady, {
+      page: remembered.page,
+      offset: remembered.offset,
+    });
+    if (wasDocument !== docId) setCurrentPage(remembered.page);
+  }, [docId, isReady, setCurrentPage]);
 
   return useMemo(
     () => ({
-      take: () => {
-        const { owed } = state.current;
+      peek: () => state.current.owed,
+      settle: () => {
         state.current = afterRestore(state.current);
-        return owed;
       },
       isOwed: () => isPageOwed(state.current),
     }),
@@ -127,39 +171,49 @@ function usePendingPage(docId: string, isReady: boolean): PendingPage {
   );
 }
 
-function useMeasurement(virtualizer: PageVirtualizer, zoom: number, sizesVersion: number): void {
+function useMeasurement(
+  virtualizer: PageVirtualizer,
+  zoom: number,
+  sizesVersion: number,
+  docId: string,
+  pageCount: number,
+  isOwed: () => boolean
+): void {
   // A new batch of page sizes landed: re-estimate, but leave the scroll alone.
   useEffect(() => {
     virtualizer.measure();
   }, [sizesVersion, virtualizer]);
 
-  // Zoom changed: every measured height is stale, and the page the attorney was
-  // reading must stay on screen instead of drifting off at the new scale.
+  // Zoom changed: every measured height is stale, and the spot the attorney
+  // was reading must stay on screen instead of drifting off at the new scale.
+  // While a position is still owed (a tab switch refitting its zoom), the
+  // restore effect lands it; scrolling here would use the previous tab's page.
   useEffect(() => {
     virtualizer.measure();
-    virtualizer.scrollToIndex(useAppStore.getState().currentPage - 1, { align: 'start' });
-  }, [virtualizer, zoom]);
+    if (isOwed() || pageCount === 0) return;
+    const view = readTabView(docId);
+    scrollToPosition(virtualizer, { page: view.page, offset: view.offset }, pageCount);
+  }, [docId, isOwed, pageCount, virtualizer, zoom]);
 }
 
-/** The page under the top edge of the viewport is the page the attorney is on. */
+/** The spot under the top edge of the viewport is where the attorney is reading. */
 function useScrollTracking(
   virtualizer: PageVirtualizer,
   scrollRef: RefObject<HTMLDivElement | null>,
-  rememberPage: (page: number) => void,
+  remember: (position: ViewPosition) => void,
   isPageOwed: () => boolean
 ): void {
   useEffect(() => {
     const element = scrollRef.current;
     if (element === null) return;
     const onScroll = (): void => {
-      // A scroll while the viewer still owes a page is the page run being
+      // A scroll while the viewer still owes a position is the page run being
       // rebuilt, not the attorney reading; filing page 1 from it is the bug.
       if (isPageOwed()) return;
-      const offset = element.scrollTop + 8;
-      const visible = virtualizer.getVirtualItems().find((item) => item.end > offset);
-      if (visible !== undefined) rememberPage(visible.index + 1);
+      const position = positionAt(element.scrollTop, virtualizer.getVirtualItems());
+      if (position !== null) remember(position);
     };
     element.addEventListener('scroll', onScroll, { passive: true });
     return () => element.removeEventListener('scroll', onScroll);
-  }, [isPageOwed, rememberPage, scrollRef, virtualizer]);
+  }, [isPageOwed, remember, scrollRef, virtualizer]);
 }

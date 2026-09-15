@@ -11,9 +11,16 @@
  * Pure state machine; the hook in ./use-page-navigation is the ref around it.
  */
 
+/** A place in a document: the page under the viewport's top edge, and how far into it. */
+export interface ViewPosition {
+  page: number;
+  /** Share of the page's height above the viewport's top edge, 0 to 1. */
+  offset: number;
+}
+
 export interface RestoreState {
-  /** Page owed to a re-mounted page run, or null when the viewer is settled. */
-  owed: number | null;
+  /** Position owed to a re-mounted page run, or null when the viewer is settled. */
+  owed: ViewPosition | null;
   /** The document this state is tracking, so a new tab captures its own page. */
   docId: string | null;
   /** Whether the page run was mounted at the last render. */
@@ -31,12 +38,12 @@ export function onViewerRender(
   state: RestoreState,
   docId: string,
   isReady: boolean,
-  rememberedPage: number
+  remembered: ViewPosition
 ): RestoreState {
   const isNewDocument = state.docId !== docId;
   const runWentAway = state.wasReady && !isReady;
   return {
-    owed: isNewDocument || runWentAway ? rememberedPage : state.owed,
+    owed: isNewDocument || runWentAway ? remembered : state.owed,
     docId,
     wasReady: isReady,
   };
