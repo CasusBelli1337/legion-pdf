@@ -32,7 +32,26 @@ honours it at the top of a document and of a section).
 
 ## 3. Results — corpus
 
-MEASURED_CORPUS_TABLE
+| fixture | pages | words off (all pages) | worst page median dy | worst page p95 dy | line numbers off |
+| --- | --- | --- | --- | --- | --- |
+| deposition-word | 4 → 4 | 6 | 0.00 pt | 0.12 pt | 0 of 76 |
+| filing-mixed | 4 → 4 | 34 | 0.48 pt | 12.00 pt | 8 of 70 |
+| pleading-scan-ocr | 4 → 4 | 42 | 0.84 pt | 1.68 pt | 0 of 112 |
+| pleading-scan | 4 → 4 | 42 | 0.84 pt | 1.68 pt | 0 of 112 |
+| pleading-word | 4 → 4 | 9 | 0.36 pt | 12.00 pt | 0 of 112 |
+
+Read: every fixture keeps its page count; every pleading line number on the
+Word-made pleading, the scan, the OCR'd scan and the transcript lands on its
+line (0 of 112 / 0 of 76 off, within 0.5 pt; 1.5 pt for the scans); the
+median baseline drift is under a point everywhere, under half a point on the
+Word-made sources. The scan is measured against the document that was
+scanned, so its "words off" are Tesseract's misreads, not lost text. What is
+left on the fixtures: the caption box's cells sit 2–3 pt low on
+`pleading-word` page 1 (the p95), the footnote lines under line 28 of
+`filing-mixed` page 2 wrap (34 words), and Word's own numbering counts the
+signature page of `filing-mixed` differently from its source (8 numbers).
+`npm run test:word` reports exactly these as its failures; the other two
+fixtures pass outright.
 
 ## 4. Results — real served filings (private corpus, outside the repo)
 
