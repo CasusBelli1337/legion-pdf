@@ -1,0 +1,75 @@
+/*
+ * The print CSS as it stood BEFORE the 2026-09-15 page-count fix, kept so that
+ * qa/print-proof.mjs can re-apply it over the shipped app and MEASURE the bug
+ * it fixed. The proof fails if this arm ever stops doubling the sheet count —
+ * a regression test that failed before the fix and passes after it.
+ *
+ * Verified faithful: with this stylesheet applied, the proof reproduces the
+ * exact baseline recorded against the pre-fix build (15 pages -> 30 sheets,
+ * 6 -> 12, 5 -> 5, 8 -> 12).
+ */
+
+/* ---- verbatim from git 69ccb13:src/components/viewer/print.css ---- */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body > #root {
+    display: none !important;
+  }
+
+  #librarius-print-sheet {
+    display: block !important;
+  }
+
+  #librarius-print-sheet img {
+    display: block;
+    width: 100%;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  @page {
+    size: auto;
+    margin: 0;
+  }
+}
+
+/*
+ * ---- and what it takes to reinstate that geometry over the fixed CSS ----
+ * The rules above only win where the two files declare the SAME property, so
+ * everything the fix added has to be undone explicitly.
+ */
+@media print {
+  #librarius-print-sheet {
+    height: auto !important;
+  }
+
+  /* The old markup had no per-page wrapper — the images were siblings. */
+  #librarius-print-sheet .librarius-print-page {
+    display: contents !important;
+  }
+
+  #librarius-print-sheet img {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: fill !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  /*
+   * The old file ended with `img:last-child { break-after: auto }`, meaning the
+   * last image in the sheet. With a wrapper per page every image is its own
+   * last child, so that rule is re-aimed here instead of copied verbatim.
+   */
+  #librarius-print-sheet .librarius-print-page:last-child img {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+}

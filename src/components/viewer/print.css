@@ -1,7 +1,17 @@
 /*
- * Print rules. On screen the sheet is hidden; when Chromium switches to print
- * media the app disappears and the prepared page images are all that is left,
- * one per sheet of paper, edge to edge.
+ * Print rules, following pdf.js's own print service.
+ *
+ * On screen the sheet is hidden; in print media the app disappears and every
+ * prepared page image sits inside a box that is EXACTLY one sheet of paper.
+ *
+ * WHY the box. The first version sized each image `width: 100%` and let its
+ * own aspect ratio decide its height. A page image that comes out a hair
+ * taller than the sheet's printable height — printer hardware margins, a Legal
+ * page on Letter paper, a 150-DPI raster rounded into the page box — overflows
+ * onto a second, near-blank sheet, so every page costs two sheets and a
+ * 15-page brief prints as 30 (Arthur, 2026-09-15). A box that IS the sheet
+ * cannot spill: `height: 100%` all the way up to <html>, `overflow: hidden`,
+ * and an image capped at `max-height: 100%` which shrinks to fit instead.
  */
 
 #librarius-print-sheet {
@@ -11,7 +21,14 @@
 @media print {
   html,
   body {
-    height: auto !important;
+    /* The page boxes below are `height: 100%`, which is one sheet tall only if
+       every ancestor is the height of the sheet. */
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* The app hides the root scrollbar with `overflow: hidden`; leaving that on
+       here clips the sheet to a single page box and Chromium stops paginating
+       altogether — every page lands on ONE sheet. */
     overflow: visible !important;
     background: #fff !important;
   }
@@ -22,20 +39,38 @@
 
   #librarius-print-sheet {
     display: block !important;
+    height: 100%;
   }
 
-  #librarius-print-sheet img {
-    display: block;
+  #librarius-print-sheet .librarius-print-page {
     width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
     break-after: page;
     page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  #librarius-print-sheet img:last-child {
+  /* Nothing follows the last page: a trailing break prints a blank sheet. */
+  #librarius-print-sheet .librarius-print-page:last-child {
     break-after: auto;
     page-break-after: auto;
   }
 
+  #librarius-print-sheet img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* Replaced at prepare time with the document's own page size — see
+     print-layout.ts. `auto` is only the fallback for a sheet with no
+     prepared pages, and is exactly the guess that caused the spill. */
   @page {
     size: auto;
     margin: 0;
