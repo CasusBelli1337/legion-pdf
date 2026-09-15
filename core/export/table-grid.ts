@@ -29,6 +29,13 @@ const MIN_LENGTH = 8;
 const COVERAGE = 0.8;
 /** Fewer than this many edges either way is not a table: 2 rows × 2 columns is the floor. */
 const MIN_EDGES = 3;
+/**
+ * No table column is narrower than an em. Pleading paper rules its margin with
+ * two vertical lines six points apart; with a rule above and below the type
+ * block they cross into what looks like a grid, and the filing's whole caption
+ * would be swallowed by a column too narrow to hold a character.
+ */
+const MIN_COLUMN = 12;
 
 interface Span {
   from: number;
@@ -125,16 +132,6 @@ function outerSpan(edge: Edge): Span {
   return { from: edge.spans[0]?.from ?? 0, to: edge.spans.at(-1)?.to ?? 0 };
 }
 
-/** Distinct positions, ascending, merged within SAME_EDGE. */
-function distinct(positions: readonly number[]): number[] {
-  const out: number[] = [];
-  for (const position of [...positions].sort((a, b) => a - b)) {
-    const last = out.at(-1);
-    if (last === undefined || position - last > SAME_EDGE) out.push(position);
-  }
-  return out;
-}
-
 interface Box {
   left: number;
   right: number;
@@ -148,13 +145,14 @@ interface Box {
  * rules; `borders` is what says the left one was never drawn.
  */
 function columnEdgesOf(verticals: readonly Edge[], box: Box): number[] {
-  const inside = verticals.filter(
-    (edge) =>
-      edge.at >= box.left - SAME_EDGE &&
-      edge.at <= box.right + SAME_EDGE &&
-      reaches(edge, box.bottom, box.top)
-  );
-  return distinct([box.left, box.right, ...inside.map((edge) => edge.at)]);
+  const edges = [box.left];
+  for (const edge of verticals) {
+    const previous = edges.at(-1) ?? box.left;
+    const wide = edge.at - previous >= MIN_COLUMN && box.right - edge.at >= MIN_COLUMN;
+    if (wide && reaches(edge, box.bottom, box.top)) edges.push(edge.at);
+  }
+  edges.push(box.right);
+  return edges;
 }
 
 function bordersOf(
