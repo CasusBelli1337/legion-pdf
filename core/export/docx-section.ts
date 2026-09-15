@@ -207,11 +207,29 @@ function isNoise(run: LayoutTextRun): boolean {
   return run.hidden === true && !/[A-Za-z0-9]{3}/.test(run.text);
 }
 
+/** Recognised text counts as a running head or foot only this close (× page height) to the paper's edge. */
+const RECOGNIZED_BAND_SHARE = 0.09;
+
+/**
+ * A recognised run far from the paper's edge is body text the classifier
+ * misfiled, not a foot: carried into the footer it would reach up into the
+ * body, and Word would push the body onto more pages to make room.
+ */
+function nearEdge(run: LayoutTextRun, page: PageLayout): boolean {
+  if (run.hidden !== true) return true;
+  const band = RECOGNIZED_BAND_SHARE * page.size.height;
+  return run.y <= band || run.y >= page.size.height - band;
+}
+
 /** The band's runs on the first page of the section that carries the band at all. */
 function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]): LayoutTextRun[] {
   for (const page of pages) {
     const runs = page.runs.filter(
-      (run) => wanted.includes(run.role) && run.text.trim().length > 0 && !isNoise(run)
+      (run) =>
+        wanted.includes(run.role) &&
+        run.text.trim().length > 0 &&
+        !isNoise(run) &&
+        nearEdge(run, page)
     );
     if (runs.length > 0) return runs;
   }
