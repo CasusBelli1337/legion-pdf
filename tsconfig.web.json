@@ -8,5 +8,5 @@
     "jsx": "react-jsx",
     "outDir": "./node_modules/.tmp/tsc-web"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "shared/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "shared/**/*.ts", "core/export/**/*.ts"]
 }

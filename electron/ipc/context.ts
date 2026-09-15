@@ -5,7 +5,13 @@
 
 import type { BrowserWindow } from 'electron';
 import type { ProgressChannel } from '@shared/ipc';
-import type { ProgressEvent, RasterRequest, RasterResponse } from '@shared/types';
+import type {
+  LayoutRequest,
+  LayoutResponse,
+  ProgressEvent,
+  RasterRequest,
+  RasterResponse,
+} from '@shared/types';
 import type { DocStore } from '../services/doc-store';
 
 export interface IpcContext {
@@ -20,4 +26,9 @@ export interface IpcContext {
    * OCR and redaction both build on this rather than shipping a second engine.
    */
   requestRaster(request: Omit<RasterRequest, 'requestId'>): Promise<RasterResponse>;
+  /**
+   * Ask the renderer (the zone whose pdfjs has the fonts loaded) for a page's
+   * text, pictures, and rules. The Word exporter builds on this.
+   */
+  requestLayout(request: Omit<LayoutRequest, 'requestId'>): Promise<LayoutResponse>;
 }

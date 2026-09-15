@@ -3,16 +3,21 @@
  *
  * Config over code: adding a format means writing a function of this shape and
  * putting it in the table below — the IPC handler, the progress stream, the
- * count verification, and the panel's picker all keep working untouched. The
- * Word lane owns exactly one row (`docx`); until it lands, that row is
- * `notYetExporter`, which rejects by name rather than pretending to work.
+ * count verification, and the panel's picker all keep working untouched.
  *
  * Everything an exporter can touch arrives in `ExporterContext`. Nothing in
  * here imports Electron, so the whole registry is exercised in Vitest with a
  * fake raster source and a fake filesystem.
  */
 
-import type { ExportFormat, ExportOptions, ExportResult } from '@shared/types';
+import type {
+  ExportFormat,
+  ExportOptions,
+  ExportResult,
+  LayoutRequest,
+  LayoutResponse,
+} from '@shared/types';
+import { docxExporter } from './docx-exporter';
 import { textExporter } from './text-exporter';
 import { jpegExporter, pngExporter, tiffExporter } from './image-exporters';
 
@@ -47,6 +52,8 @@ export interface ExportJob {
 export interface ExporterContext {
   /** pdfjs lives in the renderer, so page images are asked for over IPC. */
   requestRaster(request: { docId: string; page: number; dpi: number }): Promise<PageRaster>;
+  /** And page LAYOUTS — text runs, images, rules — the Word exporter's input. */
+  requestLayout(request: Omit<LayoutRequest, 'requestId'>): Promise<LayoutResponse>;
   /** PNG → JPEG. Electron's nativeImage in production, a stub in tests. */
   toJpeg(png: Uint8Array, quality: number): Uint8Array;
   /** pdfjs again, this time main-side, for the plain-text export. */
@@ -72,8 +79,7 @@ export const EXPORTERS: Record<ExportFormat, Exporter> = {
   jpeg: jpegExporter,
   tiff: tiffExporter,
   txt: textExporter,
-  // LANE M (Word export) replaces this one line with its own exporter.
-  docx: notYetExporter,
+  docx: docxExporter,
 };
 
 export function exporterFor(format: ExportFormat): Exporter {
