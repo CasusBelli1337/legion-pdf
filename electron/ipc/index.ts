@@ -9,6 +9,7 @@ import { invokeChannelsOf } from '@shared/ipc';
 import { registerAiHandlers } from './ai';
 import { registerAppHandlers } from './app';
 import { registerEsignHandlers } from './esign';
+import { registerExportHandlers } from './export';
 import { registerFileHandlers } from './file';
 import { registerNotImplemented } from './not-implemented';
 import { registerOcrHandlers } from './ocr';
@@ -31,6 +32,6 @@ export function registerIpcHandlers(context: IpcContext): void {
   // Lanes in flight (2026-09-15 wave): each replaces its own line with its
   // real registration and touches no other.
   registerNotImplemented(invokeChannelsOf('convert'));
-  registerNotImplemented(invokeChannelsOf('export'));
+  registerExportHandlers(context);
   registerNotImplemented(invokeChannelsOf('edit'));
 }

@@ -7,7 +7,8 @@
 
 import { dialog } from 'electron';
 import type { BrowserWindow, OpenDialogOptions, SaveDialogOptions } from 'electron';
-import type { SaveResult } from '@shared/types';
+import { exportFormatInfo } from '@shared/export-formats';
+import type { ExportFormat, SaveResult } from '@shared/types';
 import type { ConfirmPrompt } from './close-guard';
 import type { DocStore } from './doc-store';
 import { PRODUCT_NAME } from '@shared/product';
@@ -27,10 +28,13 @@ export async function openPdfDialog(window: BrowserWindow | null): Promise<strin
   return result.canceled ? [] : result.filePaths;
 }
 
-/** The folder searchable copies are written into. Null when cancelled. */
-export async function chooseFolderDialog(window: BrowserWindow | null): Promise<string | null> {
+/** The folder a batch of output files is written into. Null when cancelled. */
+export async function chooseFolderDialog(
+  window: BrowserWindow | null,
+  title = 'Choose a folder for the finished files'
+): Promise<string | null> {
   const options: OpenDialogOptions = {
-    title: 'Choose a folder for the finished files',
+    title,
     buttonLabel: 'Use this folder',
     properties: ['openDirectory', 'createDirectory'],
   };
@@ -57,6 +61,32 @@ export async function saveAsWithDialog(
     : await dialog.showSaveDialog(options);
   if (result.canceled || result.filePath === undefined) return null;
   return store.saveTo(docId, result.filePath);
+}
+
+/**
+ * Where an export goes. Per-page formats need a FOLDER (the app names the files
+ * itself, one per page); single-file formats get a save dialog filtered to that
+ * format's extension. Null whenever the attorney backs out.
+ */
+export async function chooseExportOutput(
+  window: BrowserWindow | null,
+  format: ExportFormat,
+  suggestedName: string
+): Promise<string | null> {
+  const info = exportFormatInfo(format);
+  if (info.output === 'folder') {
+    return chooseFolderDialog(window, 'Choose a folder for the exported pages');
+  }
+  const options: SaveDialogOptions = {
+    title: `Export as ${info.label}`,
+    defaultPath: suggestedName,
+    filters: [{ name: info.label, extensions: [info.extension] }],
+  };
+  const result = window
+    ? await dialog.showSaveDialog(window, options)
+    : await dialog.showSaveDialog(options);
+  if (result.canceled || result.filePath === undefined) return null;
+  return result.filePath;
 }
 
 /** Raises a ConfirmPrompt and answers with the index of the button pressed. */
