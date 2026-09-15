@@ -31,6 +31,7 @@ import type {
   EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  ExportFormat,
   ExportOptions,
   ExportResult,
   FillableFormDetail,
@@ -231,6 +232,8 @@ export interface ConvertBridge {
 }
 
 export interface ExportBridge {
+  /** Asks where the export goes (folder or file by format). Null when cancelled. */
+  chooseOutput(format: ExportFormat, suggestedName: string): Promise<string | null>;
   /** Writes the document out in another format; streams `export:progress`. */
   run(docId: string, options: ExportOptions): Promise<ExportResult>;
   /** Stops after the page in flight; files already written stay. */

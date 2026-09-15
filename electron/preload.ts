@@ -148,6 +148,7 @@ const bridge: LibrariusBridge = {
     support: () => invoke(IPC.convert.support),
   },
   export: {
+    chooseOutput: (format, suggestedName) => invoke(IPC.export.chooseOutput, format, suggestedName),
     run: (docId, options) => invoke(IPC.export.run, docId, options),
     cancel: (docId) => invoke(IPC.export.cancel, docId),
   },

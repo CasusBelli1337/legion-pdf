@@ -121,6 +121,7 @@ export const IPC = {
     progress: 'convert:progress',
   },
   export: {
+    chooseOutput: 'export:chooseOutput',
     run: 'export:run',
     cancel: 'export:cancel',
     progress: 'export:progress',

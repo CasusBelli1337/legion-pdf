@@ -35,6 +35,7 @@ import type {
   EsignServiceStatus,
   ExhibitDetail,
   ExhibitOptions,
+  ExportFormat,
   ExportOptions,
   ExportResult,
   FillableFormDetail,
@@ -281,6 +282,15 @@ export interface IpcInvokeContract {
    * or one TIFF/TXT/DOCX file. Streams `export:progress`; resolves with every
    * file written. The Word format is served by the Word lane's exporter.
    */
+  /**
+   * Native picker for where an export goes: a folder for per-page formats, a
+   * file (filtered to the format's extension) for single-file ones. Resolves
+   * null when the attorney cancels.
+   */
+  'export:chooseOutput': {
+    request: [format: ExportFormat, suggestedName: string];
+    response: string | null;
+  };
   'export:run': { request: [docId: string, options: ExportOptions]; response: ExportResult };
   /** Stops the run after the page in flight; files already written stay. */
   'export:cancel': { request: [docId: string]; response: void };
