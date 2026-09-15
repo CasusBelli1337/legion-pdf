@@ -9,8 +9,9 @@ import { BrowserWindow, app, shell } from 'electron';
 import { IPC } from '@shared/ipc';
 import type { ProgressChannel } from '@shared/ipc';
 import { PRODUCT_NAME } from '@shared/product';
-import type { MenuAction, ProgressEvent, RasterRequest } from '@shared/types';
+import type { LayoutRequest, MenuAction, ProgressEvent, RasterRequest } from '@shared/types';
 import { DocStore } from './services/doc-store';
+import { MainLayoutBridge } from './services/layout-bridge';
 import { OpenFilesRelay, launchIntentFromArgv } from './services/open-files';
 import { MainRasterBridge } from './services/raster-bridge';
 import { registerIpcHandlers } from './ipc';
@@ -104,12 +105,14 @@ function bootstrap(): void {
     recentFilePath: join(app.getPath('userData'), 'recent-files.json'),
   });
   const rasterBridge = new MainRasterBridge(getWindow);
+  const layoutBridge = new MainLayoutBridge(getWindow);
 
   registerIpcHandlers({
     store,
     getWindow,
     emitProgress: (channel: ProgressChannel, event: ProgressEvent) => send(channel, event),
     requestRaster: (request: Omit<RasterRequest, 'requestId'>) => rasterBridge.request(request),
+    requestLayout: (request: Omit<LayoutRequest, 'requestId'>) => layoutBridge.request(request),
   });
 
   installAppMenu((action: MenuAction) => send(IPC.app.menu, action), isDevelopment);

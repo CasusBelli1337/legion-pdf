@@ -67,6 +67,7 @@ beforeAll(async () => {
     getWindow: () => null,
     emitProgress: () => undefined,
     requestRaster: () => Promise.reject(new Error('no renderer in this suite')),
+    requestLayout: () => Promise.reject(new Error('no renderer in this suite')),
   };
   registerOpsHandlers(context);
 });

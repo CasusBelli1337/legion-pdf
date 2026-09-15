@@ -59,6 +59,7 @@ function harness(options: HarnessOptions = {}): Harness {
       options.onRaster?.(page);
       return Promise.resolve({ png: pagePng(page), widthPx: 8, heightPx: 6 });
     },
+    requestLayout: () => Promise.reject(new Error('no renderer in this suite')),
     toJpeg: (png, quality) => new TextEncoder().encode(`JPEG q${quality} of ${png.byteLength}`),
     openText: () => Promise.resolve(source),
     writeFile: (path, bytes) => {
@@ -206,11 +207,11 @@ describe('page ranges and formats that are not built yet', () => {
     );
   });
 
-  it('rejects Word by name until that lane lands', async () => {
+  it('surfaces the Word exporter through the same runner, errors and all', async () => {
+    // The Word exporter asks the renderer for page layouts; this suite has no
+    // renderer, so the plain-English refusal must come back through the runner.
     const { runner } = harness();
-    await expect(runner.run('doc-1', options('docx'))).rejects.toThrow(
-      'NotImplemented: export docx'
-    );
+    await expect(runner.run('doc-1', options('docx'))).rejects.toThrow(/no renderer/);
   });
 
   it('refuses to start without somewhere to save', async () => {

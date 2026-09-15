@@ -50,6 +50,7 @@ async function writeExportFile(path: string, bytes: Uint8Array): Promise<void> {
 function exporterContext(context: IpcContext): ExporterContext {
   return {
     requestRaster: (request) => rasterThrough(context, request),
+    requestLayout: (request) => context.requestLayout(request),
     toJpeg,
     openText: openPdfText,
     writeFile: writeExportFile,
