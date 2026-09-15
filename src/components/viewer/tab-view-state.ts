@@ -11,9 +11,16 @@ export interface TabViewState {
   zoom: number;
   fitMode: FitMode;
   page: number;
+  /**
+   * How far into that page the top of the viewport sat, as a share of the
+   * page's height (0 = its top edge). Zoom-independent, so the same spot comes
+   * back at any scale — the page number alone lands the reader at the top of
+   * the page, up to a full page away from where they were.
+   */
+  offset: number;
 }
 
-const DEFAULT_STATE: TabViewState = { zoom: 1, fitMode: 'width', page: 1 };
+const DEFAULT_STATE: TabViewState = { zoom: 1, fitMode: 'width', page: 1, offset: 0 };
 
 const states = new Map<string, TabViewState>();
 

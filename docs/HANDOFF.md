@@ -25,6 +25,8 @@ request became, how it was proven, screenshots under
   Proven on a Word-written PDF (`qa/fixtures/word-letter.pdf`, made by
   `qa/make-word-letter.mjs` + the docx-render skill) and in the real app
   (`qa/text-edit-proof.mjs`).
+- **Tab switch keeps the exact spot** (page + offset within it, restored after
+  the zoom refit; `qa/tab-switch-proof.mjs`).
 - **Side by side** view (Ctrl+\); tab-name findings: duplicate-open and
   tail-truncation fixed, derived names (`X extracted.pdf`, `Combined.pdf`,
   `X (redacted).pdf`) are by design; Ctrl+S on a never-saved doc → Save As.
