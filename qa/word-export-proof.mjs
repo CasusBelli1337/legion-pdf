@@ -1,3 +1,4 @@
+/* global document */
 // Proves the Word export in the BUILT app end to end: opens a real fixture,
 // reads the panel's plan before the button, exports through the real IPC path
 // with the native save dialog answered in the main process, and screenshots the
