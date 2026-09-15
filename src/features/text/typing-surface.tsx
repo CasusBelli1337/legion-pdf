@@ -7,6 +7,7 @@
  * step, which is what makes a line that wraps here wrap there.
  */
 
+import type { CSSProperties } from 'react';
 import { textDecorationFor, type TextDraft } from './editor-state';
 import { cssFontStack } from './font-metrics';
 import type { EditorLayout } from './text-geometry';
@@ -21,6 +22,8 @@ export interface TypingSurfaceProps {
   onGrow(height: number): void;
   onKey(event: { key: string; ctrlKey: boolean; metaKey: boolean; preventDefault(): void }): void;
   onLeave(next: EventTarget | null): void;
+  /** Indent, alignment, a turn — what editing an existing paragraph adds. */
+  extraStyle?: CSSProperties;
 }
 
 /**
@@ -46,6 +49,7 @@ export function TypingSurface({
   onGrow,
   onKey,
   onLeave,
+  extraStyle,
 }: TypingSurfaceProps) {
   return (
     <textarea
@@ -63,6 +67,7 @@ export function TypingSurface({
       onBlur={(event) => onLeave(event.relatedTarget)}
       className="pointer-events-auto absolute resize-none overflow-hidden border-0 bg-transparent p-0 outline-none placeholder:text-text-muted"
       style={{
+        ...extraStyle,
         left: `${layout.left}px`,
         top: `${layout.top}px`,
         width: `${layout.width}px`,

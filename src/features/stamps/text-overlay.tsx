@@ -10,7 +10,7 @@
 
 import type { PageOverlayContext, ViewerApi } from '@renderer/components/viewer';
 import type { PdfRect, TextBoxOptions } from '@shared/types';
-import { InPlaceEditor, type TextDraft } from '@renderer/features/text';
+import { BlockEditor, InPlaceEditor, type TextDraft } from '@renderer/features/text';
 import type { SampledFont } from '@renderer/features/text';
 import { RectMark } from './mark-preview';
 import { PlacementSurface } from './placement-surface';
@@ -44,6 +44,22 @@ function editorFor(editing: TextEditing, page: number): PdfRect | null {
 export function TextOverlay({ api, context, editing }: TextOverlayProps) {
   const { live, cover } = marksFor(editing, context.page);
   const typing = editorFor(editing, context.page);
+  const { blockEditing } = editing;
+
+  if (blockEditing.block !== null && blockEditing.block.page === context.page) {
+    return (
+      <BlockEditor
+        context={context}
+        block={blockEditing.block}
+        text={blockEditing.text}
+        phase={blockEditing.phase}
+        note={blockEditing.note}
+        onText={blockEditing.setText}
+        onCommit={() => void blockEditing.commit()}
+        onCancel={blockEditing.cancel}
+      />
+    );
+  }
 
   if (typing !== null && api !== null) {
     return (

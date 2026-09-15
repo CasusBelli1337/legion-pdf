@@ -83,7 +83,7 @@ export function firstLineOriginClient(
 }
 
 /** Where the browser puts a line's baseline inside its line box. */
-function baselineInLineBox(
+export function baselineInLineBox(
   fontBox: FontBox | null,
   layout: { fontSizePx: number; lineHeightPx: number; ascentPx: number; heightPx: number }
 ): number {

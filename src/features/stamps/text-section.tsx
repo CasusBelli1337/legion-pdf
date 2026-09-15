@@ -24,30 +24,47 @@ import type { StampRunner } from './use-stamp-runner';
 
 const OVERLAY_ID = 'text-whiteout-placement';
 
-const ARMED_LABEL: Record<TextTool, string> = {
-  off: '',
-  text: 'Drawing a box...',
-  cover: 'Drag a box...',
-};
+const TOOLS: readonly { tool: TextTool; label: string; armed: string }[] = [
+  { tool: 'edit', label: 'Edit text', armed: 'Click on text...' },
+  { tool: 'text', label: 'Add text', armed: 'Drawing a box...' },
+  { tool: 'cover', label: 'Cover and retype', armed: 'Drag a box...' },
+];
 
 function ToolButtons({ tool, onArm }: { tool: TextTool; onArm(next: TextTool): void }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <ActionButton
-        label={tool === 'text' ? ARMED_LABEL.text : 'Add text'}
-        variant={tool === 'text' ? 'primary' : 'quiet'}
-        onClick={() => onArm('text')}
-      />
-      <ActionButton
-        label={tool === 'cover' ? ARMED_LABEL.cover : 'Cover and retype'}
-        variant={tool === 'cover' ? 'primary' : 'quiet'}
-        onClick={() => onArm('cover')}
-      />
+    <div className="grid grid-cols-3 gap-2">
+      {TOOLS.map((entry) => (
+        <ActionButton
+          key={entry.tool}
+          label={tool === entry.tool ? entry.armed : entry.label}
+          variant={tool === entry.tool ? 'primary' : 'quiet'}
+          onClick={() => onArm(entry.tool)}
+        />
+      ))}
     </div>
   );
 }
 
 function Instructions({ editing }: { editing: TextEditing }) {
+  const { blockEditing } = editing;
+  if (blockEditing.block !== null) {
+    return (
+      <Hint>
+        Change the words in the box on the page. The paragraph re-wraps in the document's own font
+        where it can. Ctrl+Enter applies the change, Esc leaves the text as it was.
+      </Hint>
+    );
+  }
+  if (editing.tool === 'edit') {
+    return (
+      <>
+        <Hint>Click on a line of text to edit the paragraph it belongs to.</Hint>
+        {blockEditing.note !== null && blockEditing.phase === 'idle' && (
+          <Hint>{blockEditing.note.text}</Hint>
+        )}
+      </>
+    );
+  }
   if (editing.editing !== null) {
     return (
       <Hint>
@@ -72,7 +89,8 @@ function Instructions({ editing }: { editing: TextEditing }) {
 
 /** Rebuilt on every change, because registering an overlay does not re-render. */
 function useTextOverlay(api: ViewerApi | null, editing: TextEditing): PageOverlayRenderer | null {
-  const idle = editing.tool === 'off' && editing.editing === null;
+  const idle =
+    editing.tool === 'off' && editing.editing === null && editing.blockEditing.block === null;
   return useMemo<PageOverlayRenderer | null>(
     () =>
       idle ? null : (context) => <TextOverlay api={api} context={context} editing={editing} />,

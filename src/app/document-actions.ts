@@ -132,6 +132,9 @@ export function exportActive(): void {
 export async function saveActive(): Promise<void> {
   const docId = activeId();
   if (docId === null) return;
+  // A combined, extracted, or converted document has no file yet: Save IS Save As.
+  const session = useAppStore.getState().sessions.find((item) => item.id === docId);
+  if (session?.filePath === null) return saveActiveAs();
   if (!(await runSaveGates(docId))) return;
   const store = useAppStore.getState();
   store.setBusy('Saving');

@@ -53,14 +53,19 @@ export interface RemovalDetail {
   approximateWidths: boolean;
 }
 
-interface Span {
+export interface Span {
   stream: PageStream;
   start: number;
   end: number;
 }
 
+export interface JoinedStreams {
+  bytes: Uint8Array;
+  spans: Span[];
+}
+
 /** The page's streams as ONE buffer, because they are one logical stream. */
-function join(streams: readonly PageStream[]): { bytes: Uint8Array; spans: Span[] } {
+export function joinStreams(streams: readonly PageStream[]): JoinedStreams {
   const spans: Span[] = [];
   let total = 0;
   for (const stream of streams) {
@@ -95,6 +100,21 @@ function writeBack(page: PDFPage, stream: PageStream, bytes: Uint8Array): void {
   context.assign(stream.ref, PDFRawStream.of(dict, bytes));
 }
 
+/** Rewrites each stream that any edit touches; the others keep their bytes and encoding. */
+export function applyStreamEdits(
+  page: PDFPage,
+  pageNumber: number,
+  joined: JoinedStreams,
+  edits: readonly ShowEdit[]
+): void {
+  for (const span of joined.spans) {
+    const mine = edits
+      .filter((edit) => spanOf(joined.spans, edit, pageNumber) === span)
+      .map((edit) => ({ ...edit, start: edit.start - span.start, end: edit.end - span.start }));
+    if (mine.length > 0) writeBack(page, span.stream, applyEdits(span.stream.content, mine));
+  }
+}
+
 function editsFor(scan: ScanResult, rect: PdfRect, threshold: number): ShowEdit[] {
   return scan.shows
     .map((operation) => editFor(operation, rect, threshold))
@@ -118,7 +138,7 @@ function proveEmpty(
   rect: PdfRect,
   threshold: number
 ): { shownAfter: number } {
-  const joined = join(contentStreamsOf(page, pageNumber));
+  const joined = joinStreams(contentStreamsOf(page, pageNumber));
   const scan = scanText(joined.bytes, resources);
   const left = scan.shows
     .flatMap((operation) => operation.items)
@@ -155,18 +175,13 @@ export async function removeTextInRect(
   const page = document.getPage(request.page - 1);
   const resources = await resourcesOf(page.node.Resources());
   const streams = contentStreamsOf(page, request.page);
-  const joined = join(streams);
+  const joined = joinStreams(streams);
   const scan = scanText(joined.bytes, resources);
   refuseHiddenText(scan, request.rect, threshold, request.page);
 
   const edits = editsFor(scan, request.rect, threshold);
   const shownBefore = countShownCharacters(joined.bytes);
-  for (const span of joined.spans) {
-    const mine = edits
-      .filter((edit) => spanOf(joined.spans, edit, request.page) === span)
-      .map((edit) => ({ ...edit, start: edit.start - span.start, end: edit.end - span.start }));
-    if (mine.length > 0) writeBack(page, span.stream, applyEdits(span.stream.content, mine));
-  }
+  applyStreamEdits(page, request.page, joined, edits);
 
   const glyphsRemoved = edits.reduce((total, edit) => total + edit.glyphsRemoved, 0);
   const { shownAfter } = proveEmpty(page, request.page, resources, request.rect, threshold);

@@ -100,34 +100,34 @@ function splitGlyphs(
   }
 }
 
+/** Which glyphs of a show operation go: by item index and glyph index within it. */
+export type Removes = (glyph: ShownGlyph, item: number, index: number) => boolean;
+
 function itemParts(
   item: ShowItem,
+  itemIndex: number,
   operation: ShowOperation,
-  rect: PdfRect,
-  threshold: number,
+  removes: Removes,
   split: Split
 ): void {
   if (item.kind === 'adjust') {
     split.parts.push(String(item.value));
     return;
   }
-  const covered = item.glyphs.map((glyph) => isCovered(glyph, rect, threshold));
+  const covered = item.glyphs.map((glyph, index) => removes(glyph, itemIndex, index));
   splitGlyphs(item.glyphs, covered, operation, split);
 }
 
 /**
- * The edit one show operator needs, or null when the box covers none of it.
- * Every rewritten operator comes out as `prefix [ … ] TJ`, whatever it was
- * before: `Tj`, `TJ`, `'`, and `"` all show glyphs, and the two that also move
- * the line carry that move in the prefix so nothing about the layout changes.
+ * The edit one show operator needs to drop the glyphs `removes` names, or null
+ * when it names none of them. Every rewritten operator comes out as
+ * `prefix [ … ] TJ`, whatever it was before: `Tj`, `TJ`, `'`, and `"` all show
+ * glyphs, and the two that also move the line carry that move in the prefix so
+ * nothing about the layout changes.
  */
-export function editFor(
-  operation: ShowOperation,
-  rect: PdfRect,
-  threshold = COVERAGE_THRESHOLD
-): ShowEdit | null {
+export function editRemoving(operation: ShowOperation, removes: Removes): ShowEdit | null {
   const split: Split = { parts: [], glyphsRemoved: 0, bytesRemoved: 0 };
-  for (const item of operation.items) itemParts(item, operation, rect, threshold, split);
+  operation.items.forEach((item, index) => itemParts(item, index, operation, removes, split));
   if (split.glyphsRemoved === 0) return null;
   const body = `[${split.parts.join(' ')}] TJ`;
   return {
@@ -137,6 +137,15 @@ export function editFor(
     glyphsRemoved: split.glyphsRemoved,
     bytesRemoved: split.bytesRemoved,
   };
+}
+
+/** The edit one show operator needs, or null when the box covers none of it. */
+export function editFor(
+  operation: ShowOperation,
+  rect: PdfRect,
+  threshold = COVERAGE_THRESHOLD
+): ShowEdit | null {
+  return editRemoving(operation, (glyph) => isCovered(glyph, rect, threshold));
 }
 
 /** Applies edits to a buffer, latest first so earlier offsets stay valid. */

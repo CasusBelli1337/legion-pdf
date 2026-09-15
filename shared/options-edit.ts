@@ -16,11 +16,9 @@ export interface TextEditProbe {
 
 export interface TextEditLine {
   text: string;
-  /** Baseline y in PDF user space. */
-  baseline: number;
-  /** Left edge of the first glyph, in PDF user space. */
-  x: number;
-  /** Advance of the whole line, in points. */
+  /** Baseline start of the line's first glyph, in PDF user space. */
+  origin: PdfPoint;
+  /** Advance of the whole line along its baseline, in points. */
   width: number;
 }
 
@@ -32,6 +30,8 @@ export interface TextEditFont {
   colorHex: string;
   bold: boolean;
   italic: boolean;
+  /** The font descriptor's own word for the design, for a screen stand-in. */
+  designFamily: 'serif' | 'sans-serif' | 'monospace';
   /**
    * True when the document's own font can set NEW text: its character map can
    * be run backwards, so an edit stays in the same face. False means an edit
@@ -54,6 +54,8 @@ export interface TextEditBlock {
   /** Baseline-to-baseline distance in points; the size when there is one line. */
   leadingPt: number;
   alignment: TextAlignment;
+  /** Direction the text runs, degrees counter-clockwise from left-to-right. */
+  angle: number;
 }
 
 export interface ReplaceTextOptions {
@@ -79,4 +81,6 @@ export interface ReplaceTextDetail {
   overflowed: boolean;
   glyphsRemoved: number;
   glyphsAdded: number;
+  /** Plain-English remarks the attorney should see, e.g. a merged bold word. */
+  notes: string[];
 }

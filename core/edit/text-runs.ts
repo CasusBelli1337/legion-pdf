@@ -6,30 +6,26 @@
  * and size in force, and the spacing that moves the pen between glyphs. Feeding
  * that with the font's widths turns `Tj`/`TJ`/`'`/`"` into a list of glyph
  * boxes in PDF user space — which is the only honest way to ask "is this
- * character underneath the box the attorney drew?".
+ * character underneath the box the attorney drew?" or "which paragraph did the
+ * attorney click?".
  *
- * Text render mode is deliberately ignored: mode 3 is INVISIBLE text, which is
- * exactly what an OCR layer is made of, and invisible text is the text most
- * likely to leak out of a covered area into a copy/paste or an AI prompt.
+ * Text render mode is recorded, not filtered: whiteout removal must see mode 3
+ * (invisible OCR text — the text most likely to leak), and text editing must
+ * refuse it (the words on a scan are pixels). Each caller decides.
  */
 
 import type { PdfPoint, PdfRect } from '@shared/types';
 import { tokenize, type StreamToken } from './content-lexer';
 import type { GlyphMetrics } from './font-widths';
-import {
-  IDENTITY,
-  apply,
-  boundsOf,
-  matrixFrom,
-  multiply,
-  translation,
-  type Matrix,
-} from './matrix';
+import { IDENTITY, apply, boundsOf, multiply, translation, type Matrix } from './matrix';
+import { STATE_HANDLERS, initialState, lineFeed, numbersOf, type TextState } from './text-state';
 
 export interface ShownGlyph {
   code: number;
   /** Upright box around the glyph, in PDF user space. */
   box: PdfRect;
+  /** Where the pen was when this glyph was drawn — its baseline start, user space. */
+  origin: PdfPoint;
   /** Advance the pen takes for this glyph, before the horizontal scale. */
   advance: number;
 }
@@ -47,6 +43,14 @@ export interface ShowOperation {
   size: number;
   /** Bytes per character code in the face in force, so a rewrite can re-encode. */
   codeBytes: 1 | 2;
+  /** The `/Fn` resource name the glyphs were set in. */
+  fontName: string;
+  /** Fill colour in force, "#rrggbb". */
+  fillColor: string;
+  /** `Tr` in force; 3 is invisible text. */
+  renderMode: number;
+  /** Text-space-to-user-space at the start of the show (size not included). */
+  matrix: Matrix;
   items: ShowItem[];
 }
 
@@ -70,44 +74,6 @@ export interface ScanResult {
   approximate: boolean;
 }
 
-interface State {
-  ctm: Matrix;
-  stack: Matrix[];
-  text: Matrix;
-  line: Matrix;
-  font: GlyphMetrics | null;
-  size: number;
-  charSpacing: number;
-  wordSpacing: number;
-  horizontal: number;
-  leading: number;
-  rise: number;
-}
-
-function initialState(ctm: Matrix): State {
-  return {
-    ctm,
-    stack: [],
-    text: IDENTITY,
-    line: IDENTITY,
-    font: null,
-    size: 0,
-    charSpacing: 0,
-    wordSpacing: 0,
-    horizontal: 1,
-    leading: 0,
-    rise: 0,
-  };
-}
-
-function numbersOf(operands: readonly StreamToken[]): number[] {
-  return operands.filter((token) => token.kind === 'number').map((token) => Number(token.text));
-}
-
-function last(values: readonly number[], fallback = 0): number {
-  return values.at(-1) ?? fallback;
-}
-
 /** Character codes a string token carries, one or two bytes each. */
 function codesOf(bytes: readonly number[], codeBytes: 1 | 2): number[] {
   if (codeBytes === 1) return [...bytes];
@@ -118,11 +84,15 @@ function codesOf(bytes: readonly number[], codeBytes: 1 | 2): number[] {
   return codes;
 }
 
-function glyphBox(state: State, font: GlyphMetrics, width: number): PdfRect {
-  const render = multiply(
+/** Text space → user space with the size, scale, and rise applied. */
+function renderMatrix(state: TextState): Matrix {
+  return multiply(
     [state.size * state.horizontal, 0, 0, state.size, 0, state.rise],
     multiply(state.text, state.ctm)
   );
+}
+
+function glyphBox(render: Matrix, font: GlyphMetrics, width: number): PdfRect {
   const top = font.ascent / 1000;
   const bottom = font.descent / 1000;
   const corners: PdfPoint[] = [
@@ -135,7 +105,7 @@ function glyphBox(state: State, font: GlyphMetrics, width: number): PdfRect {
 }
 
 /** Advances the pen over one string and reports the glyphs it drew. */
-function showGlyphs(state: State, bytes: readonly number[]): ShownGlyph[] {
+function showGlyphs(state: TextState, bytes: readonly number[]): ShownGlyph[] {
   const font = state.font;
   if (font === null) return [];
   const glyphs: ShownGlyph[] = [];
@@ -143,23 +113,24 @@ function showGlyphs(state: State, bytes: readonly number[]): ShownGlyph[] {
     const width = font.widthOf(code) / 1000;
     const spacing = code === 32 && font.codeBytes === 1 ? state.wordSpacing : 0;
     const advance = width * state.size + state.charSpacing + spacing;
-    glyphs.push({ code, box: glyphBox(state, font, width), advance });
+    const render = renderMatrix(state);
+    glyphs.push({
+      code,
+      box: glyphBox(render, font, width),
+      origin: apply(render, { x: 0, y: 0 }),
+      advance,
+    });
     state.text = multiply(translation(advance * state.horizontal, 0), state.text);
   }
   return glyphs;
 }
 
-function adjust(state: State, value: number): void {
+function adjust(state: TextState, value: number): void {
   const shift = (-value / 1000) * state.size * state.horizontal;
   state.text = multiply(translation(shift, 0), state.text);
 }
 
-function nextLine(state: State, tx: number, ty: number): void {
-  state.line = multiply(translation(tx, ty), state.line);
-  state.text = state.line;
-}
-
-function itemsOf(state: State, operands: readonly StreamToken[]): ShowItem[] {
+function itemsOf(state: TextState, operands: readonly StreamToken[]): ShowItem[] {
   const items: ShowItem[] = [];
   for (const token of operands) {
     if (token.kind === 'string')
@@ -173,7 +144,7 @@ function itemsOf(state: State, operands: readonly StreamToken[]): ShowItem[] {
 }
 
 interface Walk {
-  state: State;
+  state: TextState;
   resources: ScanResources;
   out: ScanResult;
   depth: number;
@@ -197,78 +168,35 @@ function record(
   operator: StreamToken,
   prefix: string
 ): void {
+  const { state } = walk;
   walk.out.shows.push({
     start: operands[0]?.start ?? operator.start,
     end: operator.end,
     prefix,
-    size: walk.state.size,
-    codeBytes: walk.state.font?.codeBytes ?? 1,
-    items: itemsOf(walk.state, shownOperands(operator.text, operands)),
+    size: state.size,
+    codeBytes: state.font?.codeBytes ?? 1,
+    fontName: state.fontName,
+    fillColor: state.fillColor,
+    renderMode: state.renderMode,
+    matrix: multiply(state.text, state.ctm),
+    items: itemsOf(state, shownOperands(operator.text, operands)),
   });
 }
 
-type Handler = (walk: Walk, operands: StreamToken[], operator: StreamToken) => void;
+type ShowHandler = (walk: Walk, operands: StreamToken[], operator: StreamToken) => void;
 
-const HANDLERS: Record<string, Handler> = {
-  q: ({ state }) => {
-    state.stack.push(state.ctm);
-  },
-  Q: ({ state }) => {
-    state.ctm = state.stack.pop() ?? IDENTITY;
-  },
-  cm: ({ state }, operands) => {
-    state.ctm = multiply(matrixFrom(numbersOf(operands)), state.ctm);
-  },
-  BT: ({ state }) => {
-    state.text = IDENTITY;
-    state.line = IDENTITY;
-  },
-  Tm: ({ state }, operands) => {
-    state.line = matrixFrom(numbersOf(operands));
-    state.text = state.line;
-  },
-  Tf: (walk, operands) => {
-    const name = operands.filter((token) => token.kind === 'name').at(-1)?.text ?? '';
-    walk.state.font = walk.resources.fonts.get(name) ?? null;
-    walk.state.size = last(numbersOf(operands));
-    if (walk.state.font?.approximate === true) walk.out.approximate = true;
-  },
-  Td: ({ state }, operands) => {
-    const [tx = 0, ty = 0] = numbersOf(operands).slice(-2);
-    nextLine(state, tx, ty);
-  },
-  TD: ({ state }, operands) => {
-    const [tx = 0, ty = 0] = numbersOf(operands).slice(-2);
-    state.leading = -ty;
-    nextLine(state, tx, ty);
-  },
-  'T*': ({ state }) => nextLine(state, 0, -state.leading),
-  TL: ({ state }, operands) => {
-    state.leading = last(numbersOf(operands));
-  },
-  Tc: ({ state }, operands) => {
-    state.charSpacing = last(numbersOf(operands));
-  },
-  Tw: ({ state }, operands) => {
-    state.wordSpacing = last(numbersOf(operands));
-  },
-  Tz: ({ state }, operands) => {
-    state.horizontal = last(numbersOf(operands), 100) / 100;
-  },
-  Ts: ({ state }, operands) => {
-    state.rise = last(numbersOf(operands));
-  },
+const SHOW_HANDLERS: Record<string, ShowHandler> = {
   Tj: (walk, operands, operator) => record(walk, operands, operator, ''),
   TJ: (walk, operands, operator) => record(walk, operands, operator, ''),
   "'": (walk, operands, operator) => {
-    nextLine(walk.state, 0, -walk.state.leading);
+    lineFeed(walk.state);
     record(walk, operands, operator, 'T*');
   },
   '"': (walk, operands, operator) => {
     const [wordSpacing = 0, charSpacing = 0] = numbersOf(operands).slice(0, 2);
     walk.state.wordSpacing = wordSpacing;
     walk.state.charSpacing = charSpacing;
-    nextLine(walk.state, 0, -walk.state.leading);
+    lineFeed(walk.state);
     record(walk, operands, operator, `${wordSpacing} Tw ${charSpacing} Tc T*`);
   },
   Do: (walk, operands) => enterForm(walk, operands),
@@ -296,6 +224,18 @@ function enterForm(walk: Walk, operands: readonly StreamToken[]): void {
 /** Forms nest; a file that nests them this deep is malformed, not clever. */
 const MAX_FORM_DEPTH = 8;
 
+function step(walk: Walk, operands: StreamToken[], operator: StreamToken): void {
+  const setState = STATE_HANDLERS[operator.text];
+  if (setState !== undefined) {
+    setState(walk.state, operands, walk.resources.fonts);
+    if (operator.text === 'Tf' && walk.state.font?.approximate === true) {
+      walk.out.approximate = true;
+    }
+    return;
+  }
+  SHOW_HANDLERS[operator.text]?.(walk, operands, operator);
+}
+
 /**
  * Every text-showing operation in one stream, with its glyphs placed in user
  * space. `ctm` is the transform in force where the stream begins — identity for
@@ -319,7 +259,7 @@ export function scanText(
       operands.push(token);
       continue;
     }
-    HANDLERS[token.text]?.(walk, operands, token);
+    step(walk, operands, token);
     operands = [];
   }
   return walk.out;
