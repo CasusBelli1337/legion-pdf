@@ -181,3 +181,25 @@ describe('verifyDocx', () => {
     );
   });
 });
+
+describe('buildDocx — scanner noise in the foot', () => {
+  it('keeps the footer to real words: recognised fragments with no three letters or digits are left out', async () => {
+    const layout = page([
+      run('Body text on the page', 90, 700),
+      run('DEFENDANT NOVO CONSTRUCTION, INC.’S CROSS-COMPLAINT', 200, 30, {
+        role: 'footer',
+        hidden: true,
+      }),
+      run('H', 40, 60, { role: 'footer', hidden: true }),
+      run('KL', 40, 48, { role: 'footer', hidden: true }),
+      run(')', 40, 36, { role: 'footer', hidden: true }),
+      run('AHCIB-IU A T LA W', 40, 24, { role: 'footer', hidden: true }),
+    ]);
+    const build = await buildDocx([layout]);
+    const { footer } = await partsOf(build.bytes);
+    expect(footer).toContain('CROSS-COMPLAINT');
+    expect(footer).toContain('AHCIB-IU');
+    expect(footer).not.toMatch(/<w:t[^>]*>KL<\/w:t>/);
+    expect(footer).not.toMatch(/<w:t[^>]*>H<\/w:t>/);
+  });
+});
