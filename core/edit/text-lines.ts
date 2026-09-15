@@ -43,14 +43,16 @@ export interface TextLine {
   size: number;
   fontName: string;
   text: string;
+  /** Width of the first word along the baseline — the paragraph-break test needs it. */
+  firstWordWidth: number;
 }
 
 /** Gap between glyphs that reads as a word space, as a share of the size. */
 const WORD_GAP = 0.18;
 /** How far off a baseline a glyph may sit and still be on that line. */
 const LINE_TOLERANCE = 0.35;
-/** Baseline gaps above this many sizes are a paragraph break, not a line. */
-const MAX_LEADING = 2.25;
+/** Baseline gaps above this many sizes are a paragraph break, not a line (Word's double spacing is 2.3). */
+const MAX_LEADING = 2.6;
 /** How closely edges must agree to count as aligned, in points. */
 const EDGE_TOLERANCE = 1.5;
 /**
@@ -109,25 +111,53 @@ function sameAngle(first: number, second: number): boolean {
 
 type Decode = (glyph: PlacedGlyph) => string;
 
-function lineText(glyphs: readonly PlacedGlyph[], angle: number, decode: Decode): string {
-  let text = '';
-  let penEnd: number | null = null;
-  for (const glyph of glyphs) {
-    const start = toFrame(glyph.origin, angle).along;
-    const character = decode(glyph);
-    const gap = penEnd === null ? 0 : start - penEnd;
-    if (
-      penEnd !== null &&
-      gap > WORD_GAP * glyph.size &&
-      !text.endsWith(' ') &&
-      character !== ' '
-    ) {
-      text += ' ';
-    }
-    text += character;
-    penEnd = start + glyph.advance;
+interface LineReading {
+  text: string;
+  firstWordWidth: number;
+}
+
+/** Walks one line's glyphs, noting where each word ends and what the line says. */
+class LineReader {
+  text = '';
+  penEnd: number | null = null;
+  firstWordEnd: number | null = null;
+  constructor(
+    private readonly angle: number,
+    private readonly decode: Decode
+  ) {}
+
+  add(glyph: PlacedGlyph): void {
+    const start = toFrame(glyph.origin, this.angle).along;
+    const character = this.decode(glyph);
+    if (this.breaksWord(start, glyph.size, character)) this.endWord(character);
+    this.text += character;
+    this.penEnd = start + glyph.advance;
   }
-  return text.replace(/\s+/g, ' ').trim();
+
+  private breaksWord(start: number, size: number, character: string): boolean {
+    if (this.penEnd === null) return false;
+    return start - this.penEnd > WORD_GAP * size || character === ' ';
+  }
+
+  private endWord(character: string): void {
+    if (this.firstWordEnd === null && this.text.trim() !== '') this.firstWordEnd = this.penEnd;
+    if (!this.text.endsWith(' ') && character !== ' ') this.text += ' ';
+  }
+
+  reading(lineStart: number): LineReading {
+    return {
+      text: this.text.replace(/\s+/g, ' ').trim(),
+      firstWordWidth: (this.firstWordEnd ?? this.penEnd ?? lineStart) - lineStart,
+    };
+  }
+}
+
+/** The line's text with word gaps as spaces, and how wide its first word is. */
+function readLine(glyphs: readonly PlacedGlyph[], angle: number, decode: Decode): LineReading {
+  const reader = new LineReader(angle, decode);
+  for (const glyph of glyphs) reader.add(glyph);
+  const first = glyphs[0];
+  return reader.reading(first === undefined ? 0 : toFrame(first.origin, angle).along);
 }
 
 /**
@@ -165,9 +195,9 @@ export function groupLines(
     const ordered = [...line.glyphs].sort(
       (a, b) => toFrame(a.origin, angle).along - toFrame(b.origin, angle).along
     );
-    return splitAtGutters(ordered, angle).map((segment) =>
-      lineOf(segment, line.baseline, angle, decode)
-    );
+    return splitAtGutters(ordered, angle)
+      .map((segment) => lineOf(segment, line.baseline, angle, decode))
+      .filter((segment) => segment.text !== '');
   });
 }
 
@@ -199,7 +229,7 @@ function lineOf(ordered: PlacedGlyph[], baseline: number, angle: number, decode:
     end: last === undefined ? 0 : toFrame(last.origin, angle).along + last.advance,
     size: Math.max(...ordered.map((glyph) => glyph.size)),
     fontName: first?.fontName ?? '',
-    text: lineText(ordered, angle, decode),
+    ...readLine(ordered, angle, decode),
   };
 }
 
@@ -228,19 +258,6 @@ function overlap(first: TextLine, second: TextLine): boolean {
   return shared > 0.3 * Math.min(first.end - first.start, second.end - second.start);
 }
 
-/** Width of a line's first word: the advances up to the first word gap. */
-function firstWordWidth(line: TextLine): number {
-  let width = 0;
-  let penEnd: number | null = null;
-  for (const glyph of line.glyphs) {
-    const start = toFrame(glyph.origin, glyph.angle).along;
-    if (penEnd !== null && start - penEnd > WORD_GAP * glyph.size) break;
-    width += glyph.advance + (penEnd === null ? 0 : Math.max(0, start - penEnd));
-    penEnd = start + glyph.advance;
-  }
-  return width;
-}
-
 /**
  * Whether `lower` continues `upper`'s paragraph. The break test is the one
  * typesetters use: if the next line's first word would have fitted on this
@@ -253,7 +270,7 @@ function joinable(upper: TextLine, lower: TextLine, rightEdge: number): boolean 
   if (Math.abs(upper.size - lower.size) > 0.6) return false;
   if (!overlap(upper, lower)) return false;
   const room = rightEdge - upper.end;
-  return room < firstWordWidth(lower) + WORD_GAP * size + EDGE_TOLERANCE;
+  return room < lower.firstWordWidth + WORD_GAP * size + EDGE_TOLERANCE;
 }
 
 interface ColumnEntry {

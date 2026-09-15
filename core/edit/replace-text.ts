@@ -300,7 +300,8 @@ async function prove(
   const found = normalize(textInBand(pageText, plan));
   if (found !== expected) {
     throw new EditNotProvedError(
-      `Page ${options.page} does not read back the edited text after the rewrite — the edit was not kept.`
+      `Page ${options.page} does not read back the edited text after the rewrite — the edit was ` +
+        `not kept. Expected "${expected.slice(0, 60)}" but the page reads "${found.slice(0, 60)}".`
     );
   }
 }

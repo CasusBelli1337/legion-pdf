@@ -19,7 +19,7 @@ const PROSE: TextPageSpec = {
   lines: [
     { text: 'The parties agree that the closing date is', x: 60, y: 300 },
     { text: 'March 3, 2026 unless extended in', x: 60, y: 286 },
-    { text: 'by both sides.', x: 60, y: 272 },
+    { text: 'extraordinary circumstances.', x: 60, y: 272 },
     { text: 'UNRELATED PARAGRAPH BELOW', x: 60, y: 230 },
     { text: '1', x: 24, y: 300 },
   ],
@@ -45,7 +45,7 @@ describe('inspectTextAt', () => {
   it('reports the whole paragraph under a click, and how it is set', async () => {
     const { block } = await openProse();
     expect(block.text).toBe(
-      'The parties agree that the closing date is\nMarch 3, 2026 unless extended in\nby both sides.'
+      'The parties agree that the closing date is\nMarch 3, 2026 unless extended in\nextraordinary circumstances.'
     );
     expect(block.lines).toHaveLength(3);
     expect(block.font.documentFont).toBe('Helvetica');
@@ -88,7 +88,7 @@ describe('replaceText', () => {
     expect(result.detail.missingCharacters).toEqual([]);
     expect(result.detail.linesBefore).toBe(3);
     expect(result.detail.glyphsRemoved).toBe(
-      'The parties agree that the closing date isMarch 3, 2026 unless extended inby both sides.'
+      'The parties agree that the closing date isMarch 3, 2026 unless extended inextraordinary circumstances.'
         .length
     );
     const after = await textOf(result.bytes);
