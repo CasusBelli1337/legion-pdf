@@ -30,6 +30,8 @@ type Fonts = Readonly<Record<string, LayoutFont>>;
 
 /** Word will not number lines closer to the text than this. */
 const MIN_NUMBER_DISTANCE = 4;
+/** A header or footer may not start closer to the paper's edge than this. */
+const MIN_BAND_PT = 12;
 
 /** Numbers that followed the text lines are Word's own numbering, restarted per page. */
 function lineNumbersFor(geometry: SectionGeometry): Pick<SectionProperties, 'lineNumbers'> {
@@ -44,15 +46,24 @@ function lineNumbersFor(geometry: SectionGeometry): Pick<SectionProperties, 'lin
   };
 }
 
-export function sectionProperties(geometry: SectionGeometry): SectionProperties {
+/** Where the running head's top and the foot's bottom sit, from the paper's edges, points. */
+export interface BandDistances {
+  headerPt?: number;
+  footerPt?: number;
+}
+
+export function sectionProperties(
+  geometry: SectionGeometry,
+  bands: BandDistances = {}
+): SectionProperties {
   const { size, margins, pleading } = geometry;
   const margin = {
     top: twips(margins.top),
     right: twips(margins.right),
     bottom: twips(margins.bottom),
     left: twips(margins.left),
-    header: twips(geometry.headerPt),
-    footer: twips(geometry.footerPt),
+    header: twips(bands.headerPt ?? geometry.headerPt),
+    footer: twips(bands.footerPt ?? geometry.footerPt),
   };
   // The docx package swaps width and height itself for a landscape section,
   // so it is handed the portrait measurements and the orientation.
@@ -94,15 +105,62 @@ function columnsFor(geometry: SectionGeometry): Pick<SectionProperties, 'column'
   };
 }
 
-/** The band's runs as Word paragraphs, each line its own, aligned as it sat. */
-function bandParagraphs(
-  runs: readonly LayoutTextRun[],
-  fonts: Fonts,
-  geometry: SectionGeometry
-): DocxParagraph[] {
-  const lines = linesOf(runs, []);
-  return paragraphsOf(lines, { frame: geometry.frame }).map((paragraph) =>
-    docxTextParagraph({ ...paragraph, spaceBeforePt: 0 }, fonts, { pageBreakBefore: false })
+/** A running head or foot laid out exactly: where its box starts and ends, and its paragraphs. */
+interface Band {
+  paragraphs: TextParagraph[];
+  /** PDF y of the band's top and bottom edges. */
+  top: number;
+  bottom: number;
+}
+
+function firstBaselineOf(paragraph: TextParagraph): number {
+  return paragraph.lines[0]?.baseline ?? 0;
+}
+
+function lastBaselineOf(paragraph: TextParagraph): number {
+  return paragraph.lines.at(-1)?.baseline ?? firstBaselineOf(paragraph);
+}
+
+/** A lone line takes the gap to the line above it, never more than its default. */
+function tightenLonePitches(paragraphs: readonly TextParagraph[]): void {
+  let previousBaseline: number | null = null;
+  for (const paragraph of paragraphs) {
+    const gap = previousBaseline === null ? 0 : previousBaseline - firstBaselineOf(paragraph);
+    if (paragraph.lines.length === 1 && gap > 0 && gap < paragraph.leadingPt) {
+      paragraph.leadingPt = Math.max(gap, 1);
+    }
+    previousBaseline = lastBaselineOf(paragraph);
+  }
+}
+
+/** Space-before from the band's own top edge; returns the band's box edges. */
+function settleBand(paragraphs: readonly TextParagraph[]): Pick<Band, 'top' | 'bottom'> {
+  const first = paragraphs[0];
+  if (first === undefined) return { top: 0, bottom: 0 };
+  const top = firstBaselineOf(first) + BASELINE_SHARE * first.leadingPt;
+  let previousBottom = top;
+  for (const paragraph of paragraphs) {
+    const boxTop = firstBaselineOf(paragraph) + BASELINE_SHARE * paragraph.leadingPt;
+    paragraph.spaceBeforePt = Math.max(0, previousBottom - boxTop);
+    previousBottom = lastBaselineOf(paragraph) - (1 - BASELINE_SHARE) * paragraph.leadingPt;
+  }
+  return { top, bottom: previousBottom };
+}
+
+/**
+ * The band's lines as paragraphs on their own pitch, with space-before
+ * measured from the band's own top edge. A firm's letter-spaced slug of three
+ * eight-point lines then makes a 24-point footer, not a page-and-a-half one.
+ */
+function bandOf(runs: readonly LayoutTextRun[], frame: BodyFrame): Band {
+  const paragraphs = paragraphsOf(linesOf(runs, []), { frame });
+  tightenLonePitches(paragraphs);
+  return { paragraphs, ...settleBand(paragraphs) };
+}
+
+function bandParagraphs(band: Band, fonts: Fonts): DocxParagraph[] {
+  return band.paragraphs.map((paragraph) =>
+    docxTextParagraph(paragraph, fonts, { pageBreakBefore: false })
   );
 }
 
@@ -158,7 +216,7 @@ export function headerFor(
   pages: readonly PageLayout[],
   fonts: Fonts,
   geometry: SectionGeometry
-): Header | null {
+): { header: Header | null; headerPt?: number } {
   const runs = bandRuns(pages, ['header']);
   const { pleading } = geometry;
   if (pleading?.grid === true) {
@@ -169,10 +227,13 @@ export function headerFor(
       textRight: frame.tableRight,
     };
     const head = placedParagraphs(runs, fonts, cell, geometry.size.height - frame.headerPt);
-    return pleadingHeader(pleading, frame, geometry, fonts, head);
+    return { header: pleadingHeader(pleading, frame, geometry, fonts, head) };
   }
-  if (runs.length === 0) return null;
-  return new Header({ children: bandParagraphs(runs, fonts, geometry) });
+  if (runs.length === 0) return { header: null };
+  const band = bandOf(runs, geometry.frame);
+  // Word measures the header from the paper's top edge to the header's top.
+  const headerPt = Math.max(MIN_BAND_PT, geometry.size.height - band.top);
+  return { header: new Header({ children: bandParagraphs(band, fonts) }), headerPt };
 }
 
 /** A horizontal rule drawn just above the footer's text — the line under the body on pleading paper. */
@@ -199,7 +260,7 @@ export function footerFor(
   pages: readonly PageLayout[],
   fonts: Fonts,
   geometry: SectionGeometry
-): Footer | null {
+): { footer: Footer | null; footerPt?: number } {
   const band = bandRuns(pages, ['footer', 'page-number']);
   // Several printed numbers on one sheet (a condensed transcript) are not the
   // sheet's number: no field can stand in for them. Nor can one stand in for a
@@ -213,27 +274,22 @@ export function footerFor(
         ? { ...run, text: run.text.replace(/\d+/, PAGE_FIELD) }
         : run
     );
-  if (runs.length === 0) return null;
-  const children = bandParagraphs(runs, fonts, geometry);
+  if (runs.length === 0) return { footer: null };
+  const placed = bandOf(runs, geometry.frame);
+  const children = bandParagraphs(placed, fonts);
   const ruleY = footerRuleAbove(pages, band);
-  const first = children[0];
+  const first = placed.paragraphs[0];
   if (ruleY !== null && first !== undefined) {
-    const textTop = Math.max(...band.map((run) => run.y + run.sizePt));
-    children[0] = withTopRule(runs, fonts, geometry, Math.max(1, ruleY - textTop));
+    children[0] = withTopRule(first, fonts, Math.max(1, ruleY - placed.top));
   }
-  return new Footer({ children });
+  // Word measures the footer from the paper's bottom edge to the footer's bottom.
+  const footerPt = Math.max(MIN_BAND_PT, placed.bottom);
+  return { footer: new Footer({ children }), footerPt };
 }
 
-/** The footer's first paragraph again, with a rule above it `spacePt` from its text. */
-function withTopRule(
-  runs: readonly LayoutTextRun[],
-  fonts: Fonts,
-  geometry: SectionGeometry,
-  spacePt: number
-): DocxParagraph {
-  const paragraph = paragraphsOf(linesOf(runs, []), { frame: geometry.frame })[0];
-  if (paragraph === undefined) throw new Error('A footer with text has at least one paragraph.');
-  return docxTextParagraph({ ...paragraph, spaceBeforePt: 0 }, fonts, {
+/** The footer's first paragraph again, with a rule above it `spacePt` from its box. */
+function withTopRule(paragraph: TextParagraph, fonts: Fonts, spacePt: number): DocxParagraph {
+  return docxTextParagraph(paragraph, fonts, {
     pageBreakBefore: false,
     border: {
       top: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: Math.round(spacePt) },

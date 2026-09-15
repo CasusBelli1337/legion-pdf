@@ -138,10 +138,13 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const header = headerFor(pages, fonts, geometry);
-  const footer = footerFor(pages, fonts, geometry);
+  const { header, headerPt } = headerFor(pages, fonts, geometry);
+  const { footer, footerPt } = footerFor(pages, fonts, geometry);
   assembly.sections.push({
-    properties: sectionProperties(geometry),
+    properties: sectionProperties(geometry, {
+      ...(headerPt === undefined ? {} : { headerPt }),
+      ...(footerPt === undefined ? {} : { footerPt }),
+    }),
     ...(header === null ? {} : { headers: { default: header } }),
     ...(footer === null ? {} : { footers: { default: footer } }),
     children,
