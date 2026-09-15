@@ -37,10 +37,12 @@
     "@tanstack/react-virtual": "^3.14.9",
     "docx": "^9.7.1",
     "lucide-react": "^1.31.0",
+    "mammoth": "^1.12.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "utif": "^3.1.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -50,6 +52,7 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/utif": "^3.0.6",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3",

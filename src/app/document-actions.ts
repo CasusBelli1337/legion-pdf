@@ -5,6 +5,7 @@
  */
 
 import type { CloseChoice, DocumentSession } from '@shared/types';
+import { isPdfPath } from '@shared/convert-inputs';
 import { finishPrint, forgetTabView, preparePrint } from '../components/viewer';
 // Work that lives in the renderer and is not in the file yet — typed form
 // answers, placed signatures, redaction marks — is settled by the save gates
@@ -82,14 +83,24 @@ export function decideOpen(
   return { toOpen, focusId: alreadyOpen.at(-1) ?? null };
 }
 
-/** False when a path could not be opened — the recent list uses that to react. */
+/**
+ * False when a path could not be opened — the recent list uses that to react.
+ *
+ * Not every path is a PDF: a Word document, a scan or a spreadsheet is
+ * converted inside `file:open` and comes back as an unsaved PDF tab. That can
+ * take a few seconds while Word does the work, so the busy line names the file
+ * being converted rather than counting files.
+ */
 export async function openPaths(paths: string[]): Promise<boolean> {
   const store = useAppStore.getState();
   store.setError(null);
   const { toOpen, focusId } = decideOpen(paths, store.sessions);
   try {
     for (const [index, path] of toOpen.entries()) {
-      store.setBusy(`Opening ${index + 1} of ${toOpen.length}`);
+      const name = path.split(/[\\/]/).pop() ?? path;
+      store.setBusy(
+        isPdfPath(path) ? `Opening ${index + 1} of ${toOpen.length}` : `Converting ${name} to PDF`
+      );
       store.openSession(await window.librarius.file.open(path));
     }
     // Nothing new to read: say so, rather than looking like the click did nothing.
@@ -100,7 +111,7 @@ export async function openPaths(paths: string[]): Promise<boolean> {
     return true;
   } catch (error) {
     // The file that would not open is not a tab, so this belongs to no document.
-    report('Could not open that PDF:', error, null);
+    report('Could not open that file:', error, null);
     return false;
   } finally {
     store.setBusy(null);

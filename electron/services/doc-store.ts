@@ -16,7 +16,9 @@ import type {
   UndoState,
 } from '@shared/types';
 import { countPages as defaultCountPages } from '@core/pdf-meta';
+import { isPdfPath } from '@shared/convert-inputs';
 import { writeFileAtomic } from './atomic-write';
+import type { ConvertedFile } from './convert';
 import { DocumentHistory } from './doc-history';
 import { readPdfFile } from './pdf-intake';
 import { RecentFilesStore } from './recent-files';
@@ -29,6 +31,18 @@ export interface DocStoreOptions {
   countPages?: (bytes: Uint8Array) => Promise<number>;
   /** Injectable for tests; defaults to the decrypting reader in pdf-intake. */
   readPdf?: (filePath: string) => Promise<Uint8Array>;
+  /** Injectable for tests; defaults to the convert service (Word, pictures, text). */
+  convertFile?: (filePath: string) => Promise<ConvertedFile>;
+}
+
+/**
+ * Lazily imported: the convert service reaches Electron (BrowserWindow,
+ * nativeImage) for some file types, and the PDF path through this store has to
+ * stay runnable in plain Node.
+ */
+async function convertWithService(filePath: string): Promise<ConvertedFile> {
+  const { convertToPdf } = await import('./convert');
+  return convertToPdf(filePath);
 }
 
 interface StoredDocument {
@@ -62,11 +76,13 @@ export class DocStore {
   private readonly recentFiles: RecentFilesStore;
   private readonly countPages: (bytes: Uint8Array) => Promise<number>;
   private readonly readPdf: (filePath: string) => Promise<Uint8Array>;
+  private readonly convertFile: (filePath: string) => Promise<ConvertedFile>;
 
   constructor(options: DocStoreOptions) {
     this.recentFiles = new RecentFilesStore(options.recentFilePath, options.maxRecent);
     this.countPages = options.countPages ?? defaultCountPages;
     this.readPdf = options.readPdf ?? readPdfFile;
+    this.convertFile = options.convertFile ?? convertWithService;
   }
 
   /**
@@ -75,6 +91,7 @@ export class DocStore {
    * clean — nothing the attorney can see has changed.
    */
   async openFile(filePath: string): Promise<DocumentSession> {
+    if (!isPdfPath(filePath)) return this.openConverted(filePath);
     const bytes = await this.readPdf(filePath);
     const pageCount = await this.countPages(bytes);
     const document: StoredDocument = {
@@ -90,6 +107,19 @@ export class DocStore {
     this.documents.set(document.id, document);
     this.recentFiles.record(filePath);
     return toSession(document);
+  }
+
+  /**
+   * A Word document, a picture, a spreadsheet: converted in the main process and
+   * adopted as an UNSAVED document called letter.pdf. `filePath` stays null on
+   * purpose, so Save raises Save As and the attorney's original letter.docx can
+   * never be written over by a PDF.
+   */
+  private async openConverted(filePath: string): Promise<DocumentSession> {
+    const converted = await this.convertFile(filePath);
+    const session = await this.adopt(converted.bytes, converted.fileName);
+    this.recentFiles.record(filePath);
+    return session;
   }
 
   /** Registers bytes with no file behind them yet (a merge result, for example). */
