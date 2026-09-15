@@ -195,3 +195,22 @@ Facts and options:
   branch passes `options.env` unmerged (child would lack SystemRoot/PATH) —
   patched locally in the build repo's node_modules, but SAC was the actual
   blocker here.
+
+## Opening Word documents, images and spreadsheets (convert lane, 2026-09-15)
+
+Reference doc: `docs/references/convert-to-pdf.md`. Symptom-first index:
+
+| Symptom | Cause → Fix |
+| --- | --- |
+| "Legion PDF cannot open .doc files" with Word installed | The ProgID probe failed, not Word. It reads `HKLM:\SOFTWARE\Classes\Word.Application` **and** `HKCU:\…` (per-user Office lives in HKCU); if PowerShell cannot be spawned at all, every Office engine reports unavailable. Check `window.librarius.convert.support()` — it says which engines were found and why. |
+| A `.docx` opens, a `.doc` does not | By design: `.docx` has a pure-JS fallback (mammoth + Chromium), `.doc`/`.rtf`/`.xlsx`/`.pptx` do not. Save as `.docx` or PDF first. |
+| Conversion hangs, then "did not finish converting … within two minutes" | Office COM sat on a modal dialog nobody can see (recovered-document prompt, activation nag, a file marked read-only by another user). Open the file in Word/Excel once by hand, dismiss whatever it asks, close it, try again. The 120 s ceiling is deliberate: a frozen app with no error is the worst of the three outcomes. |
+| A **corrupt** Office file takes ~20 s to fail | Word's own recovery attempt, not our timeout. It still fails loudly with "Microsoft Word could not convert <file>". Seen in `office-com.test.ts` (22.8 s). |
+| Word COM fails only for files in deep folders | Windows MAX_PATH. Word COM silently fails when the input or output path exceeds ~260 characters — the same trap the `docx-render` skill documents. Our temp output path is short by construction; a deeply nested INPUT can still hit it. |
+| Nothing converts in a WSL dev run | `powershell.exe` is not on the PATH in every WSL shell (this machine's is not). `resolvePowerShell()` falls back to `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe`; if that file is gone, Office is simply reported unavailable and the built-in engines still work. |
+| A `.bmp`/`.gif`/`.webp` is blank or missing | Those three go through a hidden Chromium window, not `nativeImage` — measured 2026-09-15: `nativeImage` returns an EMPTY image for all three (it reads PNG and JPEG only). Anything that needs a window cannot be covered by Vitest; verify in the real app. |
+| A scan opens at a strange page size | Working as designed: the page is the picture's real size when the file records its resolution (PNG `pHYs`, JPEG JFIF, TIFF `XResolution`). A 200 × 140 px image tagged 200 DPI IS a 1 × 0.7 inch page. Files with no resolution are fitted to Letter. |
+| A `.txt` of 500 lines came out as one paragraph | Regression guard in `core/ops/text-to-pdf.test.ts`. The cause was sanitising the WHOLE text against the PDF font before splitting it: `font.encodeText('\n')` throws, so every newline was replaced with `?` and the file never paginated. Sanitise per line, after splitting. |
+| `PDFDocument.create().save()` used as a "0-page PDF" fixture | It is not one — pdf-lib reports **1** page when those bytes are reloaded. Write the PDF by hand with `/Type /Pages /Kids [] /Count 0` (see `convert-file.test.ts`). |
+| `import * as UTIF from 'utif'` is undefined at runtime | utif is CommonJS with a single `module.exports`; an ESM namespace import yields only `default`. Use `createRequire` + `as typeof Utif` (see `tiff-decode.ts`), the same pattern `pdf-intake.ts` uses. |
+| `npm run lint` fails on `src/public/wasm/*.js` | Third-party pdf.js decoder fallbacks, generated into the worktree and untracked. Not authored here; `src/public/pdfjs/` is gitignored but its sibling `wasm/` is not, and `eslint.config.js` does not ignore it. Lint with `--ignore-pattern 'src/public/**'` until the ignore lists are widened. |
