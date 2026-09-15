@@ -37,7 +37,9 @@ describe.skipIf(target === undefined)('layout dump', () => {
       const paragraphs = xml.match(/<w:p\b[^>]*>.*?<\/w:p>/gs) ?? [];
       const lines = paragraphs.map((paragraph) =>
         (paragraph.match(/<w:t[^>]*>[^<]*<\/w:t>|<w:br\/>|<w:tab\/>/g) ?? [])
-          .map((piece) => (piece === '<w:br/>' ? '⏎' : piece === '<w:tab/>' ? '⇥' : piece.replace(/<[^>]*>/g, '')))
+          .map((piece) =>
+            piece === '<w:br/>' ? '⏎' : piece === '<w:tab/>' ? '⇥' : piece.replace(/<[^>]*>/g, '')
+          )
           .join('')
       );
       await writeFile(path.join(OUTPUT, `${name}.text.txt`), lines.join('\n'));

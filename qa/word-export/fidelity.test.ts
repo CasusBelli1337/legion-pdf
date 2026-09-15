@@ -39,7 +39,10 @@ function expectPage(page: PageFidelity, fixture: CorpusFixture, context: string)
   expect(page.medianDy, `${context} median baseline drift`).toBeLessThanOrEqual(fixture.medianDy);
   expect(page.p95Dy, `${context} p95 baseline drift`).toBeLessThanOrEqual(fixture.p95Dy);
   if (!fixture.lineNumbers) return;
-  const off = page.lineNumbers.filter((entry) => entry.dy === null || Math.abs(entry.dy) > 0.5);
+  const tolerance = fixture.lineNumberTolerance ?? 0.5;
+  const off = page.lineNumbers.filter(
+    (entry) => entry.dy === null || Math.abs(entry.dy) > tolerance
+  );
   expect(
     off,
     `${context} line numbers off their lines: ${off.map((entry) => `${entry.value}:${entry.dy?.toFixed(2) ?? 'missing'}`).join(' ')}`

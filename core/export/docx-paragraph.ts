@@ -121,10 +121,19 @@ export function breaksHard(line: Line, next: Line, widest: number): boolean {
   return line.right + 0.25 * line.sizePt + firstWordWidth(next) < widest;
 }
 
-/** "signa-" + "ture" → "signature"; a deliberate break stays a break; otherwise lines meet at a space. */
-export function joinLines(lines: readonly Line[]): StyledRun[] {
+/**
+ * "signa-" + "ture" → "signature"; a deliberate break stays a break; otherwise
+ * lines meet at a space. Every line of a centred block was broken on purpose
+ * — a court's name over its county, a two-line heading — so centred lines
+ * always break.
+ */
+export function joinLines(lines: readonly Line[], alignment: Alignment = 'left'): StyledRun[] {
   const joined: StyledRun[] = [];
   const widest = Math.max(...lines.map((line) => line.right));
+  // Geometry already ends an untagged paragraph at a short line; only a tagged
+  // paragraph can hold a short line that was broken on purpose. OCR'd text is
+  // never tagged, and its ragged right edges would read as breaks.
+  const tagged = lines.every((line) => line.blockId !== null);
   lines.forEach((line, index) => {
     const runs = line.cells.flatMap((cell) => cell.runs);
     const previous = joined.at(-1);
@@ -132,8 +141,9 @@ export function joinLines(lines: readonly Line[]): StyledRun[] {
     const above = lines[index - 1];
     if (previous !== undefined && next !== undefined && above !== undefined) {
       if (healsHyphen(previous.text, next.text)) previous.text = previous.text.slice(0, -1);
-      else if (breaksHard(above, line, widest)) previous.text += '\n';
-      else if (!previous.text.endsWith(' ')) previous.text += ' ';
+      else if (alignment === 'center' || (tagged && breaksHard(above, line, widest))) {
+        previous.text += '\n';
+      } else if (!previous.text.endsWith(' ')) previous.text += ' ';
     }
     for (const run of runs) flow(joined, run);
   });
@@ -155,7 +165,7 @@ function childrenOf(paragraph: TextParagraph, fonts: Fonts): TextRun[] {
   if (paragraph.tabStopsPt.length > 0) {
     return paragraph.lines.flatMap((line) => tabbedChildren(line, fonts));
   }
-  return joinLines(paragraph.lines).flatMap((run) => textRun(run, fonts));
+  return joinLines(paragraph.lines, paragraph.alignment).flatMap((run) => textRun(run, fonts));
 }
 
 function indentOf(paragraph: TextParagraph): IParagraphOptions['indent'] | undefined {
