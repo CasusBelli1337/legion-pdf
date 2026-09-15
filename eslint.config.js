@@ -14,8 +14,10 @@ export default tseslint.config(
       'node_modules/**',
       'resources/**',
       'coverage/**',
-      // Third-party pdfjs assets copied in by scripts/sync-pdfjs-assets.mjs.
-      'src/public/pdfjs/**',
+      // Third-party pdfjs assets copied in by scripts/sync-pdfjs-assets.mjs —
+      // the whole public dir, so an older layout left behind in a worktree
+      // cannot flood the lint with minified third-party files.
+      'src/public/**',
       // Agent tooling (the run-legion-pdf driver REPL) — not app code.
       '.claude/**',
     ],
