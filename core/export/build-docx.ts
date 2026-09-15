@@ -13,6 +13,7 @@ import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@sh
 import { docxImageParagraph } from './docx-image';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { STAMP_NOTE, footerFor, hasStamps, headerFor, sectionProperties } from './docx-section';
+import { NUMBERED_LINES_NOTE, PLEADING_NOTE } from './pleading';
 import { docxTable } from './docx-table';
 import type { Paragraph, TextParagraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
@@ -38,7 +39,7 @@ export interface DocxBuild {
 }
 
 export const COLUMNS_NOTE =
-  'Columns of text were set with tab stops; ruled tables were not rebuilt as Word tables.';
+  'Columns of text with no rules around them were set with tab stops, the way a typist sets them.';
 
 type Fonts = Readonly<Record<string, LayoutFont>>;
 
@@ -193,6 +194,16 @@ export async function buildDocx(
     paragraphCount: assembly.paragraphCount,
     pageCount: layouts.length,
     notes,
-    receipt: { kept: [], dropped: notes },
+    receipt: receiptOf(notes),
+  };
+}
+
+/** Notes that say what the file KEPT; every other note says what it had to leave out. */
+const KEPT_NOTES: ReadonlySet<string> = new Set([PLEADING_NOTE, NUMBERED_LINES_NOTE, COLUMNS_NOTE]);
+
+function receiptOf(notes: readonly string[]): ExportReceipt {
+  return {
+    kept: notes.filter((note) => KEPT_NOTES.has(note)),
+    dropped: notes.filter((note) => !KEPT_NOTES.has(note)),
   };
 }
