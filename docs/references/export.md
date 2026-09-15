@@ -48,6 +48,11 @@ export interface ExportJob {
 
 export interface ExporterContext {
   requestRaster(request: { docId: string; page: number; dpi: number }): Promise<PageRaster>;
+  requestLayout(request: Omit<LayoutRequest, 'requestId'>): Promise<LayoutResponse>;
+  // Word only: the scan path. Recognize, adopt the recognized copy, drop it again.
+  recognizeText(docId, bytes, pages, onProgress): Promise<OpResult<OcrRunDetail>>;
+  adopt(bytes: Uint8Array, fileName: string): Promise<string>;
+  closeDoc(docId: string): void;
   toJpeg(png: Uint8Array, quality: number): Uint8Array;
   openText(bytes: Uint8Array): Promise<TextSource>;
   writeFile(path: string, bytes: Uint8Array): Promise<void>;
@@ -65,22 +70,90 @@ export const EXPORTERS: Record<ExportFormat, Exporter> = {
   jpeg: jpegExporter,
   tiff: tiffExporter,
   txt: textExporter,
-  // LANE M (Word export) replaces this one line with its own exporter.
-  docx: notYetExporter,
+  docx: docxExporter,
 };
 ```
 
-**Lane M plugs in by replacing exactly that one line** with
-`docx: docxExporter` (from `electron/services/export/docx-exporter.ts`) and
-nothing else in this folder. The Word exporter needs page LAYOUT rather than
-page rasters, which its own `layout:*` round-trip supplies; if it wants that
-reachable through the shared context, add one member to `ExporterContext` —
-every other exporter ignores it, and the fakes in
-`export-runner.test.ts` are the only other place that has to grow a field.
+Adding a format means writing a function of that shape and putting it in the
+table. Anything a new exporter cannot reach on its own becomes one more member
+of `ExporterContext`; every other exporter ignores it, and the fakes in
+`export-runner.test.ts` and `docx-exporter.test.ts` are the only other places
+that have to grow a field.
 
 A new format also needs a row in `shared/export-formats.ts` (orchestrator-owned)
 so the picker and the output-kind rules know about it. No panel change: the
 picker is built from that list.
+
+## Scanned pages (Word only)
+
+A page with no text layer is a picture of words, and Word cannot edit a
+picture. Before it reads a single layout, `docxExporter` asks
+`detectTextLayer` (`@core/ocr`) which of the requested pages are scans, and if
+there are any:
+
+```
+docxExporter
+  ├─ detectTextLayer(job.bytes)     which requested pages have no text layer
+  ├─ context.recognizeText(...)     local Tesseract, 300 dpi, "eng",
+  │                                 phase "Recognizing text on scanned pages N/M"
+  ├─ assertEveryScanRecognized()    every scan came back, every one with WORDS
+  ├─ context.adopt(bytes, name)     the recognized copy, in the store, NO tab
+  ├─ requestLayout(adoptedId, ...)  every layout read from the recognized copy
+  ├─ buildDocx(..., scanPictures)   omit / behind / appendix
+  └─ finally context.closeDoc()     the adopted copy never outlives the export
+```
+
+The attorney's own document is never changed: the recognized bytes are adopted
+as a second, tab-less document and dropped in a `finally`, whatever happened.
+The renderer answers layout requests for it through `DetachedDocuments`, the
+same path bulk OCR uses.
+
+**A scanned page that recognizes to zero words is an error** (`scan-pages.ts`),
+never an empty page in the Word file. Detection itself failing is not: a
+document whose content streams pdf-lib cannot read exported fine before this
+step existed, so it exports without recognition and the receipt says so
+(`DETECTION_FAILED_NOTE`).
+
+### What becomes of the picture — `ExportOptions.scanPictures`
+
+| Mode | What the Word file holds | Where it is built |
+| --- | --- | --- |
+| `omit` (default) | The recognized text only; a note per page says the picture was left out. | `core/export/images.ts` |
+| `behind` | The recognized text, with the page's picture anchored to the PAGE behind it, like a searchable PDF. | `images.ts` + `docx-image.ts` |
+| `appendix` | The recognized text, then one edge-to-edge section per scan under a centred "Scanned pages" heading. | `scan-appendix.ts` |
+
+Two things real Word taught this lane (2026-09-15, measured with
+`pdftotext -bbox` on `docx-render` output):
+
+- **The `behind` anchor belongs BELOW the last line of the page**, in a
+  paragraph whose line is exactly 1 twip. Anchored above the first paragraph it
+  took the gap between the top margin and the first line for itself, and the
+  first line could not climb back up: every page came out 2.2 pt low. Anchored
+  below, the recognized text sits at exactly the same y as it does with the
+  picture left out (81.7088 pt on pages 1 and 6 of the scanned-deposition
+  fixture, to the digit).
+- **The appendix heading must come off the PICTURE, not the margin.** Reserving
+  the band as a top margin and giving the heading its own line spent it twice,
+  and the first scan landed on a sheet of its own (13 pages for 6 + 6 instead
+  of 12).
+
+### What the panel says first — `export:plan`
+
+`window.librarius.export.plan(docId, options)` answers an `ExportPlan` before
+the button is pressed: the scanned pages, the pleading pages (from
+`pleadingOf` over up to the first three pages of the range that hold text), and
+the sentences to show. `electron/services/export/export-plan.ts` holds the
+whole decision and is unit-tested without Electron; the handler in
+`electron/ipc/export.ts` only supplies the bytes, the page range, and the
+renderer round-trip.
+
+The panel (`use-export-plan.ts`) asks again whenever the document, the format,
+or the page range changes, debounced 300 ms, ignoring any answer that lands
+after one of those changed. It never blocks the Export button: while the answer
+is outstanding the panel says "Looking at the document…", and a plan that fails
+leaves no lines at all. The "Scanned pages" choice appears only when the plan
+found scans, and the receipt lists `receipt.kept` under **Kept** and
+`receipt.dropped` under **Left out**.
 
 ## Files
 
@@ -98,7 +171,13 @@ picker is built from that list.
 | `electron/services/export/pdf-text.ts` | pdfjs in the MAIN process (no canvas needed to read text). |
 | `electron/services/export/output-naming.ts` | `<stem>-page-001.png`, and never overwriting a batch. |
 | `electron/services/export/cancellation.ts` | `ExportCancelledError` and the sentence it carries. |
-| `electron/ipc/export.ts` | The three handlers; supplies raster, `nativeImage`, pdfjs, disk. |
+| `electron/services/export/docx-exporter.ts` | Word: recognize the scans, read the layouts, build, prove the bytes. |
+| `electron/services/export/scan-pages.ts` | The scan notes, the count assertions, the kept/left-out receipt. |
+| `electron/services/export/export-plan.ts` | `export:plan`: what the Word export will have to rebuild, in sentences. |
+| `core/export/images.ts` | Which pictures go in, and the scan's picture per `scanPictures`. |
+| `core/export/docx-image.ts` | Inline pictures, and the page-anchored scan behind the text. |
+| `core/export/scan-appendix.ts` | One edge-to-edge section per scan, after the last page of text. |
+| `electron/ipc/export.ts` | The four handlers; supplies raster, layout, Tesseract, the store, `nativeImage`, pdfjs, disk. |
 | `src/features/export/*` | The dock panel: picker, range, picture settings, progress, receipt. |
 
 ## Decisions worth knowing
@@ -141,4 +220,16 @@ picker is built from that list.
   Word rejection, and each branch of the verification gate.
 - `electron/services/export/pdf-text.test.ts` — main-process pdfjs against a
   pdf-lib fixture with known words and known line breaks.
+- `electron/services/export/docx-exporter.test.ts` — the Word exporter on a fake
+  context and real PDF bytes: no scans means no recognizer call, scans mean the
+  recognizer is called with exactly those pages, every layout is read from the
+  adopted id, the adopted copy is closed even when the build throws, and a page
+  recognized to no words is refused.
+- `electron/services/export/export-plan.test.ts` — the plan's sentences and its
+  sampling, with the detector and the renderer both injected.
+- `electron/services/export/scan-word-export.fixture.test.ts` — the whole scan
+  path on `qa/fixtures/scanned-deposition.pdf` with the REAL Tesseract and the
+  REAL pdfjs extractor, writing all three picture modes into
+  `qa/output/word-export-scan/` for a `docx-render` pass. Skips cleanly when
+  Tesseract or poppler is not installed.
 - Live QA: `qa/reports/2026-09-15-export-lane.md`.
