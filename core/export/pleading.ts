@@ -36,6 +36,8 @@ const RIGHT_RULE_SHARE = 0.72;
 const MAX_STRAYS = 3;
 /** More than this share of the numbers off the fitted grid says they follow the text. */
 const OFF_GRID_SHARE = 0.2;
+/** A number this far (× pitch) from the median estimate is a misread the fit leaves out. */
+const OUTLIER_SHARE = 0.5;
 /** A number this far (× pitch) off the fitted grid says the numbers follow the text, not a grid. */
 const GRID_TOLERANCE = 0.25;
 
@@ -122,6 +124,39 @@ function gridOf(column: readonly Numbered[]): { pitchPt: number; firstBaseline: 
   return { pitchPt, firstBaseline: meanY + pitchPt * (meanValue - 1) };
 }
 
+/**
+ * A first estimate no single number can drag: the median of every pair's
+ * slope, and the median of where each number puts line 1. An OCR's "11" read
+ * as "1" sits ten lines from where a "1" belongs; a least-squares line would
+ * lean towards it, the medians do not.
+ */
+function medianGridOf(column: readonly Numbered[]): { pitchPt: number; firstBaseline: number } {
+  const slopes: number[] = [];
+  column.forEach((a, index) => {
+    for (const b of column.slice(index + 1)) {
+      if (a.value !== b.value) slopes.push((a.y - b.y) / (b.value - a.value));
+    }
+  });
+  const pitchPt = median(slopes);
+  return { pitchPt, firstBaseline: median(column.map((e) => e.y + (e.value - 1) * pitchPt)) };
+}
+
+/**
+ * The grid: numbers far off the median estimate are left out (misreads), and
+ * the rest are fitted by least squares for the precision a producer's
+ * twip-rounded baselines need.
+ */
+function robustGridOf(column: readonly Numbered[]): { pitchPt: number; firstBaseline: number } {
+  const rough = medianGridOf(column);
+  if (!(rough.pitchPt > 0)) return rough;
+  const kept = column.filter(
+    (entry) =>
+      Math.abs(rough.firstBaseline - (entry.value - 1) * rough.pitchPt - entry.y) <=
+      OUTLIER_SHARE * rough.pitchPt
+  );
+  return kept.length >= MIN_NUMBERS ? gridOf(kept) : rough;
+}
+
 /** The usual gap between neighbouring numbers, and the topmost number's baseline. */
 function followedGrid(column: readonly Numbered[]): { pitchPt: number; firstBaseline: number } {
   const sorted = [...column].sort((a, b) => a.value - b.value);
@@ -173,11 +208,13 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
   const numberRight = Math.max(...column.map((entry) => entry.right));
   // A numbered list sits inside the body; pleading numbers sit left of all of
   // it. A couple of strays are an OCR's misread numbers, not body text.
+  // Two-character scraps left of the numbers are an OCR's misread digits;
+  // a run of text there is body text, and the numbers are a list inside it.
   const strays = layout.runs.filter(
-    (run) => run.role === 'body' && run.text.trim().length > 0 && run.x < numberRight - 2
+    (run) => run.role === 'body' && run.text.trim().length >= 4 && run.x < numberRight - 2
   );
   if (strays.length >= MAX_STRAYS) return null;
-  const fitted = gridOf(column);
+  const fitted = robustGridOf(column);
   if (!(fitted.pitchPt > 0)) return null;
   const count = Math.max(...column.map((entry) => entry.value));
   const sample = column[0] as Numbered;
@@ -230,7 +267,13 @@ export function pleadingOfSection(pages: readonly PageLayout[]): Pleading | null
     entry.rules.rightX === null ? [] : [entry.rules.rightX]
   );
   return {
-    grid: found.every((entry) => entry.grid),
+    // One scanned page whose OCR dropped half its numbers must not turn the
+    // whole section over to Word's numbering: the pages vote.
+    grid:
+      majority(
+        found.map((entry) => (entry.grid ? 'grid' : 'follow')),
+        'grid'
+      ) === 'grid',
     pitchPt,
     count,
     firstBaseline,

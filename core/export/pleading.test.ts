@@ -119,3 +119,25 @@ describe('pleadingOfSection', () => {
     expect(pleadingOfSection([page([run('No numbers here', 90, 700)])])).toBeNull();
   });
 });
+
+describe('pleadingOf — what an OCR makes of a numbered column', () => {
+  it('fits the grid past a misread number and a few scraps left of the column', () => {
+    const numbers = [12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28].map((value) =>
+      run(String(value), 74, 720 - (value - 1) * 24, {
+        role: 'line-number',
+        width: 12,
+        hidden: true,
+      })
+    );
+    // "11" read as "1": a value of 1 sitting where line 11 is.
+    const misread = run('1', 80, 720 - 10 * 24, { role: 'line-number', width: 6, hidden: true });
+    const scraps = [run('10', 76, 500, { hidden: true }), run('i7', 76, 332, { hidden: true })];
+    const body = run('Recognized body text of the page', 104, 696, { hidden: true });
+    const pleading = pleadingOf(page([...numbers, misread, ...scraps, body]));
+    expect(pleading).not.toBeNull();
+    expect(pleading?.grid).toBe(true);
+    expect(pleading?.firstBaseline).toBeCloseTo(720, 1);
+    expect(pleading?.pitchPt).toBeCloseTo(24, 2);
+    expect(pleading?.count).toBe(28);
+  });
+});
