@@ -1,6 +1,83 @@
-# Handoff — Legion PDF (updated 2026-09-15, v0.5.0)
+# Handoff — Legion PDF (updated 2026-09-15, v0.5.1)
+
+## NEXT MISSION (Arthur, 2026-09-15): nail Word export for litigators
+
+Arthur's words: "I want to be able to take a PDF that opposing counsel sent to
+me and be able to turn it into a perfect Word doc that I can edit. I want it
+to even ideally work on scanned documents. One thing that is always borked is
+how the lines and line numbering is handled on Word exports of PDF pleading
+paper. So I would do some E2E tests on that and see if you can really create
+something awesome for litigators."
+
+Start here, with fresh context:
+
+1. **Read** `docs/references/word-export.md` (what v0.5 keeps and drops),
+   `core/export/` (13 modules: lines → paragraphs → styles → page setup →
+   pleading → tables → images → build), `src/lib/layout/` (pdfjs → PageLayout,
+   with the select-copy roles), and the fidelity notes in
+   `qa/reports/2026-09-15-feedback-wave-3.md` § 7. Compare PNGs from v0.5 are
+   under `qa/output/2026-09-15-wave-3/word/` (gitignored; also in OneDrive
+   `#Legion/Product/Armory - Librarius/2026-09-15 Wave 3 QA/word/`).
+2. **Build a real E2E corpus first** — not synthetic fixtures. Fictional
+   parties, but REAL producers: (a) a Word-made pleading (California 28-line
+   pleading paper from Arthur's own templates — the Sorden-matter pleading
+   templates the `ca-motion-builder` skill uses, and the Legion builders'
+   output), printed to PDF by Word; (b) the same after a print-and-scan
+   round trip (raster PDF, then Legion PDF's OCR); (c) a Legion-OCR'd scan
+   with the invisible text layer; (d) an opposing-counsel-style filing:
+   Acrobat-produced, mixed fonts, footnotes, a caption table, a signature
+   block, a proof of service; (e) a deposition transcript (numbered lines,
+   Q/A) and a condensed 4-up. Keep them under `qa/fixtures/word-export/`.
+3. **Define "perfect" as a diff, not an impression**: for each fixture,
+   export → render in real Word (`docx-render` skill) → compare with
+   `pdftoppm` of the source: (i) `pdftotext -bbox` baselines within 0.5pt,
+   (ii) same word count per page, (iii) pleading line numbers land on the same
+   y as the source's printed numbers, (iv) page count equal, (v) a visual
+   side-by-side an attorney would accept. Automate (i)–(iv) as a vitest suite
+   that skips cleanly when Word is not reachable; keep (v) as saved PNGs.
+4. **Pleading paper is the hard part and the one that always breaks.** v0.5
+   maps it to Word's own line numbering (`lnNumType` restart per page + exact
+   24pt pitch). Verify against Arthur's real templates: caption block above
+   the numbered body, the vertical rule(s) at the left margin (drawn line
+   objects in Word — `docs/HANDOFF.md` from 2026-08 and the `docx-render`
+   skill note "header-anchored number frames" describe how Legion's builders
+   do it: numbers live in a HEADER-anchored text frame, not body numbering),
+   footer with the document title line, double-spaced body that must stay
+   exactly on the 28 lines, single-spaced block quotes and footnotes that
+   still align to the grid. Decide: reproduce Legion's own pleading template
+   (header-anchored number frame + rules) rather than `lnNumType` when the
+   source is detected as pleading paper, so the export is editable the way
+   Arthur's templates are. Line-number detection already exists in
+   `src/features/select-copy/line-columns.ts` (`findLineNumberColumns`).
+5. **Scanned documents**: run OCR (existing lane, `core/ocr`) when a page has
+   no text, then export the recognised text as body paragraphs — with a
+   confidence note and the original page image available as an appendix or
+   behind the text (a "scan" section option in the Export panel). Test with
+   fixture (b)/(c).
+6. **Tables**: ruled tables (captions, proofs of service) as real Word tables
+   from the rule grid (`LayoutRule`s are already extracted) — v0.5 emits tab
+   stops only.
+7. **Fonts**: map to the installed Windows font names Arthur has (Times New
+   Roman, Arial, Calibri, Century Schoolbook, Book Antiqua, Garamond…); keep
+   a table in `core/export/styles.ts`; unknown → family fallback with a note.
+8. **UI**: the Export panel's Word row should show what will happen ("Pleading
+   paper detected: line numbers will be rebuilt", "3 scanned pages will be
+   recognised first") BEFORE the export, and the receipt should list what was
+   kept / dropped in plain English.
+
+Also from Arthur (done in v0.5.1, see below): Edit text is on the toolbar and
+in the Edit menu (Ctrl+E), not only inside Stamps & Marks › Text.
 
 ## v0.5 update (2026-09-15) — feedback wave 3; read this first
+
+**v0.5.1 (same day):** Edit text is one click away — a toolbar button beside
+Undo/Redo and Edit › Edit Text on Page (Ctrl+E) open Stamps & Marks on its
+Text tab with the Edit tool armed (`src/features/stamps/panel-request.ts`).
+Tab switching restores the exact reading spot. Pushed to `origin/main`
+(github.com/CasusBelli1337/legion-pdf). The `private` remote
+(legion-law/legion-librarius) has its own diverged history (its last commit is
+the e-sign handoff) — NOT force-pushed; reconcile deliberately if that mirror
+is still wanted.
 
 Arthur's third feedback batch (10 items) shipped in one session as seven
 parallel lanes plus the orchestrator's own lane — see
