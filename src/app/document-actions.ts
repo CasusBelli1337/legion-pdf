@@ -44,14 +44,56 @@ export async function openDialog(): Promise<void> {
   }
 }
 
+/**
+ * Windows paths: case does not distinguish two files, and either slash reaches
+ * the same one. Comparing the raw strings would open `C:\Matters\Dep.pdf` a
+ * second time because Explorer sent it as `C:/Matters/dep.pdf`.
+ */
+function samePath(left: string, right: string): boolean {
+  const flatten = (path: string): string => path.replace(/\\/g, '/').toLowerCase();
+  return flatten(left) === flatten(right);
+}
+
+export interface OpenDecision {
+  /** Paths that still have to be read off disk, in the order they were given. */
+  toOpen: string[];
+  /** The tab to bring forward when everything asked for is already open. */
+  focusId: string | null;
+}
+
+/**
+ * Which of these files are already open. A second tab on the same file is two
+ * tabs with the SAME NAME and two independent copies of the bytes: an edit
+ * lands in one of them, the other still shows the old page, and neither tab
+ * says which is which. So a path already open is brought forward rather than
+ * opened again — the behaviour every editor with tabs has.
+ */
+export function decideOpen(
+  paths: readonly string[],
+  open: ReadonlyArray<Pick<DocumentSession, 'id' | 'filePath'>>
+): OpenDecision {
+  const existing = (path: string): string | null =>
+    open.find((item) => item.filePath !== null && samePath(item.filePath, path))?.id ?? null;
+  const toOpen = paths.filter((path) => existing(path) === null);
+  // The LAST path asked for is the one the attorney expects to be looking at.
+  const alreadyOpen = paths.map(existing).filter((id): id is string => id !== null);
+  return { toOpen, focusId: alreadyOpen.at(-1) ?? null };
+}
+
 /** False when a path could not be opened — the recent list uses that to react. */
 export async function openPaths(paths: string[]): Promise<boolean> {
   const store = useAppStore.getState();
   store.setError(null);
+  const { toOpen, focusId } = decideOpen(paths, store.sessions);
   try {
-    for (const [index, path] of paths.entries()) {
-      store.setBusy(`Opening ${index + 1} of ${paths.length}`);
+    for (const [index, path] of toOpen.entries()) {
+      store.setBusy(`Opening ${index + 1} of ${toOpen.length}`);
       store.openSession(await window.librarius.file.open(path));
+    }
+    // Nothing new to read: say so, rather than looking like the click did nothing.
+    if (toOpen.length === 0 && focusId !== null) {
+      store.setActive(focusId);
+      store.setNotice('That PDF is already open.', focusId);
     }
     return true;
   } catch (error) {

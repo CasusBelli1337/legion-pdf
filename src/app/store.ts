@@ -27,7 +27,9 @@ export interface HistoryEvent {
   seq: number;
 }
 
-export interface AppState {
+/** The shell's data. `EMPTY` below is one of these, so a new field cannot be
+ *  declared without also being given a starting value. */
+export interface AppData {
   sessions: DocumentSession[];
   activeId: string | null;
   activeToolId: string | null;
@@ -45,7 +47,20 @@ export interface AppState {
   errorDocId: string | null;
   /** The last undo/redo that applied. Null until one does. */
   lastHistoryEvent: HistoryEvent | null;
+  /** True while the viewer is split into a working pane and a reference pane. */
+  isSplitOpen: boolean;
+  /**
+   * The document in the RIGHT (reference) pane. Never the active document: one
+   * file cannot be open in both panes, so every path that would make them equal
+   * clears this instead. The left pane stays the active tab, which is what every
+   * tool, the thumbnail rail and every shortcut keep pointing at.
+   */
+  splitDocId: string | null;
+  /** Keeps the reference pane on the page number the working pane is on. */
+  isSplitSynced: boolean;
+}
 
+export interface AppActions {
   openSession(session: DocumentSession): void;
   replaceSession(session: DocumentSession): void;
   closeSession(docId: string): void;
@@ -64,7 +79,16 @@ export interface AppState {
   setNotice(message: string | null, docId?: string | null): void;
   /** Announces an applied undo/redo; the store stamps the sequence number. */
   noteHistoryEvent(event: Omit<HistoryEvent, 'seq'>): void;
+  /** Side by side on/off. Opening with nothing chosen picks another open tab. */
+  toggleSplit(): void;
+  /** Shows a document in the reference pane; the active one swaps panes instead. */
+  setSplitDoc(docId: string | null): void;
+  /** Exchanges the two panes: the reference document becomes the working one. */
+  swapSplit(): void;
+  setSplitSynced(synced: boolean): void;
 }
+
+export interface AppState extends AppData, AppActions {}
 
 function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(zoom * 100) / 100));
@@ -92,11 +116,17 @@ function forOtherDocuments(state: AppState, activeId: string | null): Partial<Me
   };
 }
 
+/** A reference pane can never hold the document the working pane is showing. */
+function referenceBeside(splitDocId: string | null, activeId: string | null): string | null {
+  return splitDocId === activeId ? null : splitDocId;
+}
+
 /** A newly opened document takes the foreground, and clears what came before. */
 function opened(state: AppState, session: DocumentSession): Partial<AppState> {
   return {
     sessions: [...state.sessions.filter((item) => item.id !== session.id), session],
     activeId: session.id,
+    splitDocId: referenceBeside(state.splitDocId, session.id),
     currentPage: 1,
     ...forOtherDocuments(state, session.id),
     error: null,
@@ -108,10 +138,58 @@ function opened(state: AppState, session: DocumentSession): Partial<AppState> {
 function closed(state: AppState, docId: string): Partial<AppState> {
   const sessions = state.sessions.filter((item) => item.id !== docId);
   const activeId = state.activeId === docId ? (sessions.at(-1)?.id ?? null) : state.activeId;
-  return { sessions, activeId, currentPage: 1, ...forOtherDocuments(state, activeId) };
+  return {
+    sessions,
+    activeId,
+    // A closed document leaves the reference pane with it; so does one that has
+    // just been handed the foreground.
+    splitDocId: state.splitDocId === docId ? null : referenceBeside(state.splitDocId, activeId),
+    currentPage: 1,
+    ...forOtherDocuments(state, activeId),
+  };
 }
 
-export const useAppStore = create<AppState>((set) => ({
+/** The document a fresh split opens on: the one used before the current tab. */
+function neighbourOf(state: AppState): string | null {
+  return state.sessions.filter((item) => item.id !== state.activeId).at(-1)?.id ?? null;
+}
+
+/**
+ * Opening the split keeps whatever was on the right last time, as long as it is
+ * still open and is not the document now in front; otherwise it picks a
+ * neighbour. With only one document open it opens empty, and the pane says so.
+ */
+function splitToggled(state: AppState): Partial<AppState> {
+  if (state.isSplitOpen) return { isSplitOpen: false };
+  const kept = referenceBeside(state.splitDocId, state.activeId);
+  const stillOpen = state.sessions.some((item) => item.id === kept);
+  return { isSplitOpen: true, splitDocId: stillOpen ? kept : neighbourOf(state) };
+}
+
+/** The two panes trade places; the reference document becomes the active tab. */
+function swapped(state: AppState): Partial<AppState> {
+  const { activeId, splitDocId } = state;
+  if (activeId === null || splitDocId === null) return {};
+  return {
+    activeId: splitDocId,
+    splitDocId: activeId,
+    currentPage: 1,
+    ...forOtherDocuments(state, splitDocId),
+  };
+}
+
+/**
+ * Bringing a tab forward. Asking for the document that is already in the
+ * reference pane swaps the panes rather than showing it twice — which is also
+ * what dropping the active tab onto the reference pane means.
+ */
+function activated(state: AppState, docId: string): Partial<AppState> {
+  if (state.isSplitOpen && docId === state.splitDocId) return swapped(state);
+  return { activeId: docId, currentPage: 1, ...forOtherDocuments(state, docId) };
+}
+
+/** Nothing open, nothing said, nothing split. */
+const EMPTY: AppData = {
   sessions: [],
   activeId: null,
   activeToolId: null,
@@ -123,6 +201,13 @@ export const useAppStore = create<AppState>((set) => ({
   noticeDocId: null,
   errorDocId: null,
   lastHistoryEvent: null,
+  isSplitOpen: false,
+  splitDocId: null,
+  isSplitSynced: false,
+};
+
+export const useAppStore = create<AppState>((set) => ({
+  ...EMPTY,
 
   openSession: (session) => set((state) => opened(state, session)),
 
@@ -133,8 +218,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   closeSession: (docId) => set((state) => closed(state, docId)),
 
-  setActive: (docId) =>
-    set((state) => ({ activeId: docId, currentPage: 1, ...forOtherDocuments(state, docId) })),
+  setActive: (docId) => set((state) => activated(state, docId)),
   setActiveTool: (toolId) => set({ activeToolId: toolId }),
   setCurrentPage: (page) => set({ currentPage: Math.max(1, Math.trunc(page)) }),
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
@@ -155,6 +239,17 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       lastHistoryEvent: { ...event, seq: (state.lastHistoryEvent?.seq ?? 0) + 1 },
     })),
+  toggleSplit: () => set(splitToggled),
+  setSplitDoc: (docId) =>
+    set((state) =>
+      docId === null
+        ? { splitDocId: null }
+        : docId === state.activeId
+          ? swapped(state)
+          : { isSplitOpen: true, splitDocId: docId }
+    ),
+  swapSplit: () => set(swapped),
+  setSplitSynced: (synced) => set({ isSplitSynced: synced }),
 }));
 
 /** True when a message with this owner belongs on screen right now. */
@@ -177,6 +272,13 @@ export function useScopedError(): string | null {
 /** The document in the foreground tab, or null when nothing is open. */
 export function useActiveSession(): DocumentSession | null {
   return useAppStore((state) => state.sessions.find((item) => item.id === state.activeId) ?? null);
+}
+
+/** The document in the reference pane, or null when the split is empty or shut. */
+export function useSplitSession(): DocumentSession | null {
+  return useAppStore((state) =>
+    state.isSplitOpen ? (state.sessions.find((item) => item.id === state.splitDocId) ?? null) : null
+  );
 }
 
 /** Bytes for a document id — used by the raster bridge, outside React. */
