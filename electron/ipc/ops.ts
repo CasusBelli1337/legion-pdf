@@ -47,7 +47,7 @@ import {
   setBookmarks,
   splitByRanges,
 } from '@core/ops';
-import { readPdfFile } from '../services/pdf-intake';
+import { readOpenableFile, readPdfFile } from '../services/pdf-intake';
 import type { IpcContext } from './context';
 
 /** A combine is building a document that has no id yet, hence `docId: null`. */
@@ -96,9 +96,11 @@ async function resolveSource(
     };
   }
   if (source.filePath !== undefined) {
+    // Not necessarily a PDF: a Word document or a scan dropped into Combine is
+    // converted here on the way in, so merge only ever sees PDF bytes.
     return {
       name: basename(source.filePath),
-      bytes: await readPdfFile(source.filePath),
+      bytes: await readOpenableFile(source.filePath),
     };
   }
   throw new Error('One of the files to combine has no open document and no path on disk.');
