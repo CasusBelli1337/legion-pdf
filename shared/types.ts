@@ -214,6 +214,7 @@ export type MenuAction =
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomReset'
+  | 'splitView'
   | 'about';
 
 /**
