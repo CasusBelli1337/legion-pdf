@@ -133,11 +133,10 @@ describe('docxTable', () => {
   it('settles a second line in a cell where the page had it', async () => {
     const runs = [...CAPTION_RUNS, run('and DOE COMPANIES 1-10,', 80, 675)];
     const xml = await xmlOf(tableOf(CAPTION, runs));
-    // The page set the two lines 15 pt apart (690, 675) in 12 pt type. Word
-    // puts a baseline 80% down an exact 14.4 pt box, so the first line's box
-    // ends 2.88 pt under its baseline and the second's begins 11.52 pt over
-    // its own: 0.6 pt of space before it, 12 twips.
-    expect(xml).toContain('<w:spacing w:after="0" w:before="12" w:line="288" w:lineRule="exact"/>');
+    // The page set the two lines 15 pt apart (690, 675) in 12 pt type: the
+    // cell's own pitch is 15 pt, so both lines get exact 15 pt boxes (300
+    // twips) that tile with no space between them.
+    expect(count(xml, /<w:spacing w:after="0" w:before="0" w:line="300" w:lineRule="exact"\/>/g)).toBe(2);
   });
 
   it('keeps a lone line on the pitch it followed, not the cell\u2019s median', async () => {
