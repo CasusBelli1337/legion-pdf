@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pageParagraphs, settlePage } from './page-paragraphs';
+import { pageParagraphs, settlePage, isTranscript } from './page-paragraphs';
 import { sectionGeometry } from './page-setup';
 import { image, page, paragraphLines, run } from './layout-testkit';
 
@@ -71,6 +71,59 @@ describe('pageParagraphs and settlePage', () => {
     // Text starts on line 2 (one blank above), then line 3, blank line 4, line 5.
     expect(shapes).toEqual([0, 1, 1, 0, 1]);
     expect(paragraphs.every((p) => p.kind === 'text' && p.leadingPt === 24)).toBe(true);
-    expect(build.notes.join(' ')).toMatch(/line numbering/);
+    expect(build.notes.join(' ')).toMatch(/line numbers and rules/);
+  });
+});
+
+describe('pageParagraphs — leadings that never overlap, transcripts, numbered blanks', () => {
+  it('shrinks a lone heading’s line box so the paragraph under it keeps its own pitch', () => {
+    const layout = page([
+      run('B. A Heading Set Close Above Its Text', 72, 480, { fontKey: 'timesBold' }),
+      ...paragraphLines(3, 458.4, { pitch: 24 }),
+    ]);
+    const build = pageParagraphs(layout, sectionGeometry([layout]));
+    const [heading, body] = settlePage(build, build.box.top);
+    expect(body?.kind === 'text' && body.leadingPt).toBe(24);
+    // 21.6 pt from heading to text: 0.2 × heading + 0.8 × 24 must fit, so the heading gets 12.
+    expect(heading?.kind === 'text' && heading.leadingPt).toBeCloseTo(12, 3);
+    expect(body?.spaceBeforePt).toBe(0);
+  });
+
+  it('keeps every line of a Courier transcript as its own paragraph', () => {
+    const numbers = Array.from({ length: 25 }, (_unused, index) =>
+      run(String(index + 1), 54, 720 - index * 24, {
+        role: 'line-number',
+        width: 6,
+        fontKey: 'courier',
+      })
+    );
+    const body = [
+      run('     Q.   Good morning.  Would you state your name', 90, 696, { fontKey: 'courier' }),
+      run('for the record, please.', 90, 672, { fontKey: 'courier' }),
+      run('     A.   Kenji Strand-Oyelaran.', 90, 648, { fontKey: 'courier' }),
+    ];
+    const layout = page([...numbers, ...body]);
+    expect(isTranscript(layout)).toBe(true);
+    const build = pageParagraphs(layout, sectionGeometry([layout]));
+    expect(build.columns[0]?.filter((p) => p.kind === 'text' && p.lines.length > 0)).toHaveLength(
+      3
+    );
+  });
+
+  it('gives numbers that follow the text an empty paragraph wherever a number had no text', () => {
+    const numbers = [700, 688, 676, 664, 640, 616, 592, 568, 544, 520, 496, 472].map((y, index) =>
+      run(String(index + 1), 54, y, { role: 'line-number', width: 6 })
+    );
+    const text = [700, 688, 676, 640, 616, 592, 568, 544, 520, 496, 472].map((y) =>
+      run('A line of text beside its number', 90, y)
+    );
+    const layout = page([...numbers, ...text]);
+    const geometry = sectionGeometry([layout]);
+    expect(geometry.pleading?.grid).toBe(false);
+    const build = pageParagraphs(layout, geometry);
+    const blanks = build.columns[0]?.filter((p) => p.kind === 'text' && p.lines.length === 0) ?? [];
+    expect(blanks).toHaveLength(1);
+    const blank = blanks[0];
+    expect(blank?.kind === 'text' ? blank.leadingPt : null).toBeCloseTo(24, 3);
   });
 });

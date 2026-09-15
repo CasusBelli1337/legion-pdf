@@ -15,6 +15,8 @@ import type { BodyFrame } from './model';
 
 /** Fewer distinct baselines than this on a side is a margin note, not a column. */
 const MIN_COLUMN_LINES = 3;
+/** Each column must cover at least this share of the body's height, or it is a caption table. */
+const MIN_COLUMN_HEIGHT_SHARE = 0.5;
 /** Each column must be at least this share of the body width, or it is a table. */
 const MIN_COLUMN_SHARE = 0.25;
 /** Where a gutter may fall, as fractions of the body width. */
@@ -24,21 +26,30 @@ function crosses(run: LayoutTextRun, gutter: number): boolean {
   return run.x < gutter - 2 && run.x + run.width > gutter + 2;
 }
 
-function isColumn(runs: readonly LayoutTextRun[], minWidth: number): boolean {
+function heightOf(runs: readonly LayoutTextRun[]): number {
+  if (runs.length === 0) return 0;
+  return Math.max(...runs.map((run) => run.y)) - Math.min(...runs.map((run) => run.y));
+}
+
+function isColumn(runs: readonly LayoutTextRun[], minWidth: number, minHeight: number): boolean {
   const baselines = new Set(runs.map((run) => Math.round(run.y)));
   const widest = Math.max(0, ...runs.map((run) => run.width));
-  return baselines.size >= MIN_COLUMN_LINES && widest >= minWidth;
+  return baselines.size >= MIN_COLUMN_LINES && widest >= minWidth && heightOf(runs) >= minHeight;
 }
 
 /** The x of a gutter no run crosses, with a real column either side, or null. */
 export function findGutter(runs: readonly LayoutTextRun[], frame: BodyFrame): number | null {
   const span = frame.textRight - frame.left;
+  const minHeight = MIN_COLUMN_HEIGHT_SHARE * heightOf(runs);
   for (const fraction of GUTTER_CANDIDATES) {
     const gutter = frame.left + span * fraction;
     if (runs.some((run) => crosses(run, gutter))) continue;
     const left = runs.filter((run) => run.x + run.width <= gutter);
     const right = runs.filter((run) => run.x >= gutter);
-    if (isColumn(left, MIN_COLUMN_SHARE * span) && isColumn(right, MIN_COLUMN_SHARE * span)) {
+    if (
+      isColumn(left, MIN_COLUMN_SHARE * span, minHeight) &&
+      isColumn(right, MIN_COLUMN_SHARE * span, minHeight)
+    ) {
       return gutter;
     }
   }

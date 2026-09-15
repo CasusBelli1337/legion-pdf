@@ -93,7 +93,7 @@ describe('buildDocx', () => {
     expect(build.notes).toContain(STAMP_NOTE);
   });
 
-  it('numbers pleading paper with Word’s own line numbering', async () => {
+  it('rebuilds pleading paper as a header table of numbers on a fixed grid, not Word line numbering', async () => {
     const numbers = Array.from({ length: 28 }, (_unused, index) =>
       run(String(index + 1), 54, 720 - index * 24, { sizePt: 10, role: 'line-number', width: 5 })
     );
@@ -101,11 +101,22 @@ describe('buildDocx', () => {
       run('Q. Did you sign it?', 90, 720, { sizePt: 11 }),
       run('A. I did.', 90, 696, { sizePt: 11 }),
     ];
-    const build = await buildDocx([page([...numbers, ...body])]);
-    const { document } = await partsOf(build.bytes);
-    expect(document).toContain('w:lnNumType');
-    expect(document).toContain('w:restart="newPage"');
+    const rules = [
+      { rect: { x: 62, y: 20, width: 0.7, height: 750 } },
+      { rect: { x: 63.5, y: 20, width: 0.7, height: 750 } },
+      { rect: { x: 580, y: 20, width: 0.5, height: 750 } },
+    ];
+    const build = await buildDocx([page([...numbers, ...body], { rules })]);
+    const { document, header } = await partsOf(build.bytes);
+    expect(document).not.toContain('w:lnNumType');
+    // Line 1's box top is 0.8 × 24 above baseline 720: 739.2 from the bottom, 52.8 pt = 1056 twips from the top, fixed.
+    expect(document).toContain('w:top="-1056"');
     expect(document).not.toMatch(/<w:t[^>]*>1<\/w:t>/);
+    expect(header).toMatch(/<w:t[^>]*>1<\/w:t>/);
+    expect(header).toMatch(/<w:t[^>]*>28<\/w:t>/);
+    expect(header).toContain('w:hRule="exact"');
+    expect(header).toContain('w:val="double"');
+    expect(header).toContain('w:val="single"');
     expect(build.notes).toContain(PLEADING_NOTE);
   });
 

@@ -21,6 +21,8 @@ export interface StyledRun {
   underline: boolean;
   /** Text render mode 3 — an OCR layer under a scan. Kept, but it says the page is a scan. */
   hidden: boolean;
+  /** A footnote reference or ordinal, raised and small; Word draws it as superscript. */
+  superscript?: boolean;
 }
 
 /** One column of a line. Nearly every line has exactly one. */
@@ -39,6 +41,8 @@ export interface Line {
   right: number;
   /** The size most of the line's characters are set in. */
   sizePt: number;
+  /** The tagged PDF's paragraph the line belongs to; null when untagged or mixed. */
+  blockId: string | null;
 }
 
 export type Alignment = 'left' | 'center' | 'right' | 'justify';

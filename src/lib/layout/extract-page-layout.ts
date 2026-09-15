@@ -17,6 +17,8 @@ import type {
 import { alignTextStyles } from './colour-align';
 import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
+import { blockOfEachText, blocksOf } from './struct-tags';
+import type { BlockRef, MarkedItemLike, StructNodeLike } from './struct-tags';
 
 export interface TextItemLike {
   str: string;
@@ -41,7 +43,10 @@ export interface ObjectStore {
 export interface PageLike {
   view: readonly number[];
   rotate: number;
-  getTextContent(): Promise<{ items: unknown[]; styles: Record<string, FontStyleLike> }>;
+  getTextContent(options?: {
+    includeMarkedContent: boolean;
+  }): Promise<{ items: unknown[]; styles: Record<string, FontStyleLike> }>;
+  getStructTree?(): Promise<StructNodeLike | null>;
   getOperatorList(): Promise<OpList>;
   commonObjs: ObjectStore;
   objs: ObjectStore;
@@ -133,7 +138,8 @@ function runOf(
   item: TextItemLike,
   index: number,
   input: ExtractInput,
-  style: { colorHex: string; hidden: boolean }
+  style: { colorHex: string; hidden: boolean },
+  block: BlockRef | undefined
 ): LayoutTextRun {
   const [, , c = 0, d = 0, e = 0, f = 0] = item.transform;
   const sizePt = item.height > 0 ? item.height : Math.hypot(c, d);
@@ -148,7 +154,22 @@ function runOf(
     role: input.roles.get(index) ?? 'body',
     eol: item.hasEOL === true,
     ...(style.hidden ? { hidden: true } : {}),
+    ...(block === undefined ? {} : { block }),
   };
+}
+
+/**
+ * The tagged PDF's block for each text item, by text-item ordinal, or an empty
+ * list when the page has no structure tree. A second text read with the
+ * markers included lines up item for item with the plain one.
+ */
+async function blocksOfTextItems(page: PageLike): Promise<(BlockRef | undefined)[]> {
+  if (page.getStructTree === undefined) return [];
+  const tree = await page.getStructTree().catch(() => null);
+  const blocks = blocksOf(tree);
+  if (blocks.size === 0) return [];
+  const marked = await page.getTextContent({ includeMarkedContent: true });
+  return blockOfEachText(marked.items as MarkedItemLike[], blocks);
 }
 
 async function imageOf(
@@ -170,10 +191,12 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
   const walk = walkOperators(await page.getOperatorList(), input.ops);
   const items = content.items.map((item) => (isTextItem(item) ? item : { str: '' }));
   const styles = alignTextStyles(items, walk.texts);
+  const blocks = await blocksOfTextItems(page);
   const runs: LayoutTextRun[] = [];
   content.items.forEach((item, index) => {
     if (!isTextItem(item) || item.str.length === 0) return;
-    runs.push(runOf(item, index, input, styles[index] ?? { colorHex: '#000000', hidden: false }));
+    const style = styles[index] ?? { colorHex: '#000000', hidden: false };
+    runs.push(runOf(item, index, input, style, blocks[index]));
   });
   const images: LayoutImage[] = [];
   for (const op of walk.images) {

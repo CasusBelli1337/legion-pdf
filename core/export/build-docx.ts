@@ -14,7 +14,7 @@ import { docxImageParagraph } from './docx-image';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { STAMP_NOTE, footerFor, hasStamps, headerFor, sectionProperties } from './docx-section';
 import { docxTable } from './docx-table';
-import type { Paragraph } from './model';
+import type { Paragraph, TextParagraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
 import { scanAppendixSections } from './scan-appendix';
@@ -72,6 +72,33 @@ function docxParagraphOf(
   return docxTextParagraph(paragraph, fonts, { pageBreakBefore });
 }
 
+/**
+ * Word drops "space before" from the first paragraph after a page break (it
+ * honours it at the top of a document and of a section — measured 2026-09-15),
+ * so a page that opens below its top margin opens with an empty line exactly
+ * that tall instead. The spacer carries the page break.
+ */
+function withTopSpacer(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] {
+  const first = paragraphs[0];
+  if (!afterBreak || first === undefined || first.spaceBeforePt <= 0) return paragraphs;
+  const spacer: TextParagraph = {
+    kind: 'text',
+    lines: [],
+    alignment: 'left',
+    leadingPt: first.spaceBeforePt,
+    indentLeftPt: 0,
+    indentRightPt: 0,
+    firstLinePt: 0,
+    spaceBeforePt: 0,
+    tabStopsPt: [],
+    top: first.top,
+    ...(first.columnBreakBefore === true ? { columnBreakBefore: true } : {}),
+  };
+  first.spaceBeforePt = 0;
+  delete first.columnBreakBefore;
+  return [spacer, ...paragraphs];
+}
+
 function assembleSection(
   pages: PageLayout[],
   fonts: Fonts,
@@ -88,12 +115,10 @@ function assembleSection(
   );
   const topOfBody = geometry.size.height - geometry.margins.top;
   const children: (DocxParagraph | Table)[] = [];
-  let pleading = null;
   builds.forEach((built, index) => {
-    pleading ??= built.pleading;
     built.notes.forEach((note) => assembly.notes.add(note));
     // An empty page still turns the paper: one empty paragraph carries the break.
-    const settled = settlePage(built, topOfBody);
+    const settled = withTopSpacer(settlePage(built, topOfBody), index > 0);
     if (hasTabColumns(settled)) assembly.notes.add(COLUMNS_NOTE);
     const paragraphs = settled.length === 0 ? [null] : settled;
     paragraphs.forEach((paragraph, position) => {
@@ -108,7 +133,7 @@ function assembleSection(
   const header = headerFor(pages, fonts, geometry);
   const footer = footerFor(pages, fonts, geometry);
   assembly.sections.push({
-    properties: sectionProperties(geometry, pleading),
+    properties: sectionProperties(geometry),
     ...(header === null ? {} : { headers: { default: header } }),
     ...(footer === null ? {} : { footers: { default: footer } }),
     children,

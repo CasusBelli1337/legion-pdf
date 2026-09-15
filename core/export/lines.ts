@@ -15,6 +15,9 @@ import { hexColor } from './styles';
 
 /** Two runs share a baseline within this fraction of the type size. */
 const BASELINE_TOLERANCE = 0.35;
+/** A run this much smaller than the line (× size), raised this much (× size), is a superscript. */
+const SUPERSCRIPT_SIZE = 0.8;
+const SUPERSCRIPT_RISE = 0.15;
 /** A gap this wide (× size) reads as a space between words. */
 const SPACE_GAP = 0.18;
 /** A gap this wide (× size) reads as a column boundary, not a word space. */
@@ -39,14 +42,23 @@ export function isUnderlined(run: LayoutTextRun, rules: readonly LayoutRule[]): 
   );
 }
 
-function styled(run: LayoutTextRun, rules: readonly LayoutRule[]): StyledRun {
+function styled(
+  run: LayoutTextRun,
+  rules: readonly LayoutRule[],
+  line: { baseline: number; sizePt: number }
+): StyledRun {
+  const superscript =
+    run.sizePt < SUPERSCRIPT_SIZE * line.sizePt &&
+    run.y - line.baseline > SUPERSCRIPT_RISE * line.sizePt;
   return {
     text: run.text,
     fontKey: run.fontKey,
-    sizePt: run.sizePt,
+    // Word sizes a superscript itself; the run keeps the line's size.
+    sizePt: superscript ? line.sizePt : run.sizePt,
     colorHex: hexColor(run.colorHex),
     underline: isUnderlined(run, rules),
     hidden: run.hidden === true,
+    ...(superscript ? { superscript: true } : {}),
   };
 }
 
@@ -56,7 +68,8 @@ export function sameStyle(a: StyledRun, b: StyledRun): boolean {
     a.fontKey === b.fontKey &&
     Math.abs(a.sizePt - b.sizePt) < 0.25 &&
     a.colorHex === b.colorHex &&
-    a.underline === b.underline
+    a.underline === b.underline &&
+    (a.superscript ?? false) === (b.superscript ?? false)
   );
 }
 
@@ -112,9 +125,61 @@ function appendRun(cell: Cell, run: StyledRun, spaced: boolean): void {
   cell.runs.push(run);
 }
 
+/**
+ * The baseline of the text that IS the line: the character-weighted median of
+ * the runs at its dominant size, so a raised footnote number never lifts the
+ * line it sits on.
+ */
+function baselineOf(runs: readonly LayoutTextRun[], sizePt: number): number {
+  const weighted: { y: number; weight: number }[] = runs
+    .filter((run) => Math.abs(run.sizePt - sizePt) <= 0.5)
+    .map((run) => ({ y: run.y, weight: run.text.trim().length }))
+    .sort((a, b) => a.y - b.y);
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let seen = 0;
+  for (const entry of weighted) {
+    seen += entry.weight;
+    if (seen * 2 >= total) return entry.y;
+  }
+  return runs[0]?.y ?? 0;
+}
+
+/** Characters per tagged block across the runs, and the cells those blocks sit in. */
+function blockWeights(runs: readonly LayoutTextRun[]) {
+  const weight = new Map<string, number>();
+  const cells = new Set<string>();
+  let total = 0;
+  for (const run of runs) {
+    total += run.text.length;
+    if (run.block === undefined) continue;
+    cells.add(run.block.id.split('/')[0] ?? '');
+    weight.set(run.block.id, (weight.get(run.block.id) ?? 0) + run.text.length);
+  }
+  return { weight, cells, total };
+}
+
+/**
+ * The block most of the line's characters belong to, or null when untagged
+ * or split. A baseline shared by two table cells (a caption's party names
+ * beside its case number) is two paragraphs side by side, which the flow
+ * cannot express as one tagged paragraph; such a line is left to geometry.
+ * A paragraph inside one cell sits beside another cell's paragraphs, and the
+ * flow can only place such lines one baseline at a time: each line of a cell
+ * is its own block until cells become Word table cells.
+ */
+function blockIdOf(runs: readonly LayoutTextRun[]): string | null {
+  const { weight, cells, total } = blockWeights(runs);
+  if (cells.size > 1) return null;
+  const top = [...weight.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (top === undefined || top[1] < 0.6 * total) return null;
+  return top[0].includes('/') ? `${top[0]}@${Math.round((runs[0]?.y ?? 0) * 10)}` : top[0];
+}
+
 /** One line's runs, left to right, joined into cells with spaces where the gaps say so. */
 function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
   const ordered = [...draft.runs].sort((a, b) => a.x - b.x);
+  const sizePt = dominantSize(ordered);
+  const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];
   let cursor = Number.NEGATIVE_INFINITY;
   for (const run of ordered) {
@@ -122,19 +187,20 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
     const size = Math.max(run.sizePt, 1);
     const cell = cells.at(-1);
     if (cell === undefined || gap > COLUMN_GAP * size) {
-      cells.push({ x: run.x, runs: [styled(run, rules)] });
+      cells.push({ x: run.x, runs: [styled(run, rules, line)] });
     } else {
-      appendRun(cell, styled(run, rules), gap > SPACE_GAP * size);
+      appendRun(cell, styled(run, rules, line), gap > SPACE_GAP * size);
     }
     cursor = Math.max(cursor, run.x + run.width);
   }
   const first = ordered[0];
   return {
     cells,
-    baseline: draft.baseline,
+    baseline: line.baseline,
     x: first?.x ?? 0,
     right: cursor,
-    sizePt: dominantSize(ordered),
+    sizePt,
+    blockId: blockIdOf(ordered),
   };
 }
 

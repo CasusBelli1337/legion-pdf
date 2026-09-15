@@ -144,3 +144,75 @@ describe('paragraphsOf — indents and spacing', () => {
     expect(paragraph!.leadingPt).toBe(24);
   });
 });
+
+describe('paragraphsOf — what a tagged PDF and a typesetter say', () => {
+  const frame = { left: 72, right: 540, textRight: 540 };
+  const tagged = (text: string, y: number, id: string, x = 72) => ({
+    ...run(text, x, y),
+    block: { id, role: 'paragraph' as const },
+  });
+
+  it('follows the structure tags for paragraph boundaries when both lines carry one', () => {
+    const lines = linesOf([
+      tagged('A short line that ended early.', 700, 'b1'),
+      tagged('Continues the same tagged paragraph.', 686, 'b1'),
+      tagged('A new tagged paragraph at the same edge with no other signal', 672, 'b2'),
+    ]);
+    expect(paragraphsOf(lines, { frame }).map((p) => p.lines.length)).toEqual([2, 1]);
+  });
+
+  it('breaks where the face changes wholesale, as under a bold heading', () => {
+    const lines = linesOf([
+      run('A. The Interrogatories Seek Information Directly Relevant to Notice', 108, 700, {
+        fontKey: 'timesBold',
+      }),
+      run('Discovery may be had of any matter, not privileged, that is relevant', 108, 678),
+      run('to the subject matter of the action, if the matter is itself admissible.', 72, 654),
+    ]);
+    expect(paragraphsOf(lines, { frame }).map((p) => p.lines.length)).toEqual([1, 2]);
+  });
+
+  it('keeps a tagged signature block one line per line: lines in a table cell never flow', () => {
+    const cell = (text: string, y: number, block: string) => ({
+      ...run(text, 367, y),
+      block: { id: `c9/${block}`, role: 'paragraph' as const },
+    });
+    const lines = linesOf([
+      cell('Priya N. Vanterpool', 592, 'b1'),
+      cell('Attorneys for Plaintiff', 580, 'b1'),
+      cell('MARGARET OKONKWO-REYES', 568, 'b1'),
+    ]);
+    expect(paragraphsOf(lines, { frame: { left: 100, right: 580, textRight: 576 } })).toHaveLength(
+      3
+    );
+  });
+
+  it('breaks after a line positioned far to the right (a centred name in a transcript)', () => {
+    const lines = linesOf([
+      run('KENJI M. STRAND-OYELARAN,', 230, 700),
+      run('having been first duly sworn, was examined and testified', 90, 676),
+      run('as follows:', 90, 652),
+    ]);
+    // The name stands alone; "…testified" + "as follows:" is one flowing sentence.
+    expect(
+      paragraphsOf(lines, { frame: { left: 90, right: 540, textRight: 480 } }).map(
+        (p) => p.lines.length
+      )
+    ).toEqual([1, 2]);
+  });
+
+  it('sets a paragraph no wider than would let the next line’s first word move up', () => {
+    const lines = linesOf([
+      run('Units manufactured between March 2023 and January 2024 may', 144, 700, { width: 336 }),
+      run('contain a wiring harness whose insulation degrades under sustained', 144, 688, {
+        width: 372,
+      }),
+      run('operation above 85% relative humidity.', 144, 676, { width: 220 }),
+    ]);
+    const [quote] = paragraphsOf(lines, { frame });
+    // Widest line ends at 516; "contain" (~40 pt) after line one (480 + 3) would fit
+    // anywhere past 523, so the paragraph may reach 516 + slack but no further.
+    expect(quote?.indentRightPt).toBeGreaterThanOrEqual(540 - 523);
+    expect(quote?.indentRightPt).toBeLessThanOrEqual(540 - 516);
+  });
+});

@@ -13,6 +13,17 @@ import type { PageSize, PdfRect } from './types';
 /** What a run of text is FOR — mirrors the viewer's selection roles. */
 export type LayoutTextRole = 'body' | 'line-number' | 'page-number' | 'header' | 'footer' | 'stamp';
 
+/** What a tagged PDF's structure tree says a block of text is. */
+export type LayoutBlockRole =
+  'paragraph' | 'heading' | 'list-item' | 'cell' | 'caption' | 'toc-entry' | 'note' | 'quote';
+
+/** The paragraph-level block a run sits in, when the PDF is tagged. */
+export interface LayoutBlock {
+  /** Opaque, unique per block on the page; runs with the same id are one paragraph. */
+  id: string;
+  role: LayoutBlockRole;
+}
+
 export interface LayoutFont {
   /** The file's own name for the face, subset prefix stripped. */
   name: string;
@@ -42,6 +53,8 @@ export interface LayoutTextRun {
   eol: boolean;
   /** Text render mode 3 — invisible, i.e. an OCR layer over a scan. */
   hidden?: boolean;
+  /** The tagged PDF's own paragraph for this run; absent when the PDF is untagged. */
+  block?: LayoutBlock;
 }
 
 export interface LayoutImage {

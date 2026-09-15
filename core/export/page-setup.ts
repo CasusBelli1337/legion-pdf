@@ -8,10 +8,15 @@
 
 import type { LayoutTextRun, PageLayout, PageSize } from '@shared/types';
 import { columnsOf } from './columns';
+import { BASELINE_SHARE } from './model';
 import type { BodyFrame } from './model';
+import { pleadingOf, pleadingOfSection } from './pleading';
+import type { Pleading } from './pleading';
 
 /** Points. Half an inch is the least a printer can hold; an inch is the default. */
 const MIN_MARGIN = 36;
+/** The right margin may be tighter: it only has to let the widest line through. */
+const MIN_RIGHT_MARGIN = 18;
 const DEFAULT_MARGIN = 72;
 /** Vertical margins: never tighter than this, and the bottom never looser. */
 const MIN_VERTICAL = 8;
@@ -57,6 +62,8 @@ export interface SectionGeometry {
   frame: BodyFrame;
   columns: ColumnLayout;
   pages: PageLayout[];
+  /** The numbered column every page of the section carries, or null. */
+  pleading: Pleading | null;
 }
 
 interface Extents {
@@ -106,11 +113,16 @@ function sameSheet(a: PageLayout, b: PageLayout): boolean {
   return (
     Math.abs(first.width - second.width) <= 1 &&
     Math.abs(first.height - second.height) <= 1 &&
-    columnRunsOf(a).length === columnRunsOf(b).length
+    columnRunsOf(a).length === columnRunsOf(b).length &&
+    (pleadingOf(a) === null) === (pleadingOf(b) === null)
   );
 }
 
-/** Consecutive pages on the same paper, set in the same number of columns, share one section. */
+/**
+ * Consecutive pages on the same paper, set in the same number of columns, and
+ * alike in carrying a numbered column or not, share one section — a pleading's
+ * header of numbers must never run onto the exhibit stapled behind it.
+ */
 export function groupSections(layouts: readonly PageLayout[]): PageLayout[][] {
   const groups: PageLayout[][] = [];
   for (const layout of layouts) {
@@ -149,16 +161,34 @@ function marginsFor(pages: readonly PageLayout[], size: PageSize): Margins {
   const computedRight = size.width - textRightOf(pages);
   return {
     left,
-    right: Math.max(MIN_MARGIN, Math.min(computedRight, left) - RIGHT_SLACK),
+    right: Math.max(MIN_RIGHT_MARGIN, Math.min(computedRight, left) - RIGHT_SLACK),
     top: DEFAULT_MARGIN,
     bottom: DEFAULT_MARGIN,
   };
 }
 
-/** The furthest right any body text reaches on the section's pages. */
+/** The furthest right any body text reaches on the section's pages — the margin must let it through. */
 function textRightOf(pages: readonly PageLayout[]): number {
   const rights = pages.map(bodyExtents).flatMap((box) => (box === null ? [] : [box.right]));
   return rights.length === 0 ? 0 : Math.max(...rights);
+}
+
+/** Share of the widest runs set aside as outliers — a caption cell past the margin. */
+const OUTLIER_SHARE = 0.03;
+
+/**
+ * Where the body text block ends, for judging alignment and short lines —
+ * read off the runs with the few widest set aside, so one caption cell that
+ * sits past the margin does not make every full line look short.
+ */
+function typicalTextRight(pages: readonly PageLayout[]): number {
+  const rights = pages
+    .flatMap(bodyRuns)
+    .filter((run) => run.text.trim().length >= 3)
+    .map((run) => run.x + run.width)
+    .sort((a, b) => b - a);
+  if (rights.length === 0) return 0;
+  return rights[Math.min(rights.length - 1, Math.floor(OUTLIER_SHARE * rights.length))] ?? 0;
 }
 
 /**
@@ -171,6 +201,7 @@ export function withVerticalMargins(
   geometry: SectionGeometry,
   boxes: readonly { top: number; bottom: number }[]
 ): SectionGeometry {
+  if (geometry.pleading?.grid === true) return withPleadingMargins(geometry, geometry.pleading);
   if (boxes.length === 0) return geometry;
   const top = geometry.size.height - Math.max(...boxes.map((box) => box.top));
   const bottom = Math.min(...boxes.map((box) => box.bottom)) - RIGHT_SLACK;
@@ -181,6 +212,21 @@ export function withVerticalMargins(
       top: Math.max(MIN_VERTICAL, top),
       bottom: Math.min(MAX_BOTTOM, Math.max(MIN_VERTICAL, bottom)),
     },
+  };
+}
+
+/**
+ * On pleading paper the body's top is line 1's box top, exactly, and the
+ * bottom leaves room for every numbered line: the numbers in the header are
+ * placed from the same figure, which is what keeps line k beside number k.
+ */
+function withPleadingMargins(geometry: SectionGeometry, pleading: Pleading): SectionGeometry {
+  const lineOneTop = pleading.firstBaseline + BASELINE_SHARE * pleading.pitchPt;
+  const top = geometry.size.height - lineOneTop;
+  const bottom = lineOneTop - (pleading.count + 0.5) * pleading.pitchPt;
+  return {
+    ...geometry,
+    margins: { ...geometry.margins, top: Math.max(0, top), bottom: Math.max(0, bottom) },
   };
 }
 
@@ -231,7 +277,7 @@ export function sectionGeometry(pages: PageLayout[]): SectionGeometry {
   const frame: BodyFrame = {
     left: margins.left,
     right: size.width - margins.right,
-    textRight: Math.max(margins.left + 1, textRightOf(pages)),
+    textRight: Math.max(margins.left + 1, typicalTextRight(pages)),
   };
   return {
     size,
@@ -242,5 +288,6 @@ export function sectionGeometry(pages: PageLayout[]): SectionGeometry {
     frame,
     columns: columnLayoutOf(pages, frame),
     pages,
+    pleading: pleadingOfSection(pages),
   };
 }

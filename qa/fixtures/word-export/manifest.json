@@ -1,0 +1,57 @@
+{
+  "pleading-word.pdf": {
+    "producer": "Microsoft Word (Legion CA pleading template, header-table numbers)",
+    "purpose": "caption on 28-line paper, numbered headings, block quote across numbered lines, signature block, footer title",
+    "pages": 4,
+    "wordsPerPage": [
+      252,
+      387,
+      402,
+      94
+    ]
+  },
+  "pleading-scan.pdf": {
+    "producer": "print-and-scan of pleading-word (200 dpi grayscale raster, no text layer)",
+    "purpose": "a scanned pleading: the exporter must recognise the text first",
+    "pages": 4,
+    "wordsPerPage": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "pleading-scan-ocr.pdf": {
+    "producer": "pleading-scan with Legion PDF’s own OCR text layer (Tesseract, invisible text)",
+    "purpose": "a scan already made searchable: hidden text becomes editable paragraphs on the grid",
+    "pages": 4,
+    "wordsPerPage": [
+      243,
+      374,
+      391,
+      83
+    ]
+  },
+  "filing-mixed.pdf": {
+    "producer": "Microsoft Word (another firm’s template: Word line numbering, Century Schoolbook + Arial, footnotes)",
+    "purpose": "opposing-counsel filing: ruled caption table, footnotes, running head, signature block, proof of service",
+    "pages": 4,
+    "wordsPerPage": [
+      267,
+      293,
+      48,
+      189
+    ]
+  },
+  "deposition-word.pdf": {
+    "producer": "Microsoft Word (court-reporter style: Courier New, 25 numbered lines, one paragraph per line)",
+    "purpose": "transcript Q/A and colloquy on a 25-line grid, then a certificate page without numbers",
+    "pages": 4,
+    "wordsPerPage": [
+      162,
+      188,
+      172,
+      116
+    ]
+  }
+}
