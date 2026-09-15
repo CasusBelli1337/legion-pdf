@@ -6,6 +6,9 @@
  * Its inner border is a splitter. Widening the rail makes the thumbnails
  * themselves bigger — the point of dragging it out is to read the page, not to
  * get more white space around a stamp-sized picture.
+ *
+ * The Pages tab is keyed by document id: switching tabs starts a clean
+ * selection rather than carrying page numbers over from another file.
  */
 
 import { useState } from 'react';
@@ -13,7 +16,7 @@ import { RAIL_SIZE, ResizeHandle, usePanelWidth } from '../../app/shell/panels';
 import { useActiveSession, useAppStore } from '../../app/store';
 import { usePdfDocument, useViewerApi } from '../viewer';
 import { BookmarkTree } from './bookmark-tree';
-import { ThumbnailList } from './thumbnail-list';
+import { RailPagesTab } from './rail-pages-tab';
 import { useBookmarkEditor } from './use-bookmark-editing';
 import { useBookmarks } from './use-bookmarks';
 
@@ -60,8 +63,6 @@ export function DocumentRail() {
   const { bookmarks, isLoading, reload } = useBookmarks(session?.id ?? null, document);
   const editor = useBookmarkEditor(session?.id ?? null, reload);
 
-  const goToPage = (page: number): void => api?.goToPage(page);
-
   return (
     <>
       <ResizeHandle control={rail} label="Thumbnail rail width" />
@@ -73,12 +74,12 @@ export function DocumentRail() {
         {session === null ? (
           <p className="p-3 text-xs text-text-muted">No document open.</p>
         ) : tab === 'pages' ? (
-          <ThumbnailList
+          <RailPagesTab
+            key={session.id}
+            session={session}
             document={document}
-            pageCount={session.pageCount}
             currentPage={currentPage}
             width={thumbnailWidth(rail.width)}
-            onSelect={goToPage}
           />
         ) : (
           <BookmarkTree
@@ -87,7 +88,7 @@ export function DocumentRail() {
             currentPage={currentPage}
             busy={editor.busy}
             error={editor.error}
-            onSelect={goToPage}
+            onSelect={(page) => api?.goToPage(page)}
             onCommit={(tree, receipt) => void editor.save(tree, receipt)}
           />
         )}
