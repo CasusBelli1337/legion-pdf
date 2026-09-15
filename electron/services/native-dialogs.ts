@@ -11,15 +11,46 @@ import { exportFormatInfo } from '@shared/export-formats';
 import type { ExportFormat, SaveResult } from '@shared/types';
 import type { ConfirmPrompt } from './close-guard';
 import type { DocStore } from './doc-store';
+import {
+  IMAGE_EXTENSIONS,
+  OPENABLE_EXTENSIONS,
+  PRESENTATION_EXTENSIONS,
+  SPREADSHEET_EXTENSIONS,
+  TEXT_EXTENSIONS,
+  WORD_EXTENSIONS,
+} from '@shared/convert-inputs';
 import { PRODUCT_NAME } from '@shared/product';
 
 const PDF_FILTER = [{ name: 'PDF documents', extensions: ['pdf'] }];
 
+/** Windows dialogs want extensions without the dot; the shared lists carry it. */
+function bare(extensions: readonly string[]): string[] {
+  return extensions.map((extension) => extension.replace(/^\./, ''));
+}
+
+/**
+ * Open accepts everything Legion PDF can turn into a PDF, not only PDFs — the
+ * conversion happens inside `file:open`. "All supported files" is first so the
+ * attorney sees their Word documents and scans without changing the filter, and
+ * every group below it comes from shared/convert-inputs.ts, the one list.
+ */
+const OPEN_FILTERS = [
+  { name: 'All supported files', extensions: bare(OPENABLE_EXTENSIONS) },
+  ...PDF_FILTER,
+  { name: 'Word documents', extensions: bare(WORD_EXTENSIONS) },
+  { name: 'Images', extensions: bare(IMAGE_EXTENSIONS) },
+  {
+    name: 'Spreadsheets and presentations',
+    extensions: bare([...SPREADSHEET_EXTENSIONS, ...PRESENTATION_EXTENSIONS]),
+  },
+  { name: 'Text and web pages', extensions: bare(TEXT_EXTENSIONS) },
+];
+
 /** The chosen absolute paths, or an empty array when the picker is cancelled. */
 export async function openPdfDialog(window: BrowserWindow | null): Promise<string[]> {
   const options: OpenDialogOptions = {
-    title: 'Open PDF',
-    filters: PDF_FILTER,
+    title: 'Open',
+    filters: OPEN_FILTERS,
     properties: ['openFile', 'multiSelections'],
   };
   const result = window
