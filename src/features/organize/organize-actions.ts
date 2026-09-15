@@ -5,6 +5,7 @@
  */
 
 import type { MergeSource } from '@shared/types';
+import { useAppStore } from '../../app/store';
 import { openNewDocuments } from './new-documents';
 
 function pageWord(count: number): string {
@@ -31,9 +32,12 @@ export async function extractPages(
   pages: number[],
   removeFromSource: boolean
 ): Promise<string> {
+  // Read before the new tab takes the foreground: the receipt lands there and
+  // must name the document the pages came FROM.
+  const source = useAppStore.getState().sessions.find((item) => item.id === docId)?.fileName;
   const result = await window.librarius.ops.extract(docId, { pages, removeFromSource });
   await openNewDocuments([result.detail.docId]);
-  const tail = removeFromSource ? ' They were removed from this document.' : '';
+  const tail = removeFromSource ? ` They were removed from ${source ?? 'the original'}.` : '';
   return `Pulled ${result.pagesOut} ${pageWord(result.pagesOut)} into a new tab.${tail}`;
 }
 

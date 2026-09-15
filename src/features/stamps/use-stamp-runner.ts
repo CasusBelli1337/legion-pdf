@@ -26,7 +26,9 @@ export interface StampRunner {
 /** Strips Electron's IPC wrapper so the attorney never sees a stack trace. */
 export function describeError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '');
+  return raw
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^[A-Za-z]*Error:\s*/, '');
 }
 
 /** What an operation left behind: its receipt, or the reason it did not land. */
