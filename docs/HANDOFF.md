@@ -1,4 +1,57 @@
-# Handoff — Legion PDF (updated 2026-09-15, v0.5.1)
+# Handoff — Legion PDF (updated 2026-09-15 evening, v0.6.0)
+
+## v0.6 update (2026-09-15) — Word export for litigators; read this first
+
+Arthur's mission ("turn opposing counsel's PDF into a perfect Word doc I can
+edit, work on scans, fix pleading-paper line numbers") shipped as v0.6.0 in
+one session: three lanes (P = this orchestrator, Fable; T = ruled tables and
+S = scans + panel, Opus) — see `docs/missions/2026-09-15-word-export.md` and
+the report `qa/reports/2026-09-15-word-export.md`. The reference is
+`docs/references/word-export.md`; read it before touching `core/export`.
+
+**What is true now**
+
+- Pleading paper is rebuilt the way Arthur's own templates draw it: a
+  header-anchored table of numbers on the page's fitted grid with the rules as
+  borders and a fixed (negative-twip) top margin. Two measured Word facts
+  carry it: a baseline sits 80% down an exact line box (19 fonts), and Word
+  drops space-before after a page break (spacers are empty exact-height
+  lines, `suppressLineNumbers`). Numbers that follow the text (Word's own
+  numbering) keep `lnNumType`.
+- Tagged PDFs (Word, Acrobat PDFMaker) decide their own paragraphs via the
+  structure tree; scans and Distiller/Aspose output fall back to geometry.
+  Transcripts (monospace + numbers) and recognised text keep one paragraph
+  per line. Ruled tables, incl. the L-shaped caption box, are Word tables.
+- Scans are recognised before export (lane S), the OCR layer now sits on
+  Tesseract's line baselines (digits on their own box bottoms), the Export
+  panel shows the plan before the button and a Kept / Left out receipt.
+- `npm run test:word` renders every corpus fixture in REAL Word and measures
+  it (true baselines via pdf.js); `npm run corpus:word` rebuilds the corpus
+  (needs Word + Legion's private CA template on this machine);
+  `WORD_PRIVATE_CORPUS=<folder> npm run test:word -- private-corpus` grades
+  real served filings kept OUTSIDE the repo
+  (`~/projects/legion-librarius-private-corpus/served`, sources in its
+  `manifest.txt`; `subset/` holds symlinks to the hard ones).
+- `qa/word-export-proof.mjs` drives the BUILT app through a real export.
+
+**State at handoff:** MEASURED_STATE_LINE
+
+**Open — what the real filings still break** (measured, see the report § 5):
+MEASURED_OPEN_LIST
+
+**Gotchas learned this session** (all in `docs/references/word-export.md`
+or `docs/TROUBLESHOOTING.md`): pdftotext's glyph boxes differ between two
+subsets of the same font (compare pdf.js baselines, never yMax); OneDrive
+`#Clients` files are cloud placeholders that fail with I/O errors from WSL;
+the `docx` package defaults to A4 (set Letter explicitly in generators);
+a `.gitignore` directory rule cannot be negated for a subfolder (`qa/fixtures/*`
++ `!qa/fixtures/word-export/`); the dangerous-command hook blocks any rsync
+line mentioning `.env` — use `--exclude-from`.
+
+---
+
+# (previous) Handoff — Legion PDF (updated 2026-09-15, v0.5.1)
+
 
 ## NEXT MISSION (Arthur, 2026-09-15): nail Word export for litigators
 
