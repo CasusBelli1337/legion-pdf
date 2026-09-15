@@ -41,14 +41,19 @@ function NoteCard({ note, phase }: { note: EditNote | null; phase: BlockPhase })
   );
 }
 
-/** The dashed outline of the paragraph, and the note above or below it. */
+/**
+ * The paragraph's box: covered in paper white so the words being replaced do
+ * not show through the words replacing them, outlined, and captioned above or
+ * below. White is the paper, not a theme colour — the same choice the page
+ * thumbnails make.
+ */
 function Frame({ layout, children }: { layout: BlockEditorLayout; children: ReactNode }) {
   const { frame } = layout;
   const above = frame.top >= NOTE_ROOM;
   return (
     <>
       <div
-        className="absolute rounded-xs outline outline-1 outline-dashed outline-brand-400/80"
+        className="absolute rounded-xs bg-white outline outline-1 outline-dashed outline-brand-400/80"
         style={{
           left: `${frame.left}px`,
           top: `${frame.top}px`,
