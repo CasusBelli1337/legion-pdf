@@ -20,7 +20,9 @@ import { PRODUCT_NAME } from '@shared/product';
 /** Plain English for the attorney, never a stack trace. */
 function describe(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
-  return raw.replace(/^Error invoking remote method '[^']+':\s*/, '').replace(/^Error:\s*/, '');
+  return raw
+    .replace(/^Error invoking remote method '[^']+':\s*/, '')
+    .replace(/^[A-Za-z]*Error:\s*/, '');
 }
 
 /** `docId` scopes the message; omit it for the document in front, null for the app. */

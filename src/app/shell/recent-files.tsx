@@ -9,6 +9,10 @@ import { openPaths } from '../document-actions';
 import { useAppStore } from '../store';
 import { formatOpenedAt, missingFileNotice } from './recent-copy';
 import { useRecentFiles } from './use-recent-files';
+import { tabLabel } from './tab-label';
+
+/** Long names keep their tail, the part that tells two versions apart. */
+const RECENT_NAME_LIMIT = 56;
 
 async function openRecent(file: RecentFile, forget: (filePath: string) => void): Promise<void> {
   if (await openPaths([file.filePath])) return;
@@ -28,7 +32,9 @@ function RecentRow({ file, onOpen }: { file: RecentFile; onOpen(): void }) {
         className="flex w-full items-baseline gap-3 rounded-md px-2 py-1.5 text-left transition-colors duration-150 hover:bg-armory-interactive"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm text-text-primary">{file.fileName}</span>
+          <span className="block truncate text-sm text-text-primary" title={file.fileName}>
+            {tabLabel(file.fileName, RECENT_NAME_LIMIT)}
+          </span>
           <span className="block truncate text-xs text-text-muted">{file.filePath}</span>
         </span>
         <span className="readout shrink-0 text-text-muted">{formatOpenedAt(file.openedAt)}</span>

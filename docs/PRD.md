@@ -189,3 +189,70 @@ PDF text with reflow. "Whiteout and retype" ships instead (F-10).
 - **Phase 3 (polish):** F-11, F-12
 - **Phase 4 (e-signature):** F-13 (app + Legion Sign service, 2026-08-22)
 - **Stretch (separate session):** true text editing with reflow
+
+### F-14 Page rail: select, right-click, drag (2026-09-15)
+
+- Click / Ctrl-click / Shift-click select pages in the right rail; a count and
+  Clear sit above the list
+- Right-click: delete, extract to a new PDF (with or without removing), rotate,
+  select all — every action reports counts in the footer; Undo covers it
+- Drag a selection to reorder (drop line between pages, end drop zone)
+- **Acceptance:** rail stays virtualized on 500 pages; saved order verified by
+  text extraction.
+
+### F-15 Open Word, images, spreadsheets, and text as PDFs (2026-09-15)
+
+- `File > Open` / `Create PDF from File...` accept .docx/.doc/.rtf, .xlsx,
+  .pptx, .txt/.html, and PNG/JPEG/TIFF/BMP/GIF/WebP
+- Word/Excel/PowerPoint convert through the installed Microsoft Office (COM);
+  images and text through the built-in engine; a converted file opens as an
+  UNSAVED tab so the original is never overwritten
+- **Acceptance:** every conversion proves page count ≥ 1 before it is shown.
+
+### F-16 Combine from Windows Explorer (2026-09-15)
+
+- Select PDFs, Word documents, and images in Explorer → right-click →
+  "Combine in Legion PDF": the app gathers the launches into ONE list, opens
+  the Combine Files panel, lets the attorney drag-reorder, and merges into a
+  new tab; "Convert to PDF with Legion PDF" on a single non-PDF
+- **Acceptance:** three separate launches 250 ms apart become one batch in
+  natural name order; combined page count equals the sum.
+
+### F-17 Export: PNG, JPEG, multi-page TIFF, plain text (2026-09-15)
+
+- Export dock panel + `File > Export As...` (Ctrl+Shift+E): format, page
+  range, DPI, colour (colour / grayscale / black-and-white), JPEG quality;
+  per-page images into a folder or one TIFF/TXT file; live "Page 12/65",
+  Stop, receipt with "Show in folder"
+- **Acceptance:** files written == pages requested, each non-empty; the TIFF
+  page count read back equals the request.
+
+### F-18 Export to Word (.docx) (2026-09-15)
+
+- A flowing, editable Word document: fonts by name, sizes, bold/italic,
+  colour, alignment, indents, exact line spacing, page breaks, headers and
+  footers, images in place; pleading line numbers become Word's own line
+  numbering
+- **Acceptance:** rendered in real Word and compared page by page with the
+  source PDF.
+
+### F-19 Edit existing text (2026-09-15) — the deferred stretch goal, shipped
+
+- Stamps & Marks › Text › **Edit text**: click a paragraph, retype it in
+  place, Ctrl+Enter. The paragraph re-wraps on its own measure, indent,
+  leading, and alignment, in the document's OWN embedded font when that font
+  can spell the new text; otherwise the closest built-in face, and the note
+  says which characters forced the change BEFORE the edit is applied
+- Refuses, in plain English, invisible OCR text over scans and text drawn
+  through reusable graphics (Cover and retype handles those)
+- **Acceptance:** proven on the saved bytes — the paragraph reads back exactly
+  as typed and the shown-character count moves by exactly the glyphs removed
+  and added; verified on a PDF Microsoft Word itself wrote.
+
+### F-20 Side by side (2026-09-15)
+
+- Toolbar "Side by side" / View › Side by Side (Ctrl+\): the working document
+  on the left with all tools, a reference document on the right with its own
+  page and zoom, a draggable divider, Swap, and optional "Scroll together";
+  drag a tab onto the right pane to show it there
+- **Acceptance:** scrolling or zooming the right pane never moves the left.
