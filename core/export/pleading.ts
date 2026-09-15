@@ -100,16 +100,24 @@ function numbersOf(layout: PageLayout): Numbered[] {
   });
 }
 
-/** The pitch from every pair of consecutive numbers, so one misread number cannot skew it. */
-function pitchOf(column: readonly Numbered[]): number {
-  const sorted = [...column].sort((a, b) => a.value - b.value);
-  const pitches: number[] = [];
-  sorted.slice(1).forEach((entry, index) => {
-    const previous = sorted[index];
-    if (previous === undefined || entry.value === previous.value) return;
-    pitches.push((previous.y - entry.y) / (entry.value - previous.value));
-  });
-  return median(pitches.filter((pitch) => pitch > 0));
+/**
+ * The grid through every number: a least-squares line of baseline against
+ * line number. A producer that rounds each baseline to a twip leaves every
+ * gap a hair off; over twenty-eight lines the median gap drifts a point and a
+ * half from the true pitch, while the fitted line lands on it.
+ */
+function gridOf(column: readonly Numbered[]): { pitchPt: number; firstBaseline: number } {
+  const count = column.length;
+  const meanValue = column.reduce((sum, entry) => sum + entry.value, 0) / count;
+  const meanY = column.reduce((sum, entry) => sum + entry.y, 0) / count;
+  let covariance = 0;
+  let variance = 0;
+  for (const entry of column) {
+    covariance += (entry.value - meanValue) * (entry.y - meanY);
+    variance += (entry.value - meanValue) ** 2;
+  }
+  const pitchPt = variance === 0 ? 0 : -covariance / variance;
+  return { pitchPt, firstBaseline: meanY + pitchPt * (meanValue - 1) };
 }
 
 function rulesOf(layout: PageLayout, numberRight: number): PleadingRules {
@@ -157,9 +165,8 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
     (run) => run.role === 'body' && run.text.trim().length > 0 && run.x < numberRight - 2
   );
   if (strays.length >= MAX_STRAYS) return null;
-  const pitchPt = pitchOf(column);
+  const { pitchPt, firstBaseline } = gridOf(column);
   if (!(pitchPt > 0)) return null;
-  const firstBaseline = median(column.map((entry) => entry.y + (entry.value - 1) * pitchPt));
   const count = Math.max(...column.map((entry) => entry.value));
   const sample = column[0] as Numbered;
   const offGrid = column.some(
