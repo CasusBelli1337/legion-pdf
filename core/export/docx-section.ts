@@ -128,10 +128,22 @@ function placedParagraphs(
   });
 }
 
+/**
+ * A recognised run with no three letters or digits in a row is scanner noise
+ * ("H", "KL", ")", a smudge read as punctuation), not a running head or foot.
+ * Left in, every fragment becomes a paragraph of the header or footer, the
+ * band grows past the margin, and Word squeezes the body onto page after page.
+ */
+function isNoise(run: LayoutTextRun): boolean {
+  return run.hidden === true && !/[A-Za-z0-9]{3}/.test(run.text);
+}
+
 /** The band's runs on the first page of the section that carries the band at all. */
 function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]): LayoutTextRun[] {
   for (const page of pages) {
-    const runs = page.runs.filter((run) => wanted.includes(run.role) && run.text.trim().length > 0);
+    const runs = page.runs.filter(
+      (run) => wanted.includes(run.role) && run.text.trim().length > 0 && !isNoise(run)
+    );
     if (runs.length > 0) return runs;
   }
   return [];
