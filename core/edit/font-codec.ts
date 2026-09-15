@@ -204,7 +204,10 @@ function simpleGlyphCheck(
         program.unicodeToGid(text.codePointAt(0) ?? -1) ??
         program.macToGid(code) ??
         program.symbolToGid(code);
-      return gid === undefined ? program.hasOutline(code) : program.hasOutline(gid);
+      // No map at all: codes index glyphs directly. A map that lacks the
+      // character, or sends it to .notdef (glyph 0), means it is not there.
+      if (gid === undefined) return !program.hasCmap && program.hasOutline(code);
+      return gid !== 0 && program.hasOutline(gid);
     };
   }
   if (subsetHints !== null) return (code) => subsetHints.has(code);

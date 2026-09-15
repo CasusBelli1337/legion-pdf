@@ -19,6 +19,8 @@ interface Table {
 
 export interface TrueTypeGlyphs {
   numGlyphs: number;
+  /** True when the program carries any character map at all. */
+  hasCmap: boolean;
   /** True when the glyph has outline data (or is a composite). */
   hasOutline(gid: number): boolean;
   /** Unicode code point → glyph id via a (3,1)/(3,10)/(0,x) cmap, or undefined. */
@@ -174,6 +176,7 @@ export function parseTrueType(bytes: Uint8Array): TrueTypeGlyphs | null {
   const mac = pick(records, (r) => r.platform === 1 && r.encoding === 0);
   return {
     numGlyphs: Math.max(0, offsets.length - 1),
+    hasCmap: records.length > 0,
     hasOutline: (gid) => {
       const start = offsets[gid];
       const end = offsets[gid + 1];
