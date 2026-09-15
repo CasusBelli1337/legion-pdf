@@ -14,7 +14,11 @@ export { columnsOf, findGutter } from './columns';
 export { pleadingOf, PLEADING_NOTE, LINE_NUMBERS_NOTE } from './pleading';
 export type { Pleading } from './pleading';
 export { planImages } from './images';
-export { tabStopsOf } from './tables';
+export { tabStopsOf, ruledTablesOf } from './tables';
+export type { RuledTables } from './tables';
+export { docxTable } from './docx-table';
+export { docxImageParagraph } from './docx-image';
+export { scanAppendixSections } from './scan-appendix';
 export {
   groupSections,
   sectionGeometry,
@@ -24,5 +28,16 @@ export {
 } from './page-setup';
 export type { SectionGeometry, Margins, ColumnLayout } from './page-setup';
 export { pageParagraphs, settlePage, hasTabColumns } from './page-paragraphs';
+export type { PageOptions, PageBuild } from './page-paragraphs';
 export { runStyleFor, wordFontFor, readableFamily, halfPoints, hexColor } from './styles';
-export type { Alignment, BodyFrame, Line, Paragraph, StyledRun, TextParagraph } from './model';
+export type {
+  Alignment,
+  BodyFrame,
+  Line,
+  Paragraph,
+  StyledRun,
+  TableBorders,
+  TableCell,
+  TableParagraph,
+  TextParagraph,
+} from './model';

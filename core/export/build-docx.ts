@@ -8,18 +8,23 @@
  */
 
 import { Document, Packer, Paragraph as DocxParagraph } from 'docx';
-import type { ISectionOptions } from 'docx';
-import type { LayoutFont, PageLayout } from '@shared/types';
-import { PAGE_FIELD, docxImageParagraph, docxTextParagraph } from './docx-paragraph';
+import type { ISectionOptions, Table } from 'docx';
+import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@shared/types';
+import { docxImageParagraph } from './docx-image';
+import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { STAMP_NOTE, footerFor, hasStamps, headerFor, sectionProperties } from './docx-section';
+import { docxTable } from './docx-table';
 import type { Paragraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
+import { scanAppendixSections } from './scan-appendix';
 import { halfPoints, runStyleFor } from './styles';
 import { verifyDocx } from './verify';
 
 export interface DocxBuildOptions {
   title?: string;
+  /** What becomes of a scanned page's picture; 'omit' when not given. */
+  scanPictures?: ScanPictureMode;
 }
 
 export interface DocxBuild {
@@ -28,6 +33,8 @@ export interface DocxBuild {
   pageCount: number;
   /** Plain English for the attorney about what could not be carried over. */
   notes: string[];
+  /** The same, sorted into what was kept and what was left out. */
+  receipt: ExportReceipt;
 }
 
 export const COLUMNS_NOTE =
@@ -55,21 +62,32 @@ function sampleOf(paragraph: Paragraph): string | null {
   return plain.length >= 3 ? plain.slice(0, 40) : null;
 }
 
-function docxParagraphOf(paragraph: Paragraph, fonts: Fonts, pageBreakBefore: boolean) {
-  return paragraph.kind === 'image'
-    ? docxImageParagraph(paragraph, { pageBreakBefore })
-    : docxTextParagraph(paragraph, fonts, { pageBreakBefore });
+function docxParagraphOf(
+  paragraph: Paragraph,
+  fonts: Fonts,
+  pageBreakBefore: boolean
+): DocxParagraph | Table {
+  if (paragraph.kind === 'image') return docxImageParagraph(paragraph, { pageBreakBefore });
+  if (paragraph.kind === 'table') return docxTable(paragraph, fonts, { pageBreakBefore });
+  return docxTextParagraph(paragraph, fonts, { pageBreakBefore });
 }
 
-function assembleSection(pages: PageLayout[], fonts: Fonts, assembly: Assembly): void {
+function assembleSection(
+  pages: PageLayout[],
+  fonts: Fonts,
+  assembly: Assembly,
+  options: DocxBuildOptions
+): void {
   const provisional = sectionGeometry(pages);
-  const builds = pages.map((layout) => pageParagraphs(layout, provisional));
+  const builds = pages.map((layout) =>
+    pageParagraphs(layout, provisional, { scanPictures: options.scanPictures ?? 'omit' })
+  );
   const geometry = withVerticalMargins(
     provisional,
     builds.filter((built) => built.columns.flat().length > 0).map((built) => built.box)
   );
   const topOfBody = geometry.size.height - geometry.margins.top;
-  const children: DocxParagraph[] = [];
+  const children: (DocxParagraph | Table)[] = [];
   let pleading = null;
   builds.forEach((built, index) => {
     pleading ??= built.pleading;
@@ -122,7 +140,8 @@ export async function buildDocx(
   if (layouts.length === 0) throw new Error('There are no pages to export.');
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
   const assembly: Assembly = { sections: [], paragraphCount: 0, samples: [], notes: new Set() };
-  for (const pages of groupSections(layouts)) assembleSection(pages, fonts, assembly);
+  for (const pages of groupSections(layouts)) assembleSection(pages, fonts, assembly, options);
+  assembly.sections.push(...scanAppendixSections(layouts, options.scanPictures ?? 'omit'));
   if (hasStamps(layouts)) assembly.notes.add(STAMP_NOTE);
   const style = dominantStyle(layouts, fonts);
   const document = new Document({
@@ -136,10 +155,12 @@ export async function buildDocx(
     paragraphCount: assembly.paragraphCount,
     samples: assembly.samples.slice(0, 200),
   });
+  const notes = [...assembly.notes];
   return {
     bytes,
     paragraphCount: assembly.paragraphCount,
     pageCount: layouts.length,
-    notes: [...assembly.notes],
+    notes,
+    receipt: { kept: [], dropped: notes },
   };
 }

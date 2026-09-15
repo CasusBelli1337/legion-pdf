@@ -28,6 +28,41 @@ export interface ExportOptions {
   color?: ExportColorMode;
   /** JPEG only, 1–100. */
   quality?: number;
+  /**
+   * Word only. A page with no text layer is a scan: its text is recognised
+   * first, and this says what becomes of the picture. Defaults to 'omit'.
+   */
+  scanPictures?: ScanPictureMode;
+}
+
+/**
+ * What becomes of a scanned page's picture in the Word file once its text has
+ * been recognised: left out, added after the last page as an appendix, or laid
+ * behind the recognised text the way a searchable PDF keeps its scan.
+ */
+export type ScanPictureMode = 'omit' | 'appendix' | 'behind';
+
+/**
+ * What the Word export is about to do, stated BEFORE the button is pressed:
+ * which pages are scans that will be recognised first, which are pleading
+ * paper whose line numbers will be rebuilt — and the sentences the panel shows.
+ */
+export interface ExportPlan {
+  format: ExportFormat;
+  /** Pages the export will cover. */
+  pageCount: number;
+  /** 1-based pages with no text layer, whose text will be recognised first. */
+  scannedPages: number[];
+  /** 1-based pages detected as pleading paper (a numbered column). */
+  pleadingPages: number[];
+  /** Plain English for the panel, one line each. Empty when nothing special will happen. */
+  lines: string[];
+}
+
+/** What a Word export kept and what it had to leave out, in plain English. */
+export interface ExportReceipt {
+  kept: string[];
+  dropped: string[];
 }
 
 export interface ExportResult {
@@ -38,4 +73,6 @@ export interface ExportResult {
   pagesExported: number;
   /** Plain-English remarks the attorney should see, e.g. what could not be kept. */
   notes: string[];
+  /** Word only: what was kept and what was left out. */
+  receipt?: ExportReceipt;
 }

@@ -89,6 +89,40 @@ export interface ImageParagraph {
   columnBreakBefore?: boolean;
 }
 
+/** One cell of a ruled table: the lines that fell inside it, in reading order. */
+export interface TableCell {
+  lines: Line[];
+}
+
+/** Which of a table grid's edges were actually drawn on the page. */
+export interface TableBorders {
+  /** `horizontal[r][c]`: the edge ABOVE cell (r, c) is drawn; r runs 0..rows, so r = rows is the bottom edge. */
+  horizontal: boolean[][];
+  /** `vertical[r][c]`: the edge LEFT of cell (r, c) is drawn; c runs 0..columns, so c = columns is the right edge. */
+  vertical: boolean[][];
+}
+
+/**
+ * A ruled table rebuilt from the page's rule grid — a caption box, a proof of
+ * service, a fee schedule. Built by tables.ts, written by docx-table.ts.
+ */
+export interface TableParagraph {
+  kind: 'table';
+  /** Column edges, points from the frame's left edge, ascending; one more than the columns. */
+  columnEdges: number[];
+  /** Row edges, PDF y, descending (top row first); one more than the rows. */
+  rowEdges: number[];
+  /** rows × columns. */
+  cells: TableCell[][];
+  borders: TableBorders;
+  spaceBeforePt: number;
+  /** Top edge, PDF y — ordering key against the other paragraphs. */
+  top: number;
+  /** Bottom edge, PDF y. */
+  bottom: number;
+  columnBreakBefore?: boolean;
+}
+
 /**
  * Where Word puts the baseline inside an "exactly N" line box: 80% of the way
  * down, whatever the face or size. Measured against real Word (2026-09-15):
@@ -97,7 +131,7 @@ export interface ImageParagraph {
  */
 export const BASELINE_SHARE = 0.8;
 
-export type Paragraph = TextParagraph | ImageParagraph;
+export type Paragraph = TextParagraph | ImageParagraph | TableParagraph;
 
 /** Points → twips (1/20 pt), the unit OOXML measures nearly everything in. */
 export function twips(points: number): number {

@@ -163,6 +163,9 @@ Config over code: new tool = new entry here, zero shell changes.
 | L Export | export agent | electron/services/export/**, electron/ipc/export.ts, core/image/** (TIFF encoder), src/features/export/** |
 | M Word export | word agent | core/export/**, src/lib/layout/**, electron/services/layout-bridge.ts, electron/services/export/docx-exporter.ts |
 | N Text edit | text-edit agent | core/edit/**, electron/ipc/edit.ts, src/features/text/**, src/features/stamps/text-section.tsx |
+| P Pleading + Word corpus | orchestrator (Fable) | core/export/** (except T and S rows), src/lib/layout/**, qa/word-export/**, qa/fixtures/word-export/** |
+| T Tables | tables agent | core/export/tables.ts, core/export/table-grid.ts, core/export/docx-table.ts |
+| S Scans + export panel | scan agent | core/export/images.ts, core/export/docx-image.ts, core/export/scan-appendix.ts, electron/services/export/**, electron/ipc/export.ts, electron/services/ocr/ocr-service.ts (confidence only), src/features/export/** |
 
 Shared files (`shared/ipc.ts`, `tool-registry.ts`, `package.json`) are
 owned by the orchestrator; agents REQUEST additions in their final report

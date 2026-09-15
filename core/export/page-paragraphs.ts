@@ -14,7 +14,7 @@
  * line has to be a line.
  */
 
-import type { LayoutTextRun, PageLayout } from '@shared/types';
+import type { LayoutTextRun, PageLayout, ScanPictureMode } from '@shared/types';
 import { planImages } from './images';
 import { linesOf } from './lines';
 import { BASELINE_SHARE } from './model';
@@ -23,6 +23,11 @@ import type { SectionGeometry } from './page-setup';
 import { columnRunsOf } from './page-setup';
 import { paragraphsOf } from './paragraphs';
 import { LINE_NUMBERS_NOTE, PLEADING_NOTE, pleadingOf, type Pleading } from './pleading';
+import { ruledTablesOf } from './tables';
+
+export interface PageOptions {
+  scanPictures: ScanPictureMode;
+}
 
 export interface PageBox {
   /** Top of the first line box on the page. */
@@ -45,6 +50,7 @@ function boxOf(paragraph: Paragraph): PageBox {
   if (paragraph.kind === 'image') {
     return { top: paragraph.top, bottom: paragraph.image.rect.y };
   }
+  if (paragraph.kind === 'table') return { top: paragraph.top, bottom: paragraph.bottom };
   const first = paragraph.lines[0];
   const last = paragraph.lines.at(-1);
   return {
@@ -127,12 +133,15 @@ function columnFlow(
   runs: LayoutTextRun[],
   frame: BodyFrame,
   pleading: Pleading | null,
-  notes: string[]
+  notes: string[],
+  options: PageOptions
 ): Paragraph[] {
-  const text = paragraphsOf(linesOf(runs, layout.rules), {
-    frame,
-    ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }),
-  });
+  const lines = linesOf(runs, layout.rules);
+  const ruled = ruledTablesOf(lines, layout.rules, frame);
+  const text = paragraphsOf(
+    lines.filter((line) => !ruled.consumed.has(line)),
+    { frame, ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }) }
+  );
   const images = layout.images.filter((image) => {
     const centre = image.rect.x + image.rect.width / 2;
     return centre >= frame.left - 1 && centre <= frame.right + 1;
@@ -140,19 +149,24 @@ function columnFlow(
   const plan = planImages({ ...layout, images }, frame, {
     hasText: runs.length > 0,
     hasHiddenText: runs.some((run) => run.hidden === true),
+    scanPictures: options.scanPictures,
   });
   notes.push(...plan.notes);
-  return [...text, ...plan.paragraphs].sort(byPosition);
+  return [...text, ...ruled.tables, ...plan.paragraphs].sort(byPosition);
 }
 
 /** The page's paragraphs in reading order, per column, with the box they occupy. */
-export function pageParagraphs(layout: PageLayout, geometry: SectionGeometry): PageBuild {
+export function pageParagraphs(
+  layout: PageLayout,
+  geometry: SectionGeometry,
+  options: PageOptions = { scanPictures: 'omit' }
+): PageBuild {
   const pleading = pleadingOf(layout);
   const columns = columnRunsOf(layout);
   const frames = columnFrames(geometry, columns);
   const notes: string[] = [];
   const flows = columns.map((runs, index) =>
-    columnFlow(layout, runs, frames[index] ?? geometry.frame, pleading, notes)
+    columnFlow(layout, runs, frames[index] ?? geometry.frame, pleading, notes, options)
   );
   if (pleading !== null) notes.push(PLEADING_NOTE);
   else if (layout.runs.some((run) => run.role === 'line-number')) notes.push(LINE_NUMBERS_NOTE);

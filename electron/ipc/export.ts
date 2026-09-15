@@ -14,6 +14,7 @@ import { access, mkdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { ipcMain, nativeImage } from 'electron';
 import { IPC } from '@shared/ipc';
+import { registerNotImplemented } from './not-implemented';
 import type { ExportFormat, ExportOptions, ExportResult } from '@shared/types';
 import { writeFileAtomic } from '../services/atomic-write';
 import { chooseExportOutput } from '../services/native-dialogs';
@@ -87,4 +88,7 @@ export function registerExportHandlers(context: IpcContext): void {
   ipcMain.handle(IPC.export.cancel, (_event, docId: string): void => {
     runner.cancel(docId);
   });
+
+  // The scan lane answers this; until it lands it must fail by name, never look wired.
+  registerNotImplemented([IPC.export.plan]);
 }

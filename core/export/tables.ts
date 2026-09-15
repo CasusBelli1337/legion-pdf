@@ -5,7 +5,27 @@
  * tab-separated text, and the note says so.
  */
 
-import type { BodyFrame, Line } from './model';
+import type { LayoutRule } from '@shared/types';
+import type { BodyFrame, Line, TableParagraph } from './model';
+
+export interface RuledTables {
+  tables: TableParagraph[];
+  /** The lines that landed inside a table — they leave the paragraph flow. */
+  consumed: ReadonlySet<Line>;
+}
+
+/**
+ * Ruled tables on the page, rebuilt from the rule grid: rows where horizontal
+ * rules run, columns where vertical rules run, each line assigned to the cell
+ * it sits in. Not built yet — the tables lane owns this file.
+ */
+export function ruledTablesOf(
+  _lines: readonly Line[],
+  _rules: readonly LayoutRule[],
+  _frame: BodyFrame
+): RuledTables {
+  return { tables: [], consumed: new Set() };
+}
 
 /** Cell edges closer than this are the same tab stop. */
 const SAME_STOP = 4;

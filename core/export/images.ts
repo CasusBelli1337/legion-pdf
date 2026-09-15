@@ -13,7 +13,7 @@
  * attorney is going to edit them.
  */
 
-import type { LayoutImage, PageLayout } from '@shared/types';
+import type { LayoutImage, PageLayout, ScanPictureMode } from '@shared/types';
 import type { Alignment, BodyFrame, ImageParagraph } from './model';
 
 /** Smaller than this in either direction is a rule or a bullet, not a picture. */
@@ -74,11 +74,14 @@ function inline(image: LayoutImage, frame: BodyFrame): ImageParagraph {
  * Which pictures go in and how. `hasText` / `hasHiddenText` describe the page's
  * body runs, which is what tells a scan from a photograph.
  */
-export function planImages(
-  layout: PageLayout,
-  frame: BodyFrame,
-  text: { hasText: boolean; hasHiddenText: boolean }
-): ImagePlan {
+export interface ImagePlanInput {
+  hasText: boolean;
+  hasHiddenText: boolean;
+  /** What to do with a scan's picture; only 'omit' is built so far (the scan lane adds the rest). */
+  scanPictures?: ScanPictureMode;
+}
+
+export function planImages(layout: PageLayout, frame: BodyFrame, text: ImagePlanInput): ImagePlan {
   const plan: ImagePlan = { paragraphs: [], notes: [] };
   for (const image of layout.images) {
     if (image.rect.width < MIN_PICTURE_PT || image.rect.height < MIN_PICTURE_PT) continue;

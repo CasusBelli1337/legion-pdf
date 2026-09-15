@@ -33,6 +33,7 @@ import type {
   ExhibitOptions,
   ExportFormat,
   ExportOptions,
+  ExportPlan,
   ExportResult,
   FillableFormDetail,
   FillableFormOptions,
@@ -234,6 +235,8 @@ export interface ConvertBridge {
 export interface ExportBridge {
   /** Asks where the export goes (folder or file by format). Null when cancelled. */
   chooseOutput(format: ExportFormat, suggestedName: string): Promise<string | null>;
+  /** What the export is about to do (scans to recognise, pleading paper to rebuild). */
+  plan(docId: string, options: ExportOptions): Promise<ExportPlan>;
   /** Writes the document out in another format; streams `export:progress`. */
   run(docId: string, options: ExportOptions): Promise<ExportResult>;
   /** Stops after the page in flight; files already written stay. */
