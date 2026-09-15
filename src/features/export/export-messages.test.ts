@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportResult } from '@shared/types';
 import {
+  PLAN_LOADING,
+  RECEIPT_DROPPED_LABEL,
+  RECEIPT_KEPT_LABEL,
+  SCAN_PICTURE_HINTS,
+  SCAN_PICTURE_OPTIONS,
   containingFolder,
   destinationSummary,
   exportButtonLabel,
+  extraNotes,
   fileNameOf,
   plainExportError,
   receiptText,
@@ -92,5 +98,53 @@ describe('what the panel says before and after a run', () => {
     };
     expect(receiptText(tiff)).toBe('Wrote Depo.tif (65 pages)');
     expect(showInFolderTarget(tiff)).toBe('/out');
+  });
+});
+
+describe('what the panel says about a Word export', () => {
+  it('offers the three answers to "what about the scans" in plain English', () => {
+    expect(SCAN_PICTURE_OPTIONS.map((option) => option.value)).toEqual([
+      'omit',
+      'behind',
+      'appendix',
+    ]);
+    expect(SCAN_PICTURE_OPTIONS.map((option) => option.label)).toEqual([
+      'Recognized text only',
+      'Text with the scan behind it',
+      'Text, with the scans in an appendix',
+    ]);
+    for (const option of SCAN_PICTURE_OPTIONS) {
+      expect(SCAN_PICTURE_HINTS[option.value].length).toBeGreaterThan(20);
+    }
+  });
+
+  it('says something while it works out the plan', () => {
+    expect(PLAN_LOADING).toBe('Looking at the document…');
+  });
+
+  it('labels the two halves of the receipt the way an attorney would', () => {
+    expect(RECEIPT_KEPT_LABEL).toBe('Kept');
+    expect(RECEIPT_DROPPED_LABEL).toBe('Left out');
+  });
+
+  it('never repeats a note the receipt already says', () => {
+    const result: ExportResult = {
+      format: 'docx',
+      files: ['/out/Motion.docx'],
+      pagesExported: 2,
+      notes: ['Page 1 was a scan.', 'Bates numbers were left out.', 'Something else entirely.'],
+      receipt: { kept: ['Page 1 was a scan.'], dropped: ['Bates numbers were left out.'] },
+    };
+    expect(extraNotes(result)).toEqual(['Something else entirely.']);
+  });
+
+  it('shows every note when the export had no receipt (the other formats)', () => {
+    const result: ExportResult = {
+      format: 'txt',
+      files: ['/out/Depo.txt'],
+      pagesExported: 1,
+      notes: ['Page 4 was blank.'],
+    };
+    expect(extraNotes(result)).toEqual(['Page 4 was blank.']);
   });
 });
