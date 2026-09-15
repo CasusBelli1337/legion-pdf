@@ -28,6 +28,8 @@ const SPACE_GAP = 0.12;
 const COLUMN_GAP = 2.2;
 /** A run of dots (a table of contents' leader) between an entry and its page number. */
 const DOT_LEADER = /^[.\s·…]{5,}$/;
+/** The same leader glued to the end of the entry's own run: "Judgment. ......". */
+const TRAILING_LEADER = /(\S)([.\s·…]*\.{5,}[.\s·…]*)$/;
 
 interface Draft {
   baseline: number;
@@ -206,6 +208,13 @@ function ruledBetween(
   );
 }
 
+/** "Judgment. ........" → "Judgment." plus the fact that a leader follows. */
+function withoutTrailingLeader(text: string): { text: string; leads: boolean } {
+  const match = TRAILING_LEADER.exec(text);
+  if (match === null) return { text, leads: false };
+  return { text: text.slice(0, text.length - (match[2]?.length ?? 0)), leads: true };
+}
+
 interface Cursor {
   /** Right edge of everything placed so far. */
   right: number;
@@ -265,9 +274,10 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
       // The dots are not text; the cell after them is a right-tabbed page number.
       cursor.leader = true;
     } else {
+      const { text, leads } = withoutTrailingLeader(run.text);
       const opens = opensCell(run, cursor, rules, line.baseline);
-      placeRun(cells, run, styled(run, rules, line), cursor, opens);
-      cursor.leader = false;
+      placeRun(cells, run, styled({ ...run, text }, rules, line), cursor, opens);
+      cursor.leader = leads;
     }
     cursor.right = Math.max(cursor.right, run.x + run.width);
   }

@@ -91,3 +91,17 @@ describe('linesOf — dot leaders', () => {
     expect(line?.cells[1]?.right).toBe(506);
   });
 });
+
+describe('linesOf — a leader glued to its entry', () => {
+  it('strips trailing dots from the entry and still right-tabs the page number', () => {
+    const line = linesOf([
+      run('II.  STATEMENT OF FACTS .........................', 72, 700, { width: 340 }),
+      run('4', 500, 700, { width: 6 }),
+    ])[0];
+    expect(line?.cells.map((cell) => cell.runs.map((r) => r.text).join(''))).toEqual([
+      'II.  STATEMENT OF FACTS',
+      '4',
+    ]);
+    expect(line?.cells[1]?.leader).toBe('dot');
+  });
+});
