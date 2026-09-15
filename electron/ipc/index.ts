@@ -8,6 +8,7 @@
 import { invokeChannelsOf } from '@shared/ipc';
 import { registerAiHandlers } from './ai';
 import { registerAppHandlers } from './app';
+import { registerEditHandlers } from './edit';
 import { registerEsignHandlers } from './esign';
 import { registerFileHandlers } from './file';
 import { registerNotImplemented } from './not-implemented';
@@ -32,5 +33,5 @@ export function registerIpcHandlers(context: IpcContext): void {
   // real registration and touches no other.
   registerNotImplemented(invokeChannelsOf('convert'));
   registerNotImplemented(invokeChannelsOf('export'));
-  registerNotImplemented(invokeChannelsOf('edit'));
+  registerEditHandlers(context);
 }

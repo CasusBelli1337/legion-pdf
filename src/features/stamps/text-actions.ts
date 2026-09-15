@@ -20,20 +20,38 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DocumentSession, PdfRect, TextBoxOptions } from '@shared/types';
+import type { DocumentSession, PdfPoint, PdfRect, TextBoxOptions } from '@shared/types';
 import {
   DEFAULT_DRAFT,
   isTypeable,
   sampleFontNear,
   toWhiteoutRect,
+  useBlockEditing,
+  type BlockEditing,
   type SampledFont,
   type TextDraft,
 } from '@renderer/features/text';
-import { usePlacement, type PlacedRect, type Placement, type PlacementMode } from './use-placement';
+import {
+  usePlacement,
+  type PlacedPoint,
+  type PlacedRect,
+  type Placement,
+  type PlacementMode,
+} from './use-placement';
 import type { StampRunner } from './use-stamp-runner';
 
-/** Off, drawing a box to type in, or drawing a box to cover and type over. */
-export type TextTool = 'off' | 'text' | 'cover';
+/**
+ * Off, drawing a box to type in, drawing a box to cover and type over, or
+ * clicking a paragraph to edit the words it already has.
+ */
+export type TextTool = 'off' | 'text' | 'cover' | 'edit';
+
+const PLACEMENT_FOR: Record<TextTool, PlacementMode> = {
+  off: 'off',
+  text: 'rect',
+  cover: 'rect',
+  edit: 'point',
+};
 
 interface TextOps {
   cover(area: PlacedRect): Promise<void>;
@@ -91,6 +109,8 @@ export interface TextEditing {
   seed: TextDraft;
   cancel(): void;
   sampleFont(page: number, rect: PdfRect): Promise<SampledFont | null>;
+  /** The paragraph of existing text being edited, when the Edit tool is in use. */
+  blockEditing: BlockEditing;
 }
 
 /** Fires `cover` once for each finished cover drag, and never during a render. */
@@ -104,12 +124,30 @@ function useAutoCover(area: PlacedRect | null, cover: (area: PlacedRect) => Prom
   }, [area]);
 }
 
+/** Opens the clicked paragraph once per click, and never during a render. */
+function useOpenOnClick(
+  point: PlacedPoint | null,
+  open: (page: number, at: PdfPoint) => Promise<void>,
+  clear: () => void
+): void {
+  const latest = useRef(open);
+  useEffect(() => {
+    latest.current = open;
+  });
+  useEffect(() => {
+    if (point === null) return;
+    clear();
+    void latest.current(point.page, point.at);
+  }, [point, clear]);
+}
+
 export function useTextEditing(session: DocumentSession, runner: StampRunner): TextEditing {
   const [tool, setTool] = useState<TextTool>('off');
   const [seed, setSeed] = useState<TextDraft>(DEFAULT_DRAFT);
   const [retyping, setRetyping] = useState<PlacedRect | null>(null);
-  const placement = usePlacement(tool === 'off' ? 'off' : 'rect');
+  const placement = usePlacement(PLACEMENT_FOR[tool]);
   const { clear } = placement;
+  const blockEditing = useBlockEditing(session, runner);
 
   const drawn = placement.rect;
   const editing =
@@ -136,7 +174,9 @@ export function useTextEditing(session: DocumentSession, runner: StampRunner): T
   });
 
   useAutoCover(tool === 'cover' ? drawn : null, ops.cover);
+  useOpenOnClick(tool === 'edit' ? placement.point : null, blockEditing.open, clear);
 
+  const busyEditing = editing !== null || blockEditing.block !== null;
   return {
     commit: ops.commit,
     tool,
@@ -144,12 +184,14 @@ export function useTextEditing(session: DocumentSession, runner: StampRunner): T
     seed,
     cancel,
     editing,
-    mode: tool === 'off' || editing !== null ? 'off' : 'rect',
+    mode: busyEditing ? 'off' : PLACEMENT_FOR[tool],
     arm: (next) => {
       setRetyping(null);
+      blockEditing.cancel();
       clear();
       setTool((current) => (current === next ? 'off' : next));
     },
     sampleFont: (page, rect) => sampleFontNear(session.bytes, page, rect),
+    blockEditing,
   };
 }

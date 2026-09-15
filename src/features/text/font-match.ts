@@ -10,8 +10,11 @@
  */
 
 import type { TextFontChoice } from '@shared/types';
-import { familyLabel, type TextFamily } from './font-metrics';
+import { builtInChoiceFor, stripSubsetPrefix } from '@shared/font-family-rules';
+import { familyLabel } from './font-metrics';
 import { PRODUCT_NAME } from '@shared/product';
+
+export { stripSubsetPrefix };
 
 /** What one run of text on the page says about its own face. */
 export interface SampledFont {
@@ -34,60 +37,14 @@ export interface FontMatch {
   sizePt?: number;
 }
 
-/**
- * Family by name, first rule wins. Config over code: a new family of real-world
- * font names is a new row, never a new branch. Sans is tested before serif so
- * "Century Gothic" does not land on "century".
- */
-const FAMILY_RULES: readonly { pattern: RegExp; family: TextFamily }[] = [
-  { pattern: /courier|mono|consol|menlo|typewriter|prestige|letter gothic/i, family: 'courier' },
-  {
-    pattern:
-      /helvetica|arial|calibri|verdana|tahoma|segoe|futura|frutiger|myriad|gothic|grotesk|open ?sans|roboto|lato|univers/i,
-    family: 'helvetica',
-  },
-  {
-    pattern:
-      /times|serif|georgia|garamond|palatino|book|century|cambria|minion|roman|caslon|baskerville|schoolbook|utopia/i,
-    family: 'times',
-  },
-];
-
-/** pdfjs' own fallback, used when the name itself says nothing useful. */
-const FALLBACK_FAMILY: Record<string, TextFamily> = {
-  monospace: 'courier',
-  serif: 'times',
-  'sans-serif': 'helvetica',
-};
-
-const BOLD = /bold|black|heavy|semib|demib|[-,_]bd\b/i;
-/** Adobe abbreviates italic to "It" — as its own token, or straight after "Bold". */
-const ITALIC = /italic|oblique|(?:^|[-,_ ]|bold)it\b/i;
+/** The built-in face closest to a name, style flags read from the name itself. */
+export function fontChoiceFor(sample: SampledFont): TextFontChoice {
+  return builtInChoiceFor(sample.name, sample.fallback);
+}
 
 /** The base-14 faces themselves — the only names we may call an exact match. */
 const BUILT_IN =
   /^(helvetica|times[- ]?(roman|new ?roman)?|courier([- ]?new)?)([-, ](bold|italic|oblique|bolditalic|boldoblique))?$/i;
-
-/** Subset-embedded fonts arrive as "ABCDEF+RealName". The prefix is noise. */
-export function stripSubsetPrefix(name: string): string {
-  return name.replace(/^[A-Z]{6}\+/, '');
-}
-
-function familyOf(name: string, fallback: string | undefined): TextFamily {
-  for (const rule of FAMILY_RULES) {
-    if (rule.pattern.test(name)) return rule.family;
-  }
-  return FALLBACK_FAMILY[(fallback ?? '').toLowerCase()] ?? 'helvetica';
-}
-
-/** The built-in face closest to a name, style flags read from the name itself. */
-export function fontChoiceFor(sample: SampledFont): TextFontChoice {
-  const name = stripSubsetPrefix(sample.name);
-  const choice: TextFontChoice = { family: familyOf(name, sample.fallback) };
-  if (BOLD.test(name)) choice.bold = true;
-  if (ITALIC.test(name)) choice.italic = true;
-  return choice;
-}
 
 function noteFor(documentFont: string, font: TextFontChoice, exact: boolean): string {
   if (exact) {

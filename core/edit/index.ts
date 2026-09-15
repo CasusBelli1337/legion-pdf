@@ -27,3 +27,22 @@ export { COVERAGE_THRESHOLD, applyEdits, editFor, isCovered } from './rewrite-sh
 export type { ShowEdit } from './rewrite-shows';
 export { scanText } from './text-runs';
 export type { ScanResources, ScanResult, ShowItem, ShowOperation, ShownGlyph } from './text-runs';
+export { fontCodecOf, fontCodecsOf } from './font-codec';
+export type { Encoded, FontCodec } from './font-codec';
+export { parseToUnicode } from './cmap-parse';
+export { parseTrueType } from './truetype-glyphs';
+export type { TrueTypeGlyphs } from './truetype-glyphs';
+export { NoEditableTextError, findBlock, inspectTextAt, readPageText } from './inspect-text';
+export type { FoundBlock, PageText } from './inspect-text';
+export { EditNotProvedError, replaceText } from './replace-text';
+export {
+  alignmentOf,
+  groupLines,
+  leadingOf,
+  lineAt,
+  paragraphAround,
+  placedGlyphs,
+} from './text-lines';
+export type { PlacedGlyph, TextLine } from './text-lines';
+export { layoutParagraph } from './text-layout';
+export type { LaidLine, LayoutSpec } from './text-layout';
