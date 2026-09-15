@@ -121,9 +121,21 @@ sheets were unnumbered. Details: `docs/references/word-export.md`.
 
 ## Packaging
 
-Version bumped to 0.5.0. Built on the Windows host per
-`docs/TROUBLESHOOTING.md` § Windows packaging; silent-installed; Explorer verbs
-checked with `reg query` (see § Explorer verbs).
+Version 0.5.0, built on the Windows host from commit `c4a81b8` (code identical
+to `6e1094a`) per `docs/TROUBLESHOOTING.md` § Windows packaging:
+`LegionPDF-0.5.0-Setup.exe` (176 MB, signed), copied to OneDrive
+`#Legion/Product/Armory - Librarius/`. Silent-installed per-user
+(`Legion PDF 0.5.0` in Apps); the app was not running at the time.
+
+Installed-build checks (all passed):
+
+- `reg query` shows `LegionPDF.Combine` on `.pdf` with `--combine "%1"`,
+  `LegionPDF.Convert` on `.docx`, and `MultiSelectModel = Player`.
+- Two Explorer-style launches (`--combine exhibit-part-a.pdf`, then
+  `--combine letter.docx` half a second later) funnelled into ONE Combine
+  Files panel; Combine produced a 3-page document with the Word letter
+  converted through Word inside the packaged app; `app:version` reports
+  0.5.0 (`installed/installed-01-combine-panel.png`, `installed-02-combined.png`).
 
 ## Open items
 
