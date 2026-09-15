@@ -127,3 +127,18 @@ describe('pageParagraphs — leadings that never overlap, transcripts, numbered 
     expect(blank?.kind === 'text' ? blank.leadingPt : null).toBeCloseTo(24, 3);
   });
 });
+
+describe('pageParagraphs — recognised text', () => {
+  it('keeps every OCR line its own paragraph, running to the margin', () => {
+    const scan = [
+      run('Recognized first line of the scan that ends short', 90, 700, { hidden: true }),
+      run('and a second line the OCR read at its own width', 90, 676, { hidden: true }),
+      run('third', 90, 652, { hidden: true }),
+    ];
+    const layout = page(scan);
+    const build = pageParagraphs(layout, sectionGeometry([layout]));
+    const text = build.columns[0]?.filter((p) => p.kind === 'text') ?? [];
+    expect(text).toHaveLength(3);
+    expect(text.every((p) => p.kind === 'text' && p.indentRightPt <= 0)).toBe(true);
+  });
+});

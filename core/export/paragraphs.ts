@@ -53,6 +53,12 @@ export interface ParagraphOptions {
   leadingPt?: number;
   /** Every line its own paragraph (a transcript), whatever the geometry says. */
   linePerParagraph?: boolean;
+  /**
+   * Paragraphs may run to the margin (recognised text): its words are set in a
+   * face the scan never used, so their natural widths say nothing about where
+   * the scan's lines ended, and a line held to its own width would wrap.
+   */
+  fullWidth?: boolean;
 }
 
 export function median(values: readonly number[]): number {
@@ -285,9 +291,19 @@ function wrapCeiling(lines: readonly Line[]): number {
   return ceiling;
 }
 
-function indentsOf(lines: readonly Line[], frame: BodyFrame, alignment: Alignment): Indents {
+function indentsOf(
+  lines: readonly Line[],
+  frame: BodyFrame,
+  alignment: Alignment,
+  fullWidth = false
+): Indents {
   const first = lines[0];
   if (first === undefined || alignment === 'center') return { left: 0, right: 0, first: 0 };
+  if (fullWidth) {
+    const left = Math.max(0, Math.min(...lines.map((line) => line.x)) - frame.left);
+    const widest = Math.max(...lines.map((line) => line.right));
+    return { left, right: Math.min(0, frame.right - widest - 1), first: 0 };
+  }
   const rest = lines.slice(1);
   const paragraphLeft = rest.length === 0 ? first.x : Math.min(...rest.map((line) => line.x));
   const widest = Math.max(...lines.map((line) => line.right));
@@ -310,7 +326,7 @@ function indentsOf(lines: readonly Line[], frame: BodyFrame, alignment: Alignmen
 function describe(group: Line[], leading: number, options: ParagraphOptions): TextParagraph {
   // Cells set with tab stops are placed by their first cell's indent, never by their outer edges.
   const alignment = group.some(isTabular) ? 'left' : alignmentOf(group, options.frame);
-  const indents = indentsOf(group, options.frame, alignment);
+  const indents = indentsOf(group, options.frame, alignment, options.fullWidth);
   const own = group.length >= 2 ? medianLeading(group) : (options.leadingPt ?? leading);
   return {
     kind: 'text',

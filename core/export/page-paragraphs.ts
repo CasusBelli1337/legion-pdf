@@ -71,6 +71,22 @@ export function isTranscript(layout: PageLayout): boolean {
   return (weights.get(true) ?? 0) > (weights.get(false) ?? 0);
 }
 
+/**
+ * Recognised text — an OCR layer under a scan. Its words are set in a face the
+ * scan never used, so nothing about their widths says where the scan's lines
+ * broke; every line stays its own paragraph, placed where the scan had it,
+ * rather than flowed and re-wrapped by Word onto a different page.
+ */
+export function isRecognized(runs: readonly LayoutTextRun[]): boolean {
+  let hidden = 0;
+  let total = 0;
+  for (const run of runs) {
+    total += run.text.length;
+    if (run.hidden === true) hidden += run.text.length;
+  }
+  return total > 0 && hidden > 0.5 * total;
+}
+
 /** Top and bottom of a paragraph's box on the page, the way Word will lay it. */
 function boxOf(paragraph: Paragraph): PageBox {
   if (paragraph.kind === 'image') {
@@ -195,12 +211,14 @@ function columnFlow(
 ): Paragraph[] {
   const lines = linesOf(runs, layout.rules);
   const ruled = ruledTablesOf(lines, layout.rules, frame);
+  const recognized = isRecognized(runs);
   const text = paragraphsOf(
     lines.filter((line) => !ruled.consumed.has(line)),
     {
       frame,
       ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }),
-      linePerParagraph: pleading !== null && isTranscript(layout),
+      linePerParagraph: recognized || (pleading !== null && isTranscript(layout)),
+      fullWidth: recognized,
     }
   );
   const images = layout.images.filter((image) => {
