@@ -72,31 +72,37 @@ function docxParagraphOf(
   return docxTextParagraph(paragraph, fonts, { pageBreakBefore });
 }
 
-/**
- * Word drops "space before" from the first paragraph after a page break (it
- * honours it at the top of a document and of a section — measured 2026-09-15),
- * so a page that opens below its top margin opens with an empty line exactly
- * that tall instead. The spacer carries the page break.
- */
-function withTopSpacer(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] {
-  const first = paragraphs[0];
-  if (!afterBreak || first === undefined || first.spaceBeforePt <= 0) return paragraphs;
+/** An empty line exactly as tall as the gap a paragraph could not carry itself. */
+function spacerFor(paragraph: Paragraph): TextParagraph {
   const spacer: TextParagraph = {
     kind: 'text',
     lines: [],
     alignment: 'left',
-    leadingPt: first.spaceBeforePt,
+    leadingPt: paragraph.spaceBeforePt,
     indentLeftPt: 0,
     indentRightPt: 0,
     firstLinePt: 0,
     spaceBeforePt: 0,
     tabStopsPt: [],
-    top: first.top,
-    ...(first.columnBreakBefore === true ? { columnBreakBefore: true } : {}),
+    top: paragraph.top,
+    ...(paragraph.columnBreakBefore === true ? { columnBreakBefore: true } : {}),
   };
-  first.spaceBeforePt = 0;
-  delete first.columnBreakBefore;
-  return [spacer, ...paragraphs];
+  paragraph.spaceBeforePt = 0;
+  delete paragraph.columnBreakBefore;
+  return spacer;
+}
+
+/**
+ * Word drops "space before" from the first paragraph after a page break (it
+ * honours it at the top of a document and of a section — measured 2026-09-15),
+ * and a table cannot carry space above it at all. Both open with an empty
+ * line exactly that tall instead; the spacer carries the page break.
+ */
+function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] {
+  return paragraphs.flatMap((paragraph, index) => {
+    const needs = (index === 0 && afterBreak) || paragraph.kind === 'table';
+    return needs && paragraph.spaceBeforePt > 0 ? [spacerFor(paragraph), paragraph] : [paragraph];
+  });
 }
 
 function assembleSection(
@@ -118,7 +124,7 @@ function assembleSection(
   builds.forEach((built, index) => {
     built.notes.forEach((note) => assembly.notes.add(note));
     // An empty page still turns the paper: one empty paragraph carries the break.
-    const settled = withTopSpacer(settlePage(built, topOfBody), index > 0);
+    const settled = withSpacers(settlePage(built, topOfBody), index > 0);
     if (hasTabColumns(settled)) assembly.notes.add(COLUMNS_NOTE);
     const paragraphs = settled.length === 0 ? [null] : settled;
     paragraphs.forEach((paragraph, position) => {
