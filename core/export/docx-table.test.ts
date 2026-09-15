@@ -133,7 +133,18 @@ describe('docxTable', () => {
   it('settles a second line in a cell where the page had it', async () => {
     const runs = [...CAPTION_RUNS, run('and DOE COMPANIES 1-10,', 80, 675)];
     const xml = await xmlOf(tableOf(CAPTION, runs));
-    // 690 - 675 = 15 pt of pitch, not the 14.4 pt a single line would assume.
-    expect(xml).toContain('w:line="300"');
+    // The page set the two lines 15 pt apart (690, 675) in 12 pt type. Word
+    // puts a baseline 80% down an exact 14.4 pt box, so the first line's box
+    // ends 2.88 pt under its baseline and the second's begins 11.52 pt over
+    // its own: 0.6 pt of space before it, 12 twips.
+    expect(xml).toContain('<w:spacing w:after="0" w:before="12" w:line="288" w:lineRule="exact"/>');
+  });
+
+  it('keeps a lone line on the pitch it followed, not the cell\u2019s median', async () => {
+    // A caption cell runs 12 pt inside a block and 24 pt between blocks; a
+    // lone line given the median would be pushed down the cell by Word.
+    const runs = [...CAPTION_RUNS, run('and DOE COMPANIES 1-10,', 80, 678)];
+    const xml = await xmlOf(tableOf(CAPTION, runs));
+    expect(xml).toContain('w:line="240"');
   });
 });

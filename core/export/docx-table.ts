@@ -84,6 +84,18 @@ function bordersAt(borders: TableBorders, row: number, column: number): ITableCe
 }
 
 /**
+ * The right inset, cut back where the cell's own text needs the room. A
+ * caption's right column is only ruled a couple of points past its longest
+ * line; take the whole inset off that as well and Word has less room than the
+ * page had, and wraps a line that fitted — which drops everything under it in
+ * the cell by a line.
+ */
+function rightInset(build: Build, cell: TableCell, column: number): number {
+  const widest = Math.max(0, ...cell.lines.map((line) => line.right));
+  return Math.max(0, Math.min(build.inset, edge(build.table.columnEdges, column + 1) - widest));
+}
+
+/**
  * The cell's own frame: its rules, less the inset Word will add back.
  *
  * `textRight` is the cell's right edge, not its longest line: a caption cell
@@ -98,8 +110,25 @@ function bordersAt(borders: TableBorders, row: number, column: number): ITableCe
 function cellFrame(build: Build, cell: TableCell, column: number): BodyFrame {
   const { columnEdges } = build.table;
   const left = edge(columnEdges, column) + build.inset;
-  const right = Math.max(left + 1, edge(columnEdges, column + 1) - build.inset);
+  const right = Math.max(left + 1, edge(columnEdges, column + 1) - rightInset(build, cell, column));
   return { left, right, textRight: Math.max(right, ...cell.lines.map((line) => line.right)) };
+}
+
+/**
+ * A caption cell is not set on one pitch: the party block runs on twelve
+ * points and the blanks between blocks on twenty-four. A lone line handed the
+ * cell's MEDIAN pitch gets a line box taller than the gap it sat in, and Word
+ * pushes it down the cell — so a lone line keeps the pitch it actually
+ * followed, never tighter than its own type.
+ */
+function ownPitch(paragraph: TextParagraph, previousBaseline: number | null): number {
+  const line = paragraph.lines[0];
+  if (line === undefined || paragraph.lines.length > 1 || previousBaseline === null) {
+    return paragraph.leadingPt;
+  }
+  const gap = previousBaseline - line.baseline;
+  if (gap <= 0 || gap >= paragraph.leadingPt) return paragraph.leadingPt;
+  return Math.max(gap, line.sizePt);
 }
 
 /**
@@ -110,21 +139,34 @@ function cellFrame(build: Build, cell: TableCell, column: number): BodyFrame {
  */
 function settle(paragraphs: readonly TextParagraph[], top: number): void {
   let previousBottom = top;
+  let previousBaseline: number | null = null;
   for (const paragraph of paragraphs) {
+    paragraph.leadingPt = ownPitch(paragraph, previousBaseline);
     const first = paragraph.lines[0]?.baseline ?? 0;
     const last = paragraph.lines.at(-1)?.baseline ?? 0;
     const boxTop = first + BASELINE_SHARE * paragraph.leadingPt;
     paragraph.spaceBeforePt = Math.max(0, previousBottom - boxTop);
     previousBottom = last - (1 - BASELINE_SHARE) * paragraph.leadingPt;
+    previousBaseline = last;
   }
 }
 
-/** A cell's lines as Word paragraphs; an empty cell still needs one. */
+/**
+ * A cell's lines as Word paragraphs — one paragraph per line, which is the
+ * one place in this export that does NOT flow lines together. A caption cell's
+ * lines are not a paragraph that happens to wrap: "MARGARET OKONKWO-REYES, an
+ * individual," / "Plaintiff," / "vs." are discrete lines a filing sets where
+ * it sets them, and a cell is narrow enough that Word rewraps a joined pair
+ * onto one line and loses the second. Each line keeps its own alignment and
+ * indent inside the cell, and its own place down it. An empty cell still needs
+ * a paragraph: Word refuses a cell without one.
+ */
 function cellParagraphs(build: Build, row: number, column: number): DocxParagraph[] {
   const cell = build.table.cells[row]?.[column] ?? { lines: [] };
   const breaks = build.pageBreakBefore && row === 0 && column === 0;
   if (cell.lines.length === 0) return [new DocxParagraph({ pageBreakBefore: breaks })];
-  const paragraphs = paragraphsOf(cell.lines, { frame: cellFrame(build, cell, column) });
+  const frame = cellFrame(build, cell, column);
+  const paragraphs = cell.lines.flatMap((line) => paragraphsOf([line], { frame }));
   const ruled = build.table.borders.horizontal[row]?.[column] === true;
   settle(paragraphs, edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0));
   return paragraphs.map((paragraph, index) =>
@@ -134,10 +176,18 @@ function cellParagraphs(build: Build, row: number, column: number): DocxParagrap
 
 function tableCell(build: Build, row: number, column: number): DocxTableCell {
   const { columnEdges } = build.table;
+  const cell = build.table.cells[row]?.[column] ?? { lines: [] };
   return new DocxTableCell({
     width: {
       size: twips(edge(columnEdges, column + 1) - edge(columnEdges, column)),
       type: WidthType.DXA,
+    },
+    margins: {
+      marginUnitType: WidthType.DXA,
+      top: 0,
+      bottom: 0,
+      left: twips(build.inset),
+      right: twips(rightInset(build, cell, column)),
     },
     borders: bordersAt(build.table.borders, row, column),
     children: cellParagraphs(build, row, column),

@@ -43,6 +43,32 @@ const CAPTION_RUNS: LayoutTextRun[] = [
   run('Dept. 21', 316, 600),
 ];
 
+/** The commonest caption box: one upright rule, one rule under the left cell. */
+const L_CAPTION: LayoutRule[] = [rule(306, 580, 0, 120), rule(72, 580, 234, 0)];
+
+const L_LEFT = [
+  'JANE DOE, an individual,',
+  'Plaintiff,',
+  'vs.',
+  'ACME HOLDINGS, LLC, and',
+  'DOES 1 through 20,',
+  'inclusive,',
+  'Defendants.',
+];
+const L_RIGHT = [
+  'Case No. 24-CV-0001',
+  'NOTICE OF MOTION AND',
+  'MOTION TO COMPEL',
+  'Date: October 14, 2026',
+  'Time: 9:00 a.m.',
+  'Dept.: 21',
+  'Judge: Hon. A. Reyes',
+];
+const L_RUNS: LayoutTextRun[] = L_LEFT.flatMap((text, index) => [
+  run(text, 80, 690 - index * 12),
+  run(L_RIGHT[index] ?? '', 316, 690 - index * 12),
+]);
+
 function tablesOf(runs: LayoutTextRun[], rules: LayoutRule[] = CAPTION, frame = FRAME) {
   const lines = linesOf(runs, rules);
   return { lines, ...ruledTablesOf(lines, rules, frame) };
@@ -154,6 +180,69 @@ describe('ruledTablesOf', () => {
     expect(tables).toEqual([]);
     expect(consumed.size).toBe(0);
     expect(tabStopsOf(lines, FRAME)).toEqual([218, 258]);
+  });
+
+  it('reads the caption box drawn as an L: one upright rule, one rule under the left cell', () => {
+    const { tables, consumed } = tablesOf(L_RUNS, L_CAPTION);
+    const table = tables[0];
+    expect(tables).toHaveLength(1);
+    expect(table?.columnEdges).toEqual([0, 234, 378]);
+    expect(table?.rowEdges).toEqual([700, 580]);
+    expect(table?.borders).toEqual({
+      horizontal: [
+        [false, false],
+        [true, false],
+      ],
+      vertical: [[false, true, false]],
+    });
+    expect(table?.cells[0]?.[0]?.lines.map(lineText)).toEqual([
+      'JANE DOE, an individual,',
+      'Plaintiff,',
+      'vs.',
+      'ACME HOLDINGS, LLC, and',
+      'DOES 1 through 20,',
+      'inclusive,',
+      'Defendants.',
+    ]);
+    expect(table?.cells[0]?.[1]?.lines.map(lineText)).toEqual([
+      'Case No. 24-CV-0001',
+      'NOTICE OF MOTION AND',
+      'MOTION TO COMPEL',
+      'Date: October 14, 2026',
+      'Time: 9:00 a.m.',
+      'Dept.: 21',
+      'Judge: Hon. A. Reyes',
+    ]);
+    expect(consumed.size).toBe(7);
+  });
+
+  it('marks the foot drawn under the right cell too when the rule runs on', () => {
+    const wide = L_CAPTION.map(({ rect }) =>
+      rect.height === 0 ? rule(72, rect.y, 396, 0) : rule(rect.x, rect.y, rect.width, rect.height)
+    );
+    expect(tablesOf(L_RUNS, wide).tables[0]?.borders.horizontal[1]).toEqual([true, true]);
+  });
+
+  it('is not an L caption with only a few lines beside the rule', () => {
+    const few = L_RUNS.filter((item) => item.y > 654);
+    expect(tablesOf(few, L_CAPTION).tables).toEqual([]);
+  });
+
+  it('is not an L caption when nothing closes the foot of the rule', () => {
+    const open = L_CAPTION.filter(({ rect }) => rect.height !== 0);
+    expect(tablesOf(L_RUNS, open).tables).toEqual([]);
+  });
+
+  it('is not an L caption when the foot rule is nowhere near the rule it should meet', () => {
+    const adrift = L_CAPTION.map(({ rect }) =>
+      rect.height === 0 ? rule(72, 520, 234, 0) : rule(rect.x, rect.y, rect.width, rect.height)
+    );
+    expect(tablesOf(L_RUNS, adrift).tables).toEqual([]);
+  });
+
+  it('refuses the L caption when a line crosses the upright rule', () => {
+    const crossing = [...L_RUNS, run('IN THE SUPERIOR COURT OF THE STATE OF CALIFORNIA', 80, 660)];
+    expect(tablesOf(crossing, L_CAPTION).tables).toEqual([]);
   });
 
   it('leaves a full-width table to the page, not to one column of it', () => {
