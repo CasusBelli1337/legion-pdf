@@ -161,10 +161,13 @@ function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[]
   return out;
 }
 
-/** A body run sits on this baseline, within a couple of points. */
+/** A body run sits on this baseline, within a couple of points (a few, when recognised). */
 function hasTextAt(layout: PageLayout, y: number): boolean {
   return layout.runs.some(
-    (run) => run.role === 'body' && run.text.trim().length > 0 && Math.abs(run.y - y) <= 2
+    (run) =>
+      run.role === 'body' &&
+      run.text.trim().length > 0 &&
+      Math.abs(run.y - y) <= (run.hidden === true ? 4 : 2)
   );
 }
 
