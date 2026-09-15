@@ -62,8 +62,11 @@ signature page) — see the report § 3. Real filings: report § 4–5.
 - The Distiller filing (06) and the scanned cross-complaint raw and OCR'd
   (12, 13): page counts still multiply; the footer-band work at the end of
   the session (bands placed exactly, margins widened to their reach,
-  recognised text kept out of the bands unless at the edge) was the last
-  change and the subset re-measure in the report § 4 is its first result.
+  recognised text kept out of the bands unless at the edge) halved the
+  scans' page counts (12: 36 → 19; 13: 62 → 35) and left 03 and 06 as they
+  were. A scanned page exported ALONE comes out as one or two pages; the
+  multiplication appears when several sections of slightly different paper
+  sizes (scans vary by a few points) share one file — start there.
 - Fixture-level: caption cells 2–3 pt low on `pleading-word` p1; footnote
   lines under line 28 wrap on `filing-mixed` p2; the signature page of
   `filing-mixed` numbered differently by Word's own numbering.
