@@ -32,6 +32,8 @@ type Fonts = Readonly<Record<string, LayoutFont>>;
 const MIN_NUMBER_DISTANCE = 4;
 /** A header or footer may not start closer to the paper's edge than this. */
 const MIN_BAND_PT = 12;
+/** Room between a band's inner edge and the body, so Word never has to move the body. */
+const BAND_CLEARANCE = 1;
 
 /** Numbers that followed the text lines are Word's own numbering, restarted per page. */
 function lineNumbersFor(geometry: SectionGeometry): Pick<SectionProperties, 'lineNumbers'> {
@@ -46,10 +48,19 @@ function lineNumbersFor(geometry: SectionGeometry): Pick<SectionProperties, 'lin
   };
 }
 
-/** Where the running head's top and the foot's bottom sit, from the paper's edges, points. */
+/**
+ * Where the running head's top and the foot's bottom sit, from the paper's
+ * edges, and how far each band reaches into the page, points. Word never lets
+ * a band overlap the body: a footer taller than the bottom margin pushes the
+ * body up, and the page spills — so the margins are widened to the bands.
+ */
 export interface BandDistances {
   headerPt?: number;
+  /** The head's bottom edge from the paper's top, points. */
+  headerReachPt?: number;
   footerPt?: number;
+  /** The foot's top edge from the paper's bottom, points. */
+  footerReachPt?: number;
 }
 
 export function sectionProperties(
@@ -58,9 +69,9 @@ export function sectionProperties(
 ): SectionProperties {
   const { size, margins, pleading } = geometry;
   const margin = {
-    top: twips(margins.top),
+    top: twips(Math.max(margins.top, (bands.headerReachPt ?? 0) + BAND_CLEARANCE)),
     right: twips(margins.right),
-    bottom: twips(margins.bottom),
+    bottom: twips(Math.max(margins.bottom, (bands.footerReachPt ?? 0) + BAND_CLEARANCE)),
     left: twips(margins.left),
     header: twips(bands.headerPt ?? geometry.headerPt),
     footer: twips(bands.footerPt ?? geometry.footerPt),
@@ -216,7 +227,7 @@ export function headerFor(
   pages: readonly PageLayout[],
   fonts: Fonts,
   geometry: SectionGeometry
-): { header: Header | null; headerPt?: number } {
+): { header: Header | null; headerPt?: number; headerReachPt?: number } {
   const runs = bandRuns(pages, ['header']);
   const { pleading } = geometry;
   if (pleading?.grid === true) {
@@ -233,7 +244,11 @@ export function headerFor(
   const band = bandOf(runs, geometry.frame);
   // Word measures the header from the paper's top edge to the header's top.
   const headerPt = Math.max(MIN_BAND_PT, geometry.size.height - band.top);
-  return { header: new Header({ children: bandParagraphs(band, fonts) }), headerPt };
+  return {
+    header: new Header({ children: bandParagraphs(band, fonts) }),
+    headerPt,
+    headerReachPt: geometry.size.height - band.bottom,
+  };
 }
 
 /** A horizontal rule drawn just above the footer's text — the line under the body on pleading paper. */
@@ -260,7 +275,7 @@ export function footerFor(
   pages: readonly PageLayout[],
   fonts: Fonts,
   geometry: SectionGeometry
-): { footer: Footer | null; footerPt?: number } {
+): { footer: Footer | null; footerPt?: number; footerReachPt?: number } {
   const band = bandRuns(pages, ['footer', 'page-number']);
   // Several printed numbers on one sheet (a condensed transcript) are not the
   // sheet's number: no field can stand in for them. Nor can one stand in for a
@@ -284,7 +299,7 @@ export function footerFor(
   }
   // Word measures the footer from the paper's bottom edge to the footer's bottom.
   const footerPt = Math.max(MIN_BAND_PT, placed.bottom);
-  return { footer: new Footer({ children }), footerPt };
+  return { footer: new Footer({ children }), footerPt, footerReachPt: placed.top };
 }
 
 /** The footer's first paragraph again, with a rule above it `spacePt` from its box. */
