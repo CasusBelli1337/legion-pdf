@@ -5,7 +5,7 @@
  */
 
 import { EXPORT_FORMATS, exportFormatInfo } from '@shared/export-formats';
-import type { ExportFormat, ExportResult } from '@shared/types';
+import type { ExportFormat, ExportResult, ScanPictureMode } from '@shared/types';
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
   return count === 1 ? singular : pluralForm;
@@ -88,4 +88,39 @@ export function exportButtonLabel(format: ExportFormat, pageCount: number): stri
   return info.output === 'folder'
     ? `Export ${pages} as images`
     : `Export ${pages} as ${info.label}`;
+}
+
+/* ── Word: what will happen, and what happened ───────────────────────────── */
+
+/** Shown while the plan is being worked out, so the panel is never just still. */
+export const PLAN_LOADING = 'Looking at the document…';
+
+/** What becomes of a scanned page's picture, in the attorney's words. */
+export const SCAN_PICTURE_OPTIONS: readonly { value: ScanPictureMode; label: string }[] = [
+  { value: 'omit', label: 'Recognized text only' },
+  { value: 'behind', label: 'Text with the scan behind it' },
+  { value: 'appendix', label: 'Text, with the scans in an appendix' },
+];
+
+export const SCAN_PICTURE_HINTS: Record<ScanPictureMode, string> = {
+  omit: 'The words become editable text and the picture of the page is left out.',
+  behind:
+    'The words sit on top of a picture of the original page, the way a searchable PDF does. Good for reading against the original; the picture cannot be edited.',
+  appendix:
+    'The words come first, then a picture of every scanned page after the last page of text.',
+};
+
+export const RECEIPT_KEPT_LABEL = 'Kept';
+export const RECEIPT_DROPPED_LABEL = 'Left out';
+
+/**
+ * Notes the receipt does not already say. The Word export sorts its remarks
+ * into kept and left out, and repeating a sentence under two headings reads
+ * like two different problems.
+ */
+export function extraNotes(result: ExportResult): string[] {
+  const receipt = result.receipt;
+  if (receipt === undefined) return result.notes;
+  const said = new Set([...receipt.kept, ...receipt.dropped]);
+  return result.notes.filter((note) => !said.has(note));
 }

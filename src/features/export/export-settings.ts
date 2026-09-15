@@ -9,7 +9,7 @@
  */
 
 import { field, persistedSetting, storedFields } from '@renderer/lib/persisted-settings';
-import type { ExportColorMode, ExportFormat } from '@shared/types';
+import type { ExportColorMode, ExportFormat, ScanPictureMode } from '@shared/types';
 
 /** The four the panel offers. Anything else is a typed API call, not a click. */
 export const DPI_CHOICES = [150, 200, 300, 600] as const;
@@ -18,12 +18,15 @@ export const DEFAULT_JPEG_QUALITY = 85;
 
 const FORMATS: readonly ExportFormat[] = ['docx', 'png', 'jpeg', 'tiff', 'txt'];
 const COLORS: readonly ExportColorMode[] = ['color', 'grayscale', 'bw'];
+const SCAN_PICTURES: readonly ScanPictureMode[] = ['omit', 'behind', 'appendix'];
 
 export interface ExportMemory {
   format: ExportFormat;
   dpi: number;
   color: ExportColorMode;
   quality: number;
+  /** Word only: what the last Word export did with the scans' pictures. */
+  scanPictures: ScanPictureMode;
 }
 
 function parse(raw: unknown): ExportMemory {
@@ -33,6 +36,7 @@ function parse(raw: unknown): ExportMemory {
     dpi: field.number(fields, 'dpi', DEFAULT_DPI, { min: 36, max: 1200 }),
     color: field.choice(fields, 'color', COLORS, 'color'),
     quality: field.number(fields, 'quality', DEFAULT_JPEG_QUALITY, { min: 1, max: 100 }),
+    scanPictures: field.choice(fields, 'scanPictures', SCAN_PICTURES, 'omit'),
   };
 }
 
@@ -44,5 +48,6 @@ export function rememberExport(memory: ExportMemory): void {
     dpi: memory.dpi,
     color: memory.color,
     quality: memory.quality,
+    scanPictures: memory.scanPictures,
   });
 }

@@ -11,7 +11,10 @@ import type { ExportJob, ExporterContext } from './exporter';
 
 export type { ExportJob };
 
-export type ExportContext = Pick<ExporterContext, 'requestLayout'> &
+export type ExportContext = Pick<
+  ExporterContext,
+  'requestLayout' | 'recognizeText' | 'adopt' | 'closeDoc'
+> &
   Partial<Pick<ExporterContext, 'requestRaster'>>;
 
 export type Exporter = (job: ExportJob, context: ExportContext) => Promise<ExportResult>;
