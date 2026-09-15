@@ -107,7 +107,7 @@ function boxOf(paragraph: Paragraph): PageBox {
 /** The page's content box: its paragraphs', widened to the numbered column on pleading paper. */
 function pageBox(paragraphs: readonly Paragraph[], pleading: Pleading | null): PageBox {
   const boxes = paragraphs.map(boxOf);
-  if (pleading !== null) {
+  if (pleading?.grid === true) {
     boxes.push({
       top: pleading.firstBaseline + BASELINE_SHARE * pleading.pitchPt,
       bottom: pleading.lastBaseline - (1 - BASELINE_SHARE) * pleading.pitchPt,
@@ -216,7 +216,7 @@ function columnFlow(
     lines.filter((line) => !ruled.consumed.has(line)),
     {
       frame,
-      ...(pleading === null ? {} : { leadingPt: pleading.pitchPt }),
+      ...(pleading?.grid === true ? { leadingPt: pleading.pitchPt } : {}),
       linePerParagraph: recognized || (pleading !== null && isTranscript(layout)),
       fullWidth: recognized,
     }
