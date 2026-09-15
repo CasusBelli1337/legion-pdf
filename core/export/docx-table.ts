@@ -9,6 +9,11 @@
  * points from the body frame's left edge; everything measured down it
  * (`rowEdges`, baselines) is page y. Owned by the tables lane; `build-docx.ts`
  * calls this and nothing else does.
+ *
+ * A Word table cannot carry space above it — OOXML has no space-before on a
+ * `w:tbl` — so `spaceBeforePt` is NOT written here. The caller has to emit it
+ * as an empty paragraph of exactly that height before the table, or the table
+ * and everything under it rides up the page by the gap the PDF left above it.
  */
 
 import {
@@ -36,6 +41,8 @@ const DRAWN: IBorderOptions = { style: BorderStyle.SINGLE, size: 4, color: 'auto
 const UNDRAWN: IBorderOptions = { style: BorderStyle.NIL, size: 0, color: 'auto' };
 /** A cell's text never sits further in from its rule than this. */
 const MAX_INSET = 24;
+/** Word starts a cell's content below the border it drew, by the width of it. */
+const BORDER_PT = 4 / 8;
 
 interface Build {
   table: TableParagraph;
@@ -76,13 +83,23 @@ function bordersAt(borders: TableBorders, row: number, column: number): ITableCe
   };
 }
 
-/** The cell's own frame: its rules, less the inset Word will add back. */
+/**
+ * The cell's own frame: its rules, less the inset Word will add back.
+ *
+ * `textRight` is the cell's right edge, not its longest line: a caption cell
+ * holds "JANE DOE, an individual," over "Plaintiff," — two lines that each
+ * stop well short of the rule. Measured against the longest line they read as
+ * a justified paragraph (Word then spreads the first line to the rule) and as
+ * one flowing paragraph (Word then rewraps the pair). Measured against the
+ * rule they read as what they are: two short lines, each its own paragraph.
+ * A cell whose text does reach past the inset keeps its own width, so nothing
+ * that fitted in the PDF wraps in Word.
+ */
 function cellFrame(build: Build, cell: TableCell, column: number): BodyFrame {
   const { columnEdges } = build.table;
   const left = edge(columnEdges, column) + build.inset;
   const right = Math.max(left + 1, edge(columnEdges, column + 1) - build.inset);
-  const widest = Math.max(left + 1, ...cell.lines.map((line) => line.right));
-  return { left, right, textRight: Math.min(right, widest) };
+  return { left, right, textRight: Math.max(right, ...cell.lines.map((line) => line.right)) };
 }
 
 /**
@@ -108,7 +125,8 @@ function cellParagraphs(build: Build, row: number, column: number): DocxParagrap
   const breaks = build.pageBreakBefore && row === 0 && column === 0;
   if (cell.lines.length === 0) return [new DocxParagraph({ pageBreakBefore: breaks })];
   const paragraphs = paragraphsOf(cell.lines, { frame: cellFrame(build, cell, column) });
-  settle(paragraphs, edge(build.table.rowEdges, row));
+  const ruled = build.table.borders.horizontal[row]?.[column] === true;
+  settle(paragraphs, edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0));
   return paragraphs.map((paragraph, index) =>
     docxTextParagraph(paragraph, build.fonts, { pageBreakBefore: breaks && index === 0 })
   );

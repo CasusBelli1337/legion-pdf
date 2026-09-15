@@ -117,6 +117,19 @@ describe('docxTable', () => {
     expect(count(xml, /<w:p[\s/>]/g)).toBe(6);
   });
 
+  it('leaves two short lines in a cell as two lines, neither of them justified', async () => {
+    // Measured in real Word: read against the longest line instead of the rule,
+    // the pair reads as a justified paragraph and Word spreads the first line
+    // to the rule and rewraps the second.
+    const runs = [...CAPTION_RUNS, run('and DOE COMPANIES 1-10,', 80, 675)];
+    const xml = await xmlOf(tableOf(CAPTION, runs));
+    const [cell = ''] = xml.match(/<w:tc>.*?<\/w:tc>/) ?? [];
+    expect(count(cell, /<w:p[\s/>]/g)).toBe(2);
+    expect(cell).not.toContain('<w:jc w:val="both"/>');
+    expect(cell).toContain('JANE DOE, Plaintiff,');
+    expect(cell).toContain('and DOE COMPANIES 1-10,');
+  });
+
   it('settles a second line in a cell where the page had it', async () => {
     const runs = [...CAPTION_RUNS, run('and DOE COMPANIES 1-10,', 80, 675)];
     const xml = await xmlOf(tableOf(CAPTION, runs));
