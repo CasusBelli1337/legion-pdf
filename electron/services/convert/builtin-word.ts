@@ -11,9 +11,11 @@
  * mammoth's HTML is inserted into the page as HTML — that is the whole point of
  * it — and the hidden window it prints in has JavaScript switched off
  * (chromium-print.ts), so nothing in a stranger's document can run.
+ *
+ * mammoth and its ten dependencies are imported lazily: on a machine WITH Word
+ * this engine never runs, and none of it should be paid for at startup.
  */
 
-import mammoth from 'mammoth';
 import { wordIsInstalled } from './office-com';
 import { ConvertFailedError, type ConvertEngine, type ConvertJob } from './types';
 
@@ -28,7 +30,13 @@ const PAGE_STYLE = `<style>
   p { margin: 0 0 8pt; }
 </style>`;
 
-async function run(job: ConvertJob): Promise<Uint8Array> {
+/**
+ * The page mammoth makes of a .docx, ready to print. Split out from `run` so the
+ * whole document-reading half can be tested in plain Node — only the printing
+ * needs a Chromium window.
+ */
+export async function wordDocumentHtml(job: ConvertJob): Promise<string> {
+  const { default: mammoth } = await import('mammoth');
   const rendered = await mammoth.convertToHtml({ path: job.filePath });
   if (rendered.value.trim().length === 0) {
     throw new ConvertFailedError(
@@ -36,11 +44,13 @@ async function run(job: ConvertJob): Promise<Uint8Array> {
         'in Word once and save it as .docx.'
     );
   }
+  return `<!doctype html><meta charset="utf-8"><title>${job.fileName}</title>${PAGE_STYLE}${rendered.value}`;
+}
+
+async function run(job: ConvertJob): Promise<Uint8Array> {
+  const html = await wordDocumentHtml(job);
   const { printHtml } = await import('./chromium-print');
-  return printHtml(
-    `<!doctype html><meta charset="utf-8"><title>${job.fileName}</title>${PAGE_STYLE}${rendered.value}`,
-    job.fileName
-  );
+  return printHtml(html, job.fileName);
 }
 
 export const BUILTIN_WORD_ENGINE: ConvertEngine = {
