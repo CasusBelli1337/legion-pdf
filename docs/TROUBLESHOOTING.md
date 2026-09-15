@@ -102,6 +102,54 @@ Open with → Legion PDF, and double-click one with the app already running (the
 second launch must focus the open window and add a tab, never start a
 second app).
 
+### Explorer verbs — "Combine in Legion PDF" (only provable from the installed app)
+
+`nsis.include: build/installer.nsh` adds two right-click verbs at install time,
+written to the per-user class hive because the installer is per-user:
+
+| Verb | Shown on | Command |
+| --- | --- | --- |
+| Combine in Legion PDF | every extension in `OPENABLE_EXTENSIONS` | `"...\Legion PDF.exe" --combine "%1"` |
+| Convert to PDF with Legion PDF | the non-PDF ones | `"...\Legion PDF.exe" "%1"` |
+
+Both carry `MultiSelectModel = Player`, which is what keeps a verb visible when
+SEVERAL files are selected. The .nsh keeps its own copy of the extension list;
+`electron/installer-verbs.test.ts` parses the script and fails if it ever drifts
+from `shared/convert-inputs.ts` (`#seam:openable-extensions`).
+
+After installing, verify from PowerShell:
+
+```powershell
+reg query "HKCU\Software\Classes\SystemFileAssociations\.pdf\shell\LegionPDF.Combine" /s
+reg query "HKCU\Software\Classes\SystemFileAssociations\.docx\shell\LegionPDF.Combine" /s
+reg query "HKCU\Software\Classes\SystemFileAssociations\.docx\shell\LegionPDF.Convert" /s
+# every openable extension at once (19 keys expected):
+reg query "HKCU\Software\Classes\SystemFileAssociations" /f "LegionPDF.Combine" /k /s | Select-String "LegionPDF.Combine" | Measure-Object
+```
+
+Each Combine key must carry `(Default) = Combine in Legion PDF`,
+`MultiSelectModel = Player`, `Icon = "...\Legion PDF.exe",0`, and a `command`
+subkey ending in `--combine "%1"`. Then, by hand: select three PDFs and a .docx
+in Explorer, right-click → **Combine in Legion PDF** → the app comes forward with
+the Combine Files panel listing all four, in file-name order. Uninstalling must
+leave `reg query` finding nothing (the uninstall macro deletes both verbs and
+then `/ifempty`-deletes the `shell` and extension keys it emptied).
+
+**Windows only shows a verb on up to 15 selected files.** Above that Explorer
+hides it silently (its own limit, nothing to do with Legion PDF). Raise it with
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\MultipleInvokePromptMinimum`
+(DWORD, e.g. 50) and sign out and back in. There is no way to raise it from a
+per-user installer without also changing how Explorer treats every other app.
+
+**Explorer launches one process per selected file.** Ten selected exhibits are
+ten `Legion PDF.exe --combine <one file>` launches; the single-instance lock
+turns nine of them into `second-instance` events on the running app.
+`electron/services/open-files.ts` gathers them for 1.5 s of quiet
+(`COMBINE_QUIET_WINDOW_MS`) and delivers ONE `app:openFiles` event with
+`intent: 'combine'`, sorted into natural file-name order — Explorer's launch
+order is a race and cannot be trusted. Symptoms if that funnel ever breaks: the
+panel fills one file at a time, or combines a subset.
+
 ## Packaged-app QA from WSL
 
 - Launch with `--remote-debugging-port=9450`; WSL reaches it at

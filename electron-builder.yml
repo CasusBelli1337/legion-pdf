@@ -39,6 +39,11 @@ win:
         - x64
   artifactName: LegionPDF-${version}-Setup.${ext}
 nsis:
+  # Explorer's "Combine in Legion PDF" / "Convert to PDF with Legion PDF" verbs.
+  # electron-builder writes no SystemFileAssociations verbs of its own, so the
+  # customInstall/customUnInstall macros in this script do it (see the file's
+  # own header, and docs/TROUBLESHOOTING.md "Explorer verbs").
+  include: build/installer.nsh
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
