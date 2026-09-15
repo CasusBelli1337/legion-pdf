@@ -167,7 +167,12 @@ function tabbedChildren(line: Line, fonts: Fonts): TextRun[] {
 
 function childrenOf(paragraph: TextParagraph, fonts: Fonts): TextRun[] {
   if (paragraph.tabStops.length > 0) {
-    return paragraph.lines.flatMap((line) => tabbedChildren(line, fonts));
+    // Tabbed lines keep their line ends: a table-of-contents entry that wrapped
+    // before its leader must wrap there in Word too, or the tab lands elsewhere.
+    return paragraph.lines.flatMap((line, index) => [
+      ...(index > 0 ? [new TextRun({ break: 1 })] : []),
+      ...tabbedChildren(line, fonts),
+    ]);
   }
   return joinLines(paragraph.lines, paragraph.alignment).flatMap((run) => textRun(run, fonts));
 }
