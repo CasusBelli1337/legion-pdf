@@ -60,7 +60,36 @@ briefs, a court's Aspose-stamped order and notice, Arthur's own Distiller
 filing, a scanned cross-complaint and its Acrobat-OCR'd twin, an ABBYY scan,
 a 107-page declaration with scanned exhibits.
 
-MEASURED_PRIVATE_TABLE
+| document | pages | worst page median dy | words off | line numbers off | kind |
+| --- | --- | --- | --- | --- | --- |
+| 01 — opposing counsel’s reply brief on summary judgment (Acrobat PDFMaker) | 16 → 19 | 172.62 | 5344 | 4 of 452 | pleading grid |
+| 02 — opposing counsel’s evidentiary objections (Acrobat PDFMaker) | 5 → 5 | 2.28 | 0 | 0 of 142 | pleading grid |
+| 03 — the court’s order on summary judgment (Aspose, e-filing stamp) | 16 → 31 | 382.95 | 6484 | 282 of 400 | pleading grid |
+| 04 — opposing counsel’s summary-judgment memorandum (Acrobat PDFMaker) | 15 → 15 | 11.74 | 74 | 1 of 424 | pleading grid |
+| 05 — a declaration with scanned exhibits (Nebo/MyScript, 107 pp) | 107 → 3455 | 660.70 | 2117 | 0 of 113 | pleading grid |
+| 06 — Arthur’s filed opposition memorandum (Distiller) | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
+| 07 — opposing counsel’s motion to compel (Acrobat PDFMaker) | 12 → 12 | 25.97 | 53 | 0 of 336 | pleading grid |
+| 08 — the court’s notice of filing of appeal (Aspose, one scanned page) | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
+| 09 — opposing counsel’s amended deposition notice (Acrobat PDFMaker) | 12 → 12 | 7.15 | 26 | 0 of 336 | pleading grid |
+| 10 — another firm’s cross-complaint, scanned and OCR’d (ABBYY) | 14 → 14 | 1.36 | 208 | 273 of 392 | pleading grid |
+| 12 — a scanned cross-complaint, no text layer (GdPicture) | 6 → 36 | 24.14 | 2039 | 1 of 1 | scan |
+| 13 — the same scan with Acrobat’s OCR layer | 6 → 62 | 2.93 | 1930 | — | scan |
+
+Read across the row: "pages" is the source count against Word's rendering
+of the export — the first thing an attorney notices; "words off" sums every
+page's missing and extra words; "line numbers off" counts printed numbers
+more than half a point from the source's. Six of the twelve keep their page
+count with the numbers on their lines (02, 04, 07, 08, 09, 10; the ABBYY
+scan 10 keeps its pages and text but its OCR'd numbers sit off the grid the
+way the scanner set them). The other six are the open items in § 5: the
+long Acrobat brief with a table of authorities (01), the court's order (03),
+the 107-page declaration whose exhibits are pen strokes and scans (05),
+the Distiller filing (06), and the scanned cross-complaint raw and OCR'd
+(12, 13). The five hardest were re-measured with the last fix of the session
+(recognised text far from the edge never enters a footer); their rows are
+updated below when that run finishes.
+
+MEASURED_SUBSET_TABLE
 
 ## 5. What the real filings still break
 
