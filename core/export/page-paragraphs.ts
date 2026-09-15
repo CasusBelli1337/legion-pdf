@@ -273,7 +273,36 @@ function giveWay(previous: Paragraph | null, current: TextParagraph, previousBot
   current.leadingPt = Math.max(MIN_LEADING, room / BASELINE_SHARE);
 }
 
+/**
+ * A page is not all on one pitch: an attorney block runs on twelve points
+ * above a double-spaced brief. A lone line handed the page's median pitch gets
+ * a line box taller than the gap it sat in; it keeps the pitch it actually
+ * followed instead, never tighter than its own type.
+ */
+function ownPitch(paragraph: TextParagraph, previousBaseline: number | null): number {
+  const line = paragraph.lines[0];
+  if (line === undefined || paragraph.lines.length > 1 || previousBaseline === null) {
+    return paragraph.leadingPt;
+  }
+  const gap = previousBaseline - line.baseline;
+  if (gap <= 0 || gap >= paragraph.leadingPt) return paragraph.leadingPt;
+  return Math.max(gap, line.sizePt);
+}
+
+function keepOwnPitches(paragraphs: Paragraph[]): void {
+  let previousBaseline: number | null = null;
+  for (const paragraph of paragraphs) {
+    if (paragraph.kind !== 'text') {
+      previousBaseline = null;
+      continue;
+    }
+    paragraph.leadingPt = ownPitch(paragraph, previousBaseline);
+    previousBaseline = lastBaseline(paragraph);
+  }
+}
+
 function settleColumn(paragraphs: Paragraph[], topOfBody: number): void {
+  keepOwnPitches(paragraphs);
   resolveOverlaps(paragraphs, topOfBody);
   let previousBottom = topOfBody;
   for (const paragraph of paragraphs) {

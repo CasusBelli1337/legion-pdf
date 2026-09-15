@@ -175,6 +175,28 @@ function blockIdOf(runs: readonly LayoutTextRun[]): string | null {
   return top[0].includes('/') ? `${top[0]}@${Math.round((runs[0]?.y ?? 0) * 10)}` : top[0];
 }
 
+/**
+ * A vertical rule drawn between two runs is a column boundary whatever the gap
+ * measures: a caption box's upright rule is the filing SAYING where the column
+ * ends, and some templates leave barely two ems either side of it.
+ */
+function ruledBetween(
+  rules: readonly LayoutRule[],
+  from: number,
+  to: number,
+  baseline: number
+): boolean {
+  return rules.some(
+    ({ rect }) =>
+      rect.width <= 3 &&
+      rect.height > 3 &&
+      rect.x > from &&
+      rect.x + rect.width < to &&
+      rect.y <= baseline &&
+      rect.y + rect.height >= baseline
+  );
+}
+
 /** One line's runs, left to right, joined into cells with spaces where the gaps say so. */
 function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
   const ordered = [...draft.runs].sort((a, b) => a.x - b.x);
@@ -186,7 +208,8 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
     const gap = run.x - cursor;
     const size = Math.max(run.sizePt, 1);
     const cell = cells.at(-1);
-    if (cell === undefined || gap > COLUMN_GAP * size) {
+    const ruled = ruledBetween(rules, cursor, run.x, line.baseline);
+    if (cell === undefined || gap > COLUMN_GAP * size || ruled) {
       cells.push({ x: run.x, runs: [styled(run, rules, line)] });
     } else {
       appendRun(cell, styled(run, rules, line), gap > SPACE_GAP * size);

@@ -98,6 +98,7 @@ function subLine(line: Line, indices: readonly number[], left: number): Line {
     x: (line.cells[first]?.x ?? line.x) - left,
     right: cellRight(line, last) - left,
     sizePt: line.sizePt,
+    blockId: line.blockId,
   };
 }
 
