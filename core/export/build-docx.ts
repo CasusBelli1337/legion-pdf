@@ -138,12 +138,14 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const { header, headerPt } = headerFor(pages, fonts, geometry);
-  const { footer, footerPt } = footerFor(pages, fonts, geometry);
+  const { header, headerPt, headerReachPt } = headerFor(pages, fonts, geometry);
+  const { footer, footerPt, footerReachPt } = footerFor(pages, fonts, geometry);
   assembly.sections.push({
     properties: sectionProperties(geometry, {
       ...(headerPt === undefined ? {} : { headerPt }),
+      ...(headerReachPt === undefined ? {} : { headerReachPt }),
       ...(footerPt === undefined ? {} : { footerPt }),
+      ...(footerReachPt === undefined ? {} : { footerReachPt }),
     }),
     ...(header === null ? {} : { headers: { default: header } }),
     ...(footer === null ? {} : { footers: { default: footer } }),

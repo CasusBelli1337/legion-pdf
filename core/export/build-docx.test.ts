@@ -203,3 +203,20 @@ describe('buildDocx — scanner noise in the foot', () => {
     expect(footer).not.toMatch(/<w:t[^>]*>H<\/w:t>/);
   });
 });
+
+describe('buildDocx — the foot never pushes the body', () => {
+  it('widens the bottom margin to the footer’s reach when the foot sits high on the page', async () => {
+    const layout = page([
+      ...paragraphLines(3, 700),
+      run('FIRM SLUG LINE ONE', 90, 120, { role: 'footer', sizePt: 6 }),
+      run('FIRM SLUG LINE TWO', 90, 112, { role: 'footer', sizePt: 6 }),
+      run('DOCUMENT TITLE IN THE FOOT', 200, 100, { role: 'footer', sizePt: 8 }),
+    ]);
+    const { document } = await partsOf((await buildDocx([layout])).bytes);
+    const bottom = Number(/w:bottom="(-?\d+)"/.exec(document)?.[1]);
+    const footer = Number(/w:footer="(-?\d+)"/.exec(document)?.[1]);
+    // The foot's top edge is about 125 pt (2500 twips) up the page; the body must stop above it.
+    expect(bottom).toBeGreaterThanOrEqual(2480);
+    expect(footer).toBeLessThan(bottom);
+  });
+});
