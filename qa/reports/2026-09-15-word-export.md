@@ -89,7 +89,20 @@ the Distiller filing (06), and the scanned cross-complaint raw and OCR'd
 (recognised text far from the edge never enters a footer); their rows are
 updated below when that run finishes.
 
-MEASURED_SUBSET_TABLE
+| document (re-measured with the final code) | pages | worst page median dy | words off | line numbers off | kind |
+| --- | --- | --- | --- | --- | --- |
+| 03 — the court’s order on summary judgment (Aspose, e-filing stamp) | 16 → 31 | 382.08 | 6458 | 282 of 400 | pleading grid |
+| 06 — Arthur’s filed opposition memorandum (Distiller) | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
+| 08 — the court’s notice of filing of appeal (Aspose, one scanned page) | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
+| 12 — a scanned cross-complaint, no text layer (GdPicture) | 6 → 19 | 143.21 | 2139 | 1 of 1 | scan |
+| 13 — the same scan with Acrobat’s OCR layer | 6 → 35 | 2.96 | 1929 | — | scan |
+
+The last fix halved the scanned cross-complaint's page count (36 → 19 raw,
+62 → 35 OCR'd) and left the court order and the Distiller filing where they
+were: those two, and the scans, are the first job of the next session — the
+per-page probe (`qa/word-export/` scratch) shows each scanned page exporting
+to one or two pages on its own, so the multiplication happens where Word
+lays several sections of different paper sizes in one file.
 
 ## 5. What the real filings still break
 
