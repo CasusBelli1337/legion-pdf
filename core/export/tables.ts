@@ -17,7 +17,7 @@
 
 import type { LayoutRule } from '@shared/types';
 import { BASELINE_SHARE } from './model';
-import type { BodyFrame, Line, TableCell, TableParagraph } from './model';
+import type { BodyFrame, Line, TableCell, TableParagraph, TabStop } from './model';
 import { medianLeading } from './paragraphs';
 import type { Edge, Grid } from './table-grid';
 import { edgesIn, gridsOf, outerSpan, reaches } from './table-grid';
@@ -92,7 +92,7 @@ function subLine(line: Line, indices: readonly number[], left: number): Line {
   return {
     cells: indices.flatMap((index) => {
       const cell = line.cells[index];
-      return cell === undefined ? [] : [{ ...cell, x: cell.x - left }];
+      return cell === undefined ? [] : [{ ...cell, x: cell.x - left, right: cell.right - left }];
     }),
     baseline: line.baseline,
     x: (line.cells[first]?.x ?? line.x) - left,
@@ -272,16 +272,28 @@ export function ruledTablesOf(
 /** Cell edges closer than this are the same tab stop. */
 const SAME_STOP = 4;
 
-/** Every cell boundary after the first, from the frame's left edge, merged within SAME_STOP. */
-export function tabStopsOf(lines: readonly Line[], frame: BodyFrame): number[] {
-  const edges = lines
-    .flatMap((line) => line.cells.slice(1).map((cell) => cell.x - frame.left))
-    .filter((edge) => edge > 0)
-    .sort((a, b) => a - b);
-  const stops: number[] = [];
-  for (const edge of edges) {
-    const last = stops.at(-1);
-    if (last === undefined || edge - last > SAME_STOP) stops.push(edge);
+/**
+ * Every cell boundary after the first, from the frame's left edge, merged
+ * within SAME_STOP. A cell reached across a dot leader is a page number: its
+ * stop is a right tab at the number's right edge, with the dots as leader.
+ */
+export function tabStopsOf(lines: readonly Line[], frame: BodyFrame): TabStop[] {
+  const stops: TabStop[] = lines
+    .flatMap((line) =>
+      line.cells
+        .slice(1)
+        .map((cell): TabStop =>
+          cell.leader === undefined
+            ? { positionPt: cell.x - frame.left, align: 'left' }
+            : { positionPt: cell.right - frame.left, align: 'right', leader: 'dot' }
+        )
+    )
+    .filter((stop) => stop.positionPt > 0)
+    .sort((a, b) => a.positionPt - b.positionPt);
+  const merged: TabStop[] = [];
+  for (const stop of stops) {
+    const last = merged.at(-1);
+    if (last === undefined || stop.positionPt - last.positionPt > SAME_STOP) merged.push(stop);
   }
-  return stops;
+  return merged;
 }
