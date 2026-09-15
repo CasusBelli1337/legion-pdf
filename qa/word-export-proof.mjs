@@ -13,8 +13,12 @@ import * as path from 'node:path';
 const APP_DIR = path.resolve(import.meta.dirname, '..');
 const WORK = path.join(os.tmpdir(), 'legion-pdf-word-proof');
 const SHOTS = path.join(WORK, 'shots');
-const [, , fixtureArg = 'qa/fixtures/word-export/pleading-word.pdf', outArg = 'qa/output/word-export/app-export.docx'] =
-  process.argv;
+const [
+  ,
+  ,
+  fixtureArg = 'qa/fixtures/word-export/pleading-word.pdf',
+  outArg = 'qa/output/word-export/app-export.docx',
+] = process.argv;
 const FIXTURE = path.resolve(fixtureArg);
 const OUT = path.resolve(outArg);
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -25,7 +29,13 @@ const say = (...parts) => process.stdout.write(`${parts.join(' ')}\n`);
 
 const app = await electron.launch({
   executablePath: path.join(APP_DIR, 'node_modules/electron/dist/electron'),
-  args: ['--no-sandbox', '--disable-gpu', `--user-data-dir=${path.join(WORK, 'udata')}`, APP_DIR, FIXTURE],
+  args: [
+    '--no-sandbox',
+    '--disable-gpu',
+    `--user-data-dir=${path.join(WORK, 'udata')}`,
+    APP_DIR,
+    FIXTURE,
+  ],
   env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' },
   timeout: 30000,
 });
@@ -54,20 +64,35 @@ const bodyText = () => page.evaluate(() => document.body.innerText);
 await clickText('Export');
 await page.waitForTimeout(600);
 await clickText('Word document');
-await page.waitForFunction(() => /Pleading paper detected|scanned page|Looking at the document/.test(document.body.innerText), null, { timeout: 15000 });
+await page.waitForFunction(
+  () =>
+    /Pleading paper detected|scanned page|Looking at the document/.test(document.body.innerText),
+  null,
+  { timeout: 15000 }
+);
 await page.waitForTimeout(1200);
 await page.screenshot({ path: path.join(SHOTS, '01-plan.png') });
-const plan = (await bodyText()).split('\n').filter((line) => /detected|scanned|Bates|numbers/i.test(line));
+const plan = (await bodyText())
+  .split('\n')
+  .filter((line) => /detected|scanned|Bates|numbers/i.test(line));
 say('plan lines:', JSON.stringify(plan));
 await clickText('Choose where to save...');
 await page.waitForTimeout(600);
 await clickText('as Word document');
-await page.waitForFunction(() => /\bKEPT\b|could not|Problem/i.test(document.body.innerText), null, { timeout: 240000 });
+await page.waitForFunction(
+  () => /\bKEPT\b|could not|Problem/i.test(document.body.innerText),
+  null,
+  { timeout: 240000 }
+);
 await page.waitForTimeout(600);
 await page.screenshot({ path: path.join(SHOTS, '02-receipt.png') });
 const text = await bodyText();
 const receipt = text.slice(text.indexOf('Wrote'), text.indexOf('Wrote') + 1500);
 say('receipt:\n' + receipt);
-say('output exists:', fs.existsSync(OUT), fs.existsSync(OUT) ? `${fs.statSync(OUT).size} bytes` : '');
+say(
+  'output exists:',
+  fs.existsSync(OUT),
+  fs.existsSync(OUT) ? `${fs.statSync(OUT).size} bytes` : ''
+);
 await app.close();
 process.exit(fs.existsSync(OUT) ? 0 : 1);
