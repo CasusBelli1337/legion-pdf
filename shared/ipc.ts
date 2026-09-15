@@ -122,6 +122,7 @@ export const IPC = {
   },
   export: {
     chooseOutput: 'export:chooseOutput',
+    plan: 'export:plan',
     run: 'export:run',
     cancel: 'export:cancel',
     progress: 'export:progress',

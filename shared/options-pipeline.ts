@@ -32,6 +32,8 @@ export interface OcrRunDetail {
   charsPerPage: number[];
   /** Words recognized per page, in pagesOcred order. */
   wordsPerPage: number[];
+  /** Mean Tesseract word confidence (0–100) per page, in pagesOcred order, when known. */
+  confidencePerPage?: number[];
 }
 
 /**

@@ -37,6 +37,7 @@ import type {
   ExhibitOptions,
   ExportFormat,
   ExportOptions,
+  ExportPlan,
   ExportResult,
   FillableFormDetail,
   FillableFormOptions,
@@ -291,6 +292,8 @@ export interface IpcInvokeContract {
     request: [format: ExportFormat, suggestedName: string];
     response: string | null;
   };
+  /** What the export will do — scans to recognise, pleading paper to rebuild — before it runs. */
+  'export:plan': { request: [docId: string, options: ExportOptions]; response: ExportPlan };
   'export:run': { request: [docId: string, options: ExportOptions]; response: ExportResult };
   /** Stops the run after the page in flight; files already written stay. */
   'export:cancel': { request: [docId: string]; response: void };

@@ -149,6 +149,7 @@ const bridge: LibrariusBridge = {
   },
   export: {
     chooseOutput: (format, suggestedName) => invoke(IPC.export.chooseOutput, format, suggestedName),
+    plan: (docId, options) => invoke(IPC.export.plan, docId, options),
     run: (docId, options) => invoke(IPC.export.run, docId, options),
     cancel: (docId) => invoke(IPC.export.cancel, docId),
   },

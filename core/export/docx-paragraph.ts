@@ -2,7 +2,7 @@
  * From the model's paragraphs to the docx package's. The one place the docx
  * API is spoken for body text: exact line spacing in twips, indents in twips,
  * runs carrying the Word font name, half-point size, bold, italic, colour,
- * underline. Pictures become inline ImageRuns at their fitted size.
+ * underline. Pictures are docx-image.ts's, ruled tables docx-table.ts's.
  *
  * Lines of one paragraph are JOINED into flowing text — that is the whole
  * point of exporting to Word — with a hyphen at a line's end healed when the
@@ -12,7 +12,6 @@
 import {
   AlignmentType,
   ColumnBreak,
-  ImageRun,
   LineRuleType,
   PageNumber,
   Paragraph as DocxParagraph,
@@ -23,8 +22,8 @@ import {
 import type { IParagraphOptions, IRunOptions } from 'docx';
 import type { LayoutFont } from '@shared/types';
 import { sameStyle } from './lines';
-import type { Alignment, ImageParagraph, Line, StyledRun, TextParagraph } from './model';
-import { pixels, twips } from './model';
+import type { Alignment, Line, StyledRun, TextParagraph } from './model';
+import { twips } from './model';
 import { halfPoints, runStyleFor } from './styles';
 
 /**
@@ -34,7 +33,7 @@ import { halfPoints, runStyleFor } from './styles';
  */
 export const PAGE_FIELD = '\u0000PAGE\u0000';
 
-const ALIGNMENT: Record<Alignment, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
+export const ALIGNMENT: Record<Alignment, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
   left: AlignmentType.LEFT,
   center: AlignmentType.CENTER,
   right: AlignmentType.RIGHT,
@@ -127,7 +126,7 @@ export interface ParagraphPlacement {
 }
 
 /** A column break run ahead of the children when the paragraph opens column two. */
-function withColumnBreak<T>(paragraph: { columnBreakBefore?: boolean }, children: T[]) {
+export function withColumnBreak<T>(paragraph: { columnBreakBefore?: boolean }, children: T[]) {
   return paragraph.columnBreakBefore === true ? [new ColumnBreak(), ...children] : children;
 }
 
@@ -152,24 +151,5 @@ export function docxTextParagraph(
     })),
     pageBreakBefore: placement.pageBreakBefore,
     children: withColumnBreak(paragraph, childrenOf(paragraph, fonts)),
-  });
-}
-
-export function docxImageParagraph(
-  paragraph: ImageParagraph,
-  placement: ParagraphPlacement
-): DocxParagraph {
-  return new DocxParagraph({
-    alignment: ALIGNMENT[paragraph.alignment],
-    spacing: { before: twips(paragraph.spaceBeforePt), after: 0 },
-    ...(paragraph.indentLeftPt > 0 ? { indent: { left: twips(paragraph.indentLeftPt) } } : {}),
-    pageBreakBefore: placement.pageBreakBefore,
-    children: withColumnBreak(paragraph, [
-      new ImageRun({
-        type: 'png',
-        data: paragraph.image.png,
-        transformation: { width: pixels(paragraph.widthPt), height: pixels(paragraph.heightPt) },
-      }),
-    ]),
   });
 }
