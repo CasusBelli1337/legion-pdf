@@ -8,9 +8,11 @@
  * section break guarantees Word starts a new sheet without a page-break
  * paragraph that could itself be edited away.
  *
- * The first section carries the heading, so its top margin is the heading's
- * band and its picture is fitted to what is left — a zero-margin first section
- * would push its own picture onto a second sheet.
+ * The first section carries the heading, so its picture is fitted to the sheet
+ * LESS the heading's band. Measured in real Word (2026-09-15): reserving the
+ * band only as a top margin, and letting the heading have a line of its own on
+ * top of it, cost the band twice and pushed the first picture onto a sheet of
+ * its own.
  */
 
 import {
@@ -29,8 +31,12 @@ import { pageSizeOf } from './page-setup';
 
 export const SCAN_APPENDIX_HEADING = 'Scanned pages';
 
-/** Points reserved above the first picture for the heading line. */
-const HEADING_BAND = 30;
+/**
+ * Points the heading takes off the first sheet: its own exact line plus enough
+ * slack that Word never decides the picture below it needs a new page.
+ */
+const HEADING_BAND = 36;
+const HEADING_LINE_PT = 24;
 const HEADING_SIZE_PT = 12;
 
 interface Scan {
@@ -41,7 +47,7 @@ interface Scan {
 function heading(): DocxParagraph {
   return new DocxParagraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 0, after: 0, line: twips(HEADING_BAND), lineRule: LineRuleType.EXACT },
+    spacing: { before: 0, after: 0, line: twips(HEADING_LINE_PT), lineRule: LineRuleType.EXACT },
     children: [new TextRun({ text: SCAN_APPENDIX_HEADING, bold: true, size: HEADING_SIZE_PT * 2 })],
   });
 }
@@ -71,7 +77,7 @@ function sectionFor(scan: Scan, first: boolean): ISectionOptions {
           orientation:
             size.width > size.height ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
         },
-        margin: { top: twips(topBandPt), right: 0, bottom: 0, left: 0, header: 0, footer: 0 },
+        margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0 },
       },
     },
     children: first ? [heading(), picture(scan, topBandPt)] : [picture(scan, topBandPt)],
