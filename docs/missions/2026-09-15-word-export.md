@@ -28,7 +28,7 @@ v0.5 dropped the printed numbers and switched on Word's own line numbering
 (`w:lnNumType`). Word only numbers lines that hold a paragraph, so a page with
 eight lines of text shows 1–8 and nothing below; there are no vertical rules;
 and the numbers sit wherever Word's numbering puts them. Arthur's own
-templates (the Sorden pleadings; Legion's `document_drafter/templates/*/ca.docx`)
+templates (Arthur's own; Legion's `document_drafter/templates/*/ca.docx`)
 never use `lnNumType`: the 28 numbers live in a HEADER-anchored table —
 one row of exact height, a 630-twip number cell holding "1<br>2<br>…28" in a
 `HeaderNumbers` style (exact 24 pt line, space-before to line 1, right

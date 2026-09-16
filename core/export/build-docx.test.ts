@@ -186,7 +186,7 @@ describe('buildDocx — scanner noise in the foot', () => {
   it('keeps the footer to real words: recognised fragments with no three letters or digits are left out', async () => {
     const layout = page([
       run('Body text on the page', 90, 700),
-      run('DEFENDANT NOVO CONSTRUCTION, INC.’S CROSS-COMPLAINT', 200, 30, {
+      run('DEFENDANT HALVERSON DYNAMICS, INC.’S CROSS-COMPLAINT', 200, 30, {
         role: 'footer',
         hidden: true,
       }),

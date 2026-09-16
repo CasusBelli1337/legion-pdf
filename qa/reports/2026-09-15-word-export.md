@@ -62,18 +62,18 @@ a 107-page declaration with scanned exhibits.
 
 | document | pages | worst page median dy | words off | line numbers off | kind |
 | --- | --- | --- | --- | --- | --- |
-| 01 - 2025-09-05 CES Reply ISO MSJ - 3370 Consol | 16 → 19 | 172.62 | 5344 | 4 of 452 | pleading grid |
-| 02 - 2025-09-05 CES Object to Evidence JLS Opposition MSJ - 3370 Consol | 5 → 5 | 2.28 | 0 | 0 of 142 | pleading grid |
-| 03 - 2025-10-20 FILED Order on Carol's MSJ(81288281.1) | 16 → 31 | 382.95 | 6484 | 282 of 400 | pleading grid |
-| 04 - 2025-06-24 Motion for Summary Judgment - Memorandum of Points and Authorities | 15 → 15 | 11.74 | 74 | 1 of 424 | pleading grid |
-| 05 - 2025-06-13 Motion for Summary Judgment - Yael Rakib Declaration | 107 → 3455 | 660.70 | 2117 | 0 of 113 | pleading grid |
-| 06 - 2025-08-28 FILED MPA Opposition to Sordenstone MSJ | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
-| 07 - 2025-10-03 CES MPA ISO MTC JLS Responses to Written Discovery & for Sanctions - 3370 | 12 → 12 | 25.97 | 53 | 0 of 336 | pleading grid |
-| 08 - 2026-01-07 FILED Superior Court's Notice of Filing of Appeal | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
-| 09 - 2026-06-16 CES Amended Notice of Taking the Written Deposition of James L. Sorden | 12 → 12 | 7.15 | 26 | 0 of 336 | pleading grid |
-| 10 - HC_DOCS-#3559792-v3-Cross-Complaint_by_Learnship | 14 → 14 | 1.36 | 208 | 273 of 392 | pleading grid |
-| 12 - 2023-7-6 - First Amended Cross-Complaint | 6 → 36 | 24.14 | 2039 | 1 of 1 | scan |
-| 13 - 2023-7-6 - First Amended Cross-Complaint OCR'd | 6 → 62 | 2.93 | 1930 | — | scan |
+| 01 — opposing counsel’s reply brief on summary judgment (Acrobat PDFMaker) | 16 → 19 | 172.62 | 5344 | 4 of 452 | pleading grid |
+| 02 — opposing counsel’s evidentiary objections (Acrobat PDFMaker) | 5 → 5 | 2.28 | 0 | 0 of 142 | pleading grid |
+| 03 — the court’s order on summary judgment (Aspose, e-filing stamp) | 16 → 31 | 382.95 | 6484 | 282 of 400 | pleading grid |
+| 04 — opposing counsel’s summary-judgment memorandum (Acrobat PDFMaker) | 15 → 15 | 11.74 | 74 | 1 of 424 | pleading grid |
+| 05 — a declaration with scanned exhibits (Nebo/MyScript, 107 pp) | 107 → 3455 | 660.70 | 2117 | 0 of 113 | pleading grid |
+| 06 — Arthur’s filed opposition memorandum (Distiller) | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
+| 07 — opposing counsel’s motion to compel (Acrobat PDFMaker) | 12 → 12 | 25.97 | 53 | 0 of 336 | pleading grid |
+| 08 — the court’s notice of filing of appeal (Aspose, one scanned page) | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
+| 09 — opposing counsel’s amended deposition notice (Acrobat PDFMaker) | 12 → 12 | 7.15 | 26 | 0 of 336 | pleading grid |
+| 10 — another firm’s cross-complaint, scanned and OCR’d (ABBYY) | 14 → 14 | 1.36 | 208 | 273 of 392 | pleading grid |
+| 12 — a scanned cross-complaint, no text layer (GdPicture) | 6 → 36 | 24.14 | 2039 | 1 of 1 | scan |
+| 13 — the same scan with Acrobat’s OCR layer | 6 → 62 | 2.93 | 1930 | — | scan |
 
 Read across the row: "pages" is the source count against Word's rendering
 of the export — the first thing an attorney notices; "words off" sums every
@@ -91,11 +91,11 @@ updated below when that run finishes.
 
 | document (re-measured with the final code) | pages | worst page median dy | words off | line numbers off | kind |
 | --- | --- | --- | --- | --- | --- |
-| 03 - 2025-10-20 FILED Order on Carol's MSJ(81288281.1) | 16 → 31 | 382.08 | 6458 | 282 of 400 | pleading grid |
-| 06 - 2025-08-28 FILED MPA Opposition to Sordenstone MSJ | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
-| 08 - 2026-01-07 FILED Superior Court's Notice of Filing of Appeal | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
-| 12 - 2023-7-6 - First Amended Cross-Complaint | 6 → 19 | 143.21 | 2139 | 1 of 1 | scan |
-| 13 - 2023-7-6 - First Amended Cross-Complaint OCR'd | 6 → 35 | 2.96 | 1929 | — | scan |
+| 03 — the court’s order on summary judgment (Aspose, e-filing stamp) | 16 → 31 | 382.08 | 6458 | 282 of 400 | pleading grid |
+| 06 — Arthur’s filed opposition memorandum (Distiller) | 21 → 37 | 11.84 | 7448 | 0 of 588 | pleading grid |
+| 08 — the court’s notice of filing of appeal (Aspose, one scanned page) | 2 → 2 | 127.70 | 29 | 1 of 2 | scan |
+| 12 — a scanned cross-complaint, no text layer (GdPicture) | 6 → 19 | 143.21 | 2139 | 1 of 1 | scan |
+| 13 — the same scan with Acrobat’s OCR layer | 6 → 35 | 2.96 | 1929 | — | scan |
 
 The last fix halved the scanned cross-complaint's page count (36 → 19 raw,
 62 → 35 OCR'd) and left the court order and the Distiller filing where they

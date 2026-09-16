@@ -105,7 +105,7 @@ Start here, with fresh context:
    `#Legion/Product/Armory - Librarius/2026-09-15 Wave 3 QA/word/`).
 2. **Build a real E2E corpus first** — not synthetic fixtures. Fictional
    parties, but REAL producers: (a) a Word-made pleading (California 28-line
-   pleading paper from Arthur's own templates — the Sorden-matter pleading
+   pleading paper from Arthur's own templates — the matter pleading
    templates the `ca-motion-builder` skill uses, and the Legion builders'
    output), printed to PDF by Word; (b) the same after a print-and-scan
    round trip (raster PDF, then Legion PDF's OCR); (c) a Legion-OCR'd scan

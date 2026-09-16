@@ -39,8 +39,8 @@ export:run   { format: 'docx' }                    (electron/ipc, export lane)
 
 ## Pleading paper — the part that always broke, and how it is done now
 
-A pleading template (Arthur's Sorden templates, Legion's `document_drafter`
-templates, Herren Legal's, Lathrop's) never uses Word's line-numbering
+A pleading template (Arthur's own, Legion's `document_drafter` templates,
+and every other firm's we measured) never uses Word's line-numbering
 feature. The 28 numbers live in a **header-anchored table**: one row of exact
 height, a narrow first cell holding "1 ⏎ 2 ⏎ … 28" on an exact 24 pt pitch,
 right aligned, a `double` border between the cells for the rule beside the

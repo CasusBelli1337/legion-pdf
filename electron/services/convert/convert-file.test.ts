@@ -44,7 +44,7 @@ async function realPdf(pages: number): Promise<Uint8Array> {
 
 describe('convertedName', () => {
   it('swaps the extension for .pdf so the original is never written over', () => {
-    expect(convertedName('/matters/sorden/letter.docx')).toBe('letter.pdf');
+    expect(convertedName('/matters/ashford/letter.docx')).toBe('letter.pdf');
     expect(convertedName('C:\\matters\\exhibit 4.TIFF')).toBe('exhibit 4.pdf');
   });
 

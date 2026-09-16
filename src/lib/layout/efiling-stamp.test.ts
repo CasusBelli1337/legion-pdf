@@ -11,9 +11,9 @@ const size = { width: 612, height: 792 };
 describe('stampRunIndexes', () => {
   it('finds the e-filing stamp in the top-right corner, in its own face, over several lines', () => {
     const runs = [
-      run('Steven A. Ellenberg, Bar No. 151489', 104, 716),
-      run('steven.ellenberg@lathropgpm.com', 104, 704),
-      run('LATHROP GPM LLP', 104, 692),
+      run('Priya N. Vanterpool, Bar No. 298114', 104, 716),
+      run('priya@vanterpool-ashe.example', 104, 704),
+      run('VANTERPOOL & ASHE LLP', 104, 692),
       run('El', 397, 714, 'arialBold'),
       run('ectronically Fi', 408, 714, 'arialBold'),
       run('led', 470, 714, 'arialBold'),
