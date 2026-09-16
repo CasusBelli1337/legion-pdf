@@ -2,6 +2,9 @@
 
 ## v0.6 update (2026-09-15) — Word export for litigators; read this first
 
+**The complete handoff for this mission is `docs/handoff-word-export-2026-09-15.md`**
+(also on OneDrive as a Word file). What follows is the short form.
+
 Arthur's mission ("turn opposing counsel's PDF into a perfect Word doc I can
 edit, work on scans, fix pleading-paper line numbers") shipped as v0.6.0 in
 one session: three lanes (P = this orchestrator, Fable; T = ruled tables and
