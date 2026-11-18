@@ -1,14 +1,14 @@
 /// <reference types="node" />
 /**
- * Real Word, reached from WSL. The `docx-render` skill's script drives the
- * Windows host's Word through PowerShell COM and exports a PDF; this wraps it
- * for the suite, refusing a soffice fallback (LibreOffice lies about fonts and
- * header frames — the exact things the suite measures) and copying the .docx
- * to a short scratch path first, because Word COM fails silently past ~260
- * characters of \\wsl.localhost path.
+ * Real Word. The `docx-render` skill's script picks where Word runs (this
+ * machine when it has Windows, else the Word VM over SSH) and exports a PDF;
+ * this wraps it for the suite, refusing a soffice fallback (LibreOffice lies
+ * about fonts and header frames — the exact things the suite measures) and
+ * copying the .docx to a short scratch path first, because Word COM fails
+ * silently past ~260 characters of path.
  */
 
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, globSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
@@ -19,12 +19,30 @@ const run = promisify(execFile);
 
 export const RENDER_SCRIPT = path.join(homedir(), '.claude/skills/docx-render/docx_to_pdf.sh');
 const POWERSHELL = '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe';
+const WORD_VM = 'word-vm';
 
-/** Word on the host, PowerShell to reach it, the skill to drive it — and not switched off. */
+function localWord(): boolean {
+  if (!existsSync(POWERSHELL)) return false;
+  return globSync('/mnt/c/Program Files*/Microsoft Office/root/Office*/WINWORD.EXE').length > 0;
+}
+
+function wordVmAnswers(): boolean {
+  const probe = spawnSync(
+    'ssh',
+    ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=4', WORD_VM, 'exit'],
+    { timeout: 8000 }
+  );
+  return probe.status === 0;
+}
+
+let reachable: boolean | undefined;
+
+/** The skill to drive Word, and a Word to drive (here, or the Word VM) — and not switched off. */
 export function wordReachable(): boolean {
   if (process.env.WORD_E2E === '0') return false;
-  if (!existsSync(RENDER_SCRIPT) || !existsSync(POWERSHELL)) return false;
-  return globSync('/mnt/c/Program Files*/Microsoft Office/root/Office*/WINWORD.EXE').length > 0;
+  if (!existsSync(RENDER_SCRIPT)) return false;
+  reachable ??= localWord() || wordVmAnswers();
+  return reachable;
 }
 
 export function popplerReachable(): boolean {
