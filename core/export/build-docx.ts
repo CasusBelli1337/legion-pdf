@@ -12,12 +12,14 @@ import type { ISectionOptions, Table } from 'docx';
 import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@shared/types';
 import { docxImageParagraph } from './docx-image';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
-import { STAMP_NOTE, footerFor, hasStamps, headerFor, sectionProperties } from './docx-section';
+import { footerFor } from './docx-footer';
+import { STAMP_NOTE, hasStamps, headerFor, sectionProperties } from './docx-section';
 import { NUMBERED_LINES_NOTE, PLEADING_NOTE } from './pleading';
 import { docxTable } from './docx-table';
 import type { Paragraph, TextParagraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
+import type { SectionGeometry } from './page-setup';
 import { scanAppendixSections } from './scan-appendix';
 import { halfPoints, runStyleFor } from './styles';
 import { verifyDocx } from './verify';
@@ -119,6 +121,35 @@ function emptyBandLine(): DocxParagraph {
   });
 }
 
+/** The section's page setup with its head and foot — and the opening page's own, when it has one. */
+function sectionBands(
+  pages: PageLayout[],
+  fonts: Fonts,
+  geometry: SectionGeometry
+): Pick<ISectionOptions, 'properties' | 'headers' | 'footers'> {
+  const { header, headerPt, headerReachPt } = headerFor(pages, fonts, geometry);
+  const { footer, footerPt, footerReachPt, firstFooter } = footerFor(pages, fonts, geometry);
+  const emptyHeader = () => new Header({ children: [emptyBandLine()] });
+  const properties = sectionProperties(geometry, {
+    ...(headerPt === undefined ? {} : { headerPt }),
+    ...(headerReachPt === undefined ? {} : { headerReachPt }),
+    ...(footerPt === undefined ? {} : { footerPt }),
+    ...(footerReachPt === undefined ? {} : { footerReachPt }),
+  });
+  const running = {
+    headers: { default: header ?? emptyHeader() },
+    footers: { default: footer ?? new Footer({ children: [emptyBandLine()] }) },
+  };
+  if (firstFooter === undefined) return { properties, ...running };
+  // A first page with a foot of its own needs its own copy of the head too.
+  const firstHeader = headerFor(pages, fonts, geometry).header ?? emptyHeader();
+  return {
+    properties: { ...properties, titlePage: true },
+    headers: { ...running.headers, first: firstHeader },
+    footers: { ...running.footers, first: firstFooter },
+  };
+}
+
 function assembleSection(
   pages: PageLayout[],
   fonts: Fonts,
@@ -150,19 +181,7 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const { header, headerPt, headerReachPt } = headerFor(pages, fonts, geometry);
-  const { footer, footerPt, footerReachPt } = footerFor(pages, fonts, geometry);
-  assembly.sections.push({
-    properties: sectionProperties(geometry, {
-      ...(headerPt === undefined ? {} : { headerPt }),
-      ...(headerReachPt === undefined ? {} : { headerReachPt }),
-      ...(footerPt === undefined ? {} : { footerPt }),
-      ...(footerReachPt === undefined ? {} : { footerReachPt }),
-    }),
-    headers: { default: header ?? new Header({ children: [emptyBandLine()] }) },
-    footers: { default: footer ?? new Footer({ children: [emptyBandLine()] }) },
-    children,
-  });
+  assembly.sections.push({ ...sectionBands(pages, fonts, geometry), children });
 }
 
 /** The face and size most of the document's characters are set in. */

@@ -119,10 +119,28 @@ foot); so may right ones (a caption cell past the margin).
 
 Running heads and feet are placed exactly, each line on its own pitch from
 the band's top edge, and Word's header and footer distances are set from the
-band's real edges; the body's margins are widened to the bands' reach,
-because Word never lets a footer overlap the body — it pushes the body up
-instead, and the page spills. Recognised runs with no three letters or
-digits in a row (scanner noise) never enter a band.
+band's real edges. Word never lets a band overlap the body — a foot that
+reaches a point above the bottom margin takes that point, and the page's last
+lines, out of the body — so a section with a head or foot states that margin
+**negative** ("exactly here, whatever the band holds", the pleading header's
+own device): a page number set 11 pt under line 28 stays there and line 28
+stays on its page. A firm's slug in the left margin beside the foot is not
+part of the foot's flow at all: each of its lines is a frame anchored to the
+paper (`margin-slug.ts`), which adds nothing to the footer's height. When the
+opening page prints the same foot without a page number, the running foot is
+read off the first page that has the number and the opening page keeps its
+own as Word's "different first page" (`docx-footer.ts`). Recognised runs with
+no three letters or digits in a row (scanner noise) never enter a band.
+
+**Text set narrower than Word's face is condensed to its own width**
+(`run-scale.ts`). A scan's recognised words carry the width of the scan's
+word boxes, and some producers condense their type; at full width in Word
+such a line runs 4–6% long, its last word wraps, and every line becomes two
+(a 16-page order came out as 31). Each cell is measured against the standard
+faces' widths (Times, Helvetica, Courier — what Times New Roman, Arial and
+Courier New were cut to) and given Word's character scaling when it was
+narrower: always for recognised text, only below 97% for visible type. Other
+faces are left alone.
 
 ## What is preserved
 
@@ -196,6 +214,8 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `electron/services/export/export-plan.ts`, `scan-pages.ts` | The pre-export plan; scan notes and the kept / left-out receipt |
 | `core/export/pleading.ts`, `docx-pleading.ts` | The grid read off the numbers; the header table and margins |
 | `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
+| `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |
+| `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |
 | `core/export/tables.ts`, `table-grid.ts`, `docx-table.ts` | Ruled tables |
 | `core/export/images.ts`, `docx-image.ts`, `scan-appendix.ts` | Pictures and scans |
 | `core/export/docx-section.ts`, `docx-paragraph.ts`, `build-docx.ts` | Sections, headers, footers, runs; the front door |

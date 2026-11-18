@@ -93,12 +93,16 @@ export function pleadingFrame(pleading: Pleading, geometry: SectionGeometry): Pl
   };
 }
 
-/** Top and bottom as Word wants them for a pleading section: exact (negative) and floor. */
+/**
+ * Top and bottom as Word wants them for a pleading section: both exact
+ * (negative), so neither the header of numbers nor a foot that sits close
+ * under line 28 can take room out of the body.
+ */
 export function pleadingMargins(frame: PleadingFrame, margins: PageMargins): PageMargins {
   return {
     ...margins,
     top: -twips(frame.lineOneTop),
-    bottom: twips(frame.bottomPt),
+    bottom: -Math.max(1, twips(frame.bottomPt)),
     header: twips(frame.headerPt),
   };
 }

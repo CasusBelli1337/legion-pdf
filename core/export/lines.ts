@@ -80,7 +80,8 @@ export function sameStyle(a: StyledRun, b: StyledRun): boolean {
     Math.abs(a.sizePt - b.sizePt) < 0.25 &&
     a.colorHex === b.colorHex &&
     a.underline === b.underline &&
-    (a.superscript ?? false) === (b.superscript ?? false)
+    (a.superscript ?? false) === (b.superscript ?? false) &&
+    (a.scalePct ?? 100) === (b.scalePct ?? 100)
   );
 }
 
