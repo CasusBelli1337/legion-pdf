@@ -29,6 +29,7 @@ import {
 import type { IBorderOptions, ITableCellBorders } from 'docx';
 import type { LayoutFont } from '@shared/types';
 import type { ParagraphPlacement } from './docx-paragraph';
+import { fitToRow } from './cell-fit';
 import { docxTextParagraph } from './docx-paragraph';
 import { BASELINE_SHARE, twips } from './model';
 import type { BodyFrame, TableBorders, TableCell, TableParagraph, TextParagraph } from './model';
@@ -91,8 +92,16 @@ function bordersAt(borders: TableBorders, row: number, column: number): ITableCe
  * the cell by a line.
  */
 function rightInset(build: Build, cell: TableCell, column: number): number {
+  // A scan's words are only nearly as wide in Word as they were scanned: they
+  // get the whole cell, to its rule, so a hair over does not wrap the line.
+  if (isRecognized(cell)) return 0;
   const widest = Math.max(0, ...cell.lines.map((line) => line.right));
   return Math.max(0, Math.min(build.inset, edge(build.table.columnEdges, column + 1) - widest));
+}
+
+function isRecognized(cell: TableCell): boolean {
+  const runs = cell.lines.flatMap((line) => line.cells.flatMap((part) => part.runs));
+  return runs.length > 0 && runs.every((run) => run.hidden);
 }
 
 /**
@@ -194,7 +203,10 @@ function cellParagraphs(build: Build, row: number, column: number): DocxParagrap
     })
   );
   const ruled = build.table.borders.horizontal[row]?.[column] === true;
-  settle(paragraphs, edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0));
+  const top = edge(build.table.rowEdges, row) - (ruled ? BORDER_PT : 0);
+  settle(paragraphs, top);
+  // Typed lines are where the PDF set them; only a scan's rounding is taken up.
+  if (isRecognized(cell)) fitToRow(paragraphs, top, edge(build.table.rowEdges, row + 1));
   return paragraphs.map((paragraph, index) =>
     docxTextParagraph(paragraph, build.fonts, { pageBreakBefore: breaks && index === 0 })
   );

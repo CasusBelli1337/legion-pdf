@@ -262,6 +262,104 @@ three points off their lines.
   section repeats goes back to the body (`withLastLine`). A real running
   foot repeats, or sits further down.
 
+## How a scanned pleading is made to look like itself (2026-11-18)
+
+The scanned filings held their page counts and line positions and still did
+not LOOK like their sources. Five things, each judged against the scan in real
+Word:
+
+- **A scan's rules are found in its ink.** A scanned page has no drawing
+  operators: the double rule beside the numbers, the rule down the right edge,
+  the caption's box and the line under a heading are pixels. `scan-rules.ts`
+  reads the page's picture in bands twelve points deep — inside one band a
+  rule is a column (or row) of ink, and from band to band it may step sideways
+  a little, because no scan sits square on the glass. A rule must be thin, at
+  least 60 pt long upright or 30 pt level, and seen in most of the bands it
+  spans; type never qualifies (no letter's stem fills a band, and letters
+  stacked line over line are seen in too few). `scan-rule-placement.ts` sets
+  them on the page as ordinary `rules` — only for an upright picture covering
+  the page — and drops the file's own rules that merely trace them (OCR
+  software redraws a double rule as one line and misses others; the ink is
+  the truth). Nothing is invented: a rule exists only where the picture shows
+  one. From there the existing machinery does the rest: the pleading header
+  draws the side rules, the caption box becomes a table, a rule under a
+  heading underlines it, the foot's rule is drawn. Both rasterisers do the
+  reading (`image-raster.ts` in the app, `rasterizeInNode` in the suite), and
+  the suite now hands pdfjs its JBIG2 / JPEG 2000 decoders as the app does —
+  without them a scanned order's picture never arrived and none of this could
+  be graded.
+- **Some OCR layers size their words by their ink.** One gives every word its
+  own height ("of" is 10.8 pt, "and" 8.7 on a line typed at 10.5); another —
+  the app's own recogniser among them — gives each line its ink's height,
+  steady but a tenth under the type, with the line numbers at the height of
+  their box (15 pt, in the recogniser's Helvetica). The page came out
+  ransom-noted or shrunken, with numbers too big for their column. The words'
+  WIDTHS are sound: measured against Times they agree on the type size to a
+  few per cent across a filing. `recognized-pages.ts` (called first thing in
+  `buildDocx`): when a document's recognised sizes disagree (ninth decile over
+  first by 12%) or run more than 7% under what the widths say, every
+  recognised word and line number takes the width's size (the numbers in the
+  body's Times), a word plainly larger keeps its own, and the foot is sized
+  item by item — a document number by its width, a page number and its dashes
+  by the layer's size raised by as much as the layer under-reports the body.
+  A layer whose sizes are sound is left alone (a court's condensed 12 pt reads
+  11.5 by its widths: that is `run-scale.ts`'s business, not a wrong size).
+- **Some give each word the BOTTOM of its ink as its baseline**, so
+  "principal" sits a descender below "business" beside it, and
+  "limited liability company;" lands two points nearer the capitals under it
+  — in single-spaced blocks, on top of them. `hasInkBaselines` tells such a
+  layer by its own words (descender words sitting lower than the plain word
+  next to them, a dozen pairs or more); only then is a word with a descender,
+  comma or bracket lifted back. A layer with true baselines — the app's own —
+  is not touched: lifting those spoiled a notice whose lines were already
+  right.
+- **A recognised line that fits is condensed, not shrunk.** `recognized-fit.ts`
+  used to set a line a half point smaller whenever Times ran wider than its
+  room — and `run-scale.ts` then condensed it as well, so a page mixed 12,
+  11.5 and 11 pt lines. A cell the scan set no wider than its room is now
+  left to the scaling alone; only a cell whose scanned width itself overruns
+  (or would need squeezing past 60%) is set smaller.
+- **Nothing in the body begins inside the numbered column.** The scan's own
+  line numbers are read and misread ("ll", "l6", ".18", "567009" with the
+  rule beside it); what the classifier did not claim printed over the rebuilt
+  numbers and pulled the body's left edge into the column — which is where a
+  caption table then started. Recognised text beginning left of the numbers'
+  right edge is dropped, before the frame is measured (`withoutStrays`,
+  called from `pleadingPagesOf`).
+- **A caption's column of ")"** is marked run by run (`ownCell`, set in
+  `recognized-pages.ts` for six or more parentheses stacked at one x): each
+  is a cell of its own and so is the title after it, so both sit at tab stops
+  instead of a word space from whatever came before (`standsAlone`,
+  `line-cells.ts`).
+
+The caption box itself (`caption-box.ts`, split out of `tables.ts`) learned
+three things from scans that typed captions gain too: a caption of few lines
+counts when its lines run at least half the upright rule's height (a court's
+own order sets three lines of parties beside five of title); a rule across
+the left cell makes a row, so the line between one set of parties and the
+next is drawn; and the box ends under its last line's own box when that line
+sits on the foot rule (cut at the rule, the row cut the line's descenders
+off). A scan's caption cells get their whole width (`docx-table.ts`) and its
+right cell the whole margin, because recognised words are only nearly as wide
+in Word as they were scanned; and a cell's right edge is its real one
+(`cellRight`), not an estimate from its character count — a line taken for
+narrower than it was wrapped, and dropped everything under it in the cell.
+A scan's cell whose lines overrun their row by a hair is tightened to fit it
+(`cell-fit.ts`): lines set solid at 10.6 pt carry a recognised size of 11, a
+line box is never tighter than its type, and eight of them ended three points
+low — where the exact row height cut the last line's descenders off.
+A level rule that meets an upright one is a border, never an underline
+(`underline.ts`): a scan's last caption line sits a point above the box's
+foot, exactly where an underline would be.
+
+Page numbers: a recognised number prints in the face and size most pages
+read it in (`withCommonNumberStyle` — one page's reading was bold thirteen
+point), and the dashes of "- 1 -" handed over as separate marks are kept
+beside the number instead of being discarded as scanner noise
+(`attendsPageNumber`, both in `recognized-foot.ts`). A recognised line's
+cells each keep their own size when they plainly differ (`withCellSizes`), so
+a foot's six-point document number does not shrink the page number beside it.
+
 ## Footnotes and checkboxes (2026-11-18)
 
 **Footnotes are real Word footnotes** (`footnotes.ts`, `docx-footnotes.ts`):
@@ -395,11 +493,18 @@ from a layout read this way — its pictures are empty.
   letters); only drawn ones become ☐ / ☒.
 - **Page numbers on a sheet that prints several** (a condensed transcript)
   are left out with a note. Upper-case roman numbers (I, II) are not read.
-- **A scan's firm slug** in the margin is left out with a note, and a scan
-  has no drawn rules, so its footer rule is not rebuilt.
-- **A scan's drawn lines** — the double rule beside the numbers, the rule
-  down the right edge, a caption's box — are pixels, not rules, and are not
-  redrawn on a scanned pleading.
+- **A scan's firm slug** in the margin is left out with a note.
+- **A scan's rules where they cannot be told from other ink**: a rule crossed
+  by descenders or a signature is found in pieces or not at all (a long
+  underline under a line of text, the stretch of a footer rule under the page
+  number), and a row of typed underscores is not drawn. Rules on a scan that
+  is drawn turned or mirrored, or painted as an image mask, are not read.
+- **A scan's bold and italic** are whatever its OCR layer says; a layer in one
+  face (GdPicture's) gives none, and weight is not read off the ink.
+- **A scan's stamp** read as stray words ("ED", "JU L." from a FILED stamp)
+  stays where recognition put it.
+- **A recognised page number the classifier never marked** (a scanned
+  fixture's "- 2 -" read whole as a foot line) is still left out.
 - **Condensed (4-up) transcripts** export as two Word columns per sheet.
 - **Rotated pages** keep their text coordinates in the unrotated frame.
 - **Small caps, letter spacing, shading** are not read.
@@ -453,13 +558,15 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `electron/services/export/export-plan.ts`, `plan-layouts.ts`, `scan-pages.ts` | The pre-export plan and the layouts it remembers; scan notes and the kept / left-out receipt |
 | `core/export/pleading.ts`, `docx-pleading.ts` | The grid read off the numbers; the header table and margins |
 | `core/export/pleading-pages.ts` | A pleading section's pages made ready for one header of numbers: scans onto one grid, the last line under number 28 back in the body |
-| `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
+| `src/lib/layout/scan-rules.ts`, `scan-ink.ts`, `scan-rule-placement.ts` | A scan's rules found in its ink, and set on the page |
+| `core/export/recognized-pages.ts`, `recognized-fit.ts` | A scan's recognised text made ready to be set as type: sizes, baselines, stray numbers, a caption's ")" column; lines that fit |
+| `core/export/lines.ts`, `line-cells.ts`, `underline.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines (cells, underlines) → paragraphs → settled page |
 | `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |
 | `core/export/page-numbering.ts`, `first-page-foot.ts`, `recognized-foot.ts`, `footer-rule.ts` | Stretches of numbering (roman, restarts), the first page's own foot, a scan's clearest foot, the footer's rule |
 | `core/export/footnotes.ts`, `docx-footnotes.ts` | Footnotes found under their rule; Word footnotes, the mark's style, the separator |
 | `src/lib/layout/checkbox-runs.ts` (+ `op-walk.ts`) | Drawn checkboxes as ☐ / ☒ on their lines |
 | `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |
-| `core/export/tables.ts`, `table-grid.ts`, `docx-table.ts` | Ruled tables |
+| `core/export/tables.ts`, `table-grid.ts`, `caption-box.ts`, `docx-table.ts`, `cell-fit.ts` | Ruled tables; the caption box drawn as an L; a scan's cell held inside its row |
 | `core/export/images.ts`, `docx-image.ts`, `scan-appendix.ts` | Pictures and scans |
 | `core/export/docx-section.ts`, `docx-paragraph.ts`, `build-docx.ts` | Sections, headers, footers, runs; the front door |
 | `qa/word-export/*` | The corpus generators, the Word render wrapper, the comparer, the suites |

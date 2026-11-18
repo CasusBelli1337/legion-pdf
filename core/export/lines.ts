@@ -8,31 +8,32 @@
  * sentence stays bold.
  */
 
-import { CHECKBOX_CHECKED, CHECKBOX_EMPTY } from '@shared/layout-model';
 import type { LayoutRule, LayoutTextRun } from '@shared/types';
 import { columnsOf } from './columns';
 import { leaderParts } from './leaders';
+import {
+  DOT_LEADER,
+  dominantSize,
+  opensCell,
+  placeRun,
+  standsAlone,
+  withCellSizes,
+  withoutTrailingLeader,
+} from './line-cells';
+import type { Cursor } from './line-cells';
 import type { BodyFrame, Cell, Line, StyledRun } from './model';
 import { hexColor } from './styles';
 import { onTiltedLine } from './tilted-line';
+import { isUnderlined, underlineRules } from './underline';
+
+export { sameStyle } from './line-cells';
+export { isUnderlined } from './underline';
 
 /** Two runs share a baseline within this fraction of the type size. */
 const BASELINE_TOLERANCE = 0.35;
 /** A run this much smaller than the line (× size), raised this much (× size), is a superscript. */
 const SUPERSCRIPT_SIZE = 0.8;
 const SUPERSCRIPT_RISE = 0.15;
-/**
- * A gap this wide (× size) reads as a space between words. Justified text and
- * some producers (Aspose, court e-filing systems) set spaces at barely an
- * eighth of an em; kerned fragments inside a word sit closer than that.
- */
-const SPACE_GAP = 0.12;
-/** A gap this wide (× size) reads as a column boundary, not a word space. */
-const COLUMN_GAP = 2.2;
-/** A run of dots (a table of contents' leader) between an entry and its page number. */
-const DOT_LEADER = /^[.\s·…]{5,}$/;
-/** The same leader glued to the end of the entry's own run: "Judgment. ......". */
-const TRAILING_LEADER = /(\S)([.\s·…]*\.{5,}[.\s·…]*)$/;
 
 interface Draft {
   baseline: number;
@@ -40,19 +41,6 @@ interface Draft {
   runs: LayoutTextRun[];
   /** The lowest baseline taken in so far (tilted-line.ts). */
   low: number;
-}
-
-/** An underline is a thin rule just under the baseline, spanning the run. */
-export function isUnderlined(run: LayoutTextRun, rules: readonly LayoutRule[]): boolean {
-  const band = Math.max(1, 0.2 * run.sizePt);
-  return rules.some(
-    (rule) =>
-      rule.rect.height <= band &&
-      rule.rect.y <= run.y &&
-      rule.rect.y >= run.y - band &&
-      rule.rect.x <= run.x + 1 &&
-      rule.rect.x + rule.rect.width >= run.x + run.width - 1
-  );
 }
 
 function styled(
@@ -76,27 +64,6 @@ function styled(
     hidden: run.hidden === true,
     ...(superscript ? { superscript: true } : {}),
   };
-}
-
-/** Raised alike, condensed alike, and neither one a footnote's reference mark (a mark never merges). */
-function sameSetting(a: StyledRun, b: StyledRun): boolean {
-  return (
-    (a.superscript ?? false) === (b.superscript ?? false) &&
-    (a.scalePct ?? 100) === (b.scalePct ?? 100) &&
-    a.footnote === undefined &&
-    b.footnote === undefined
-  );
-}
-
-/** Two runs that would look identical in Word — the ones that merge into one. */
-export function sameStyle(a: StyledRun, b: StyledRun): boolean {
-  return (
-    a.fontKey === b.fontKey &&
-    Math.abs(a.sizePt - b.sizePt) < 0.25 &&
-    a.colorHex === b.colorHex &&
-    a.underline === b.underline &&
-    sameSetting(a, b)
-  );
 }
 
 function onBaseline(draft: Draft, run: LayoutTextRun): boolean {
@@ -142,39 +109,6 @@ function clusterByBaseline(runs: readonly LayoutTextRun[]): Draft[] {
     } else drafts.push({ baseline: run.y, sizePt: run.sizePt, runs: [run], low: run.y });
   }
   return joinRaised(drafts);
-}
-
-/** The size most of the line's characters are set in. */
-function dominantSize(runs: readonly LayoutTextRun[]): number {
-  const weight = new Map<number, number>();
-  for (const run of runs) {
-    const size = Math.round(run.sizePt * 2) / 2;
-    weight.set(size, (weight.get(size) ?? 0) + run.text.length);
-  }
-  let best = runs[0]?.sizePt ?? 0;
-  let bestWeight = -1;
-  for (const [size, count] of weight) {
-    if (count > bestWeight) {
-      best = size;
-      bestWeight = count;
-    }
-  }
-  return best;
-}
-
-function appendRun(cell: Cell, run: StyledRun, spaced: boolean): void {
-  const previous = cell.runs.at(-1);
-  if (previous === undefined) {
-    cell.runs.push(run);
-    return;
-  }
-  const needsSpace = spaced && !previous.text.endsWith(' ') && !run.text.startsWith(' ');
-  if (sameStyle(previous, run)) {
-    previous.text += (needsSpace ? ' ' : '') + run.text;
-    return;
-  }
-  if (needsSpace) previous.text += ' ';
-  cell.runs.push(run);
 }
 
 /**
@@ -227,97 +161,15 @@ function blockIdOf(runs: readonly LayoutTextRun[]): string | null {
   return top[0].includes('/') ? `${top[0]}@${Math.round((runs[0]?.y ?? 0) * 10)}` : top[0];
 }
 
-/**
- * A vertical rule drawn between two runs is a column boundary whatever the gap
- * measures: a caption box's upright rule is the filing SAYING where the column
- * ends, and some templates leave barely two ems either side of it.
- */
-function ruledBetween(
-  rules: readonly LayoutRule[],
-  from: number,
-  to: number,
-  baseline: number
-): boolean {
-  return rules.some(
-    ({ rect }) =>
-      rect.width <= 3 &&
-      rect.height > 3 &&
-      rect.x > from &&
-      rect.x + rect.width < to &&
-      rect.y <= baseline &&
-      rect.y + rect.height >= baseline
-  );
-}
-
-/** "Judgment. ........" → "Judgment." plus the fact that a leader follows. */
-function withoutTrailingLeader(text: string): { text: string; leads: boolean } {
-  const match = TRAILING_LEADER.exec(text);
-  if (match === null) return { text, leads: false };
-  return { text: text.slice(0, text.length - (match[2]?.length ?? 0)), leads: true };
-}
-
-/**
- * A drawn checkbox, standing in the text as a box character. It is always a
- * cell of its own: the text after it began at a tab stop, not a space away,
- * and flowed from the box it would wrap its paragraph differently.
- */
-function isCheckbox(run: LayoutTextRun): boolean {
-  return run.text === CHECKBOX_EMPTY || run.text === CHECKBOX_CHECKED;
-}
-
-interface Cursor {
-  /** Right edge of everything placed so far. */
-  right: number;
-  /** A checkbox was just placed: the next run opens a cell. */
-  box: boolean;
-  /** A dot leader was just passed: the next run opens a right-tabbed cell. */
-  leader: boolean;
-}
-
-/** Whether `run` opens a new cell: a wide gap, a rule between, or a leader just crossed. */
-function opensCell(
-  run: LayoutTextRun,
-  cursor: Cursor,
-  rules: readonly LayoutRule[],
-  baseline: number
-): boolean {
-  const gap = run.x - cursor.right;
-  return (
-    cursor.leader ||
-    cursor.box ||
-    isCheckbox(run) ||
-    gap > COLUMN_GAP * Math.max(run.sizePt, 1) ||
-    ruledBetween(rules, cursor.right, run.x, baseline)
-  );
-}
-
-/** Adds one run to the cells: opening a cell, or joining the last one with a space where the gap says so. */
-function placeRun(
-  cells: Cell[],
-  run: LayoutTextRun,
-  styledRun: StyledRun,
-  cursor: Cursor,
-  opens: boolean
-): void {
-  const cell = cells.at(-1);
-  if (cell === undefined || opens) {
-    cells.push({
-      x: run.x,
-      right: run.x + run.width,
-      runs: [styledRun],
-      ...(cursor.leader ? { leader: 'dot' } : {}),
-    });
-    return;
-  }
-  const gap = run.x - cursor.right;
-  // An OCR layer's runs are whole words by construction: any gap is a space.
-  const spaced = gap > SPACE_GAP * Math.max(run.sizePt, 1) || (run.hidden === true && gap > 0.3);
-  appendRun(cell, styledRun, spaced);
-  cell.right = Math.max(cell.right, run.x + run.width);
+/** The page's rules, and the ones among them that can be underlines (underline.ts). */
+interface Marks {
+  rules: readonly LayoutRule[];
+  underlines: readonly LayoutRule[];
 }
 
 /** One line's runs, left to right, joined into cells with spaces where the gaps say so. */
-function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
+function assemble(draft: Draft, marks: Marks): Line {
+  const { rules } = marks;
   const ordered = [...draft.runs].sort((a, b) => a.x - b.x).flatMap(leaderParts);
   const sizePt = dominantSize(ordered);
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
@@ -330,15 +182,15 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
     } else {
       const { text, leads } = withoutTrailingLeader(run.text);
       const opens = opensCell(run, cursor, rules, line.baseline);
-      placeRun(cells, run, styled({ ...run, text }, rules, line), cursor, opens);
+      placeRun(cells, run, styled({ ...run, text }, marks.underlines, line), cursor, opens);
       cursor.leader = leads;
-      cursor.box = isCheckbox(run);
+      cursor.box = standsAlone(run);
     }
     cursor.right = Math.max(cursor.right, run.x + run.width);
   }
   const first = ordered[0];
   return {
-    cells,
+    cells: withCellSizes(cells, ordered, sizePt),
     baseline: line.baseline,
     x: first?.x ?? 0,
     right: cursor.right,
@@ -358,8 +210,9 @@ export function linesOf(
   frame?: BodyFrame
 ): Line[] {
   const columns = frame === undefined ? [runs] : columnsOf(runs, frame);
+  const marks: Marks = { rules, underlines: underlineRules(rules) };
   return columns.flatMap((column) =>
-    clusterByBaseline(column).map((draft) => assemble(draft, rules))
+    clusterByBaseline(column).map((draft) => assemble(draft, marks))
   );
 }
 

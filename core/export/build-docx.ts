@@ -32,6 +32,7 @@ import {
 } from './picture-pages';
 import type { PagePicture } from './picture-pages';
 import { pleadingPagesOf } from './pleading-pages';
+import { recognizedPagesOf } from './recognized-pages';
 import { scanAppendixSections } from './scan-appendix';
 import { sectionBands } from './section-bands';
 import { verifyDocx } from './verify';
@@ -212,7 +213,7 @@ export async function buildDocx(
   options: DocxBuildOptions = {}
 ): Promise<DocxBuild> {
   if (source.length === 0) throw new Error('There are no pages to export.');
-  const layouts = withFootNumbers(source);
+  const layouts = recognizedPagesOf(withFootNumbers(source));
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
   const assembly: Assembly = {
     sections: [],

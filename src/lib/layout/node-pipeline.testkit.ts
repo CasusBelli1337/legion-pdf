@@ -13,10 +13,14 @@ import { createPdfjsSource } from '@renderer/features/select-copy/pdfjs-source';
 import { extractPageLayout } from './extract-page-layout';
 import type { PageLike, RasterizedImage } from './extract-page-layout';
 import { rolesOf } from './page-roles';
+import { darkOfBits, darkOfColour } from './scan-ink';
+import { scanRulesOf } from './scan-rules';
 import { encodeRgbPng } from './test-png';
 
 const ROOT = path.join(import.meta.dirname, '../../..');
 const STANDARD_FONTS = path.join(ROOT, 'node_modules/pdfjs-dist/standard_fonts/');
+/** The JBIG2 and JPEG 2000 decoders: without them a scan's picture never arrives, as it does in the app. */
+const WASM = path.join(ROOT, 'node_modules/pdfjs-dist/wasm/');
 
 interface PdfJsLike {
   OPS: Readonly<Record<string, number>>;
@@ -24,6 +28,7 @@ interface PdfJsLike {
     data: Uint8Array;
     useSystemFonts: boolean;
     standardFontDataUrl: string;
+    wasmUrl: string;
     isOffscreenCanvasSupported: boolean;
   }): { promise: Promise<PdfJsDocument> };
 }
@@ -45,8 +50,34 @@ export async function openBytes(bytes: Uint8Array): Promise<PdfJsDocument> {
     data: new Uint8Array(bytes),
     useSystemFonts: false,
     standardFontDataUrl: STANDARD_FONTS,
+    wasmUrl: WASM,
     isOffscreenCanvasSupported: false,
   }).promise;
+}
+
+/** pdfjs' ImageKind values: packed 1-bit grey (1 = white), RGB, RGBA. */
+const GRAY_1BPP = 1;
+const RGB = 2;
+const RGBA = 3;
+
+function rgbOfBits(data: Uint8ClampedArray, width: number, height: number): Uint8Array {
+  const rgb = new Uint8Array(width * height * 3);
+  const rowBytes = Math.ceil(width / 8);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const bit = ((data[y * rowBytes + (x >> 3)] ?? 0) >> (7 - (x & 7))) & 1;
+      rgb.fill(bit === 1 ? 255 : 0, (y * width + x) * 3, (y * width + x) * 3 + 3);
+    }
+  }
+  return rgb;
+}
+
+function rgbOfColour(data: Uint8ClampedArray, pixels: number, stride: number): Uint8Array {
+  const rgb = new Uint8Array(pixels * 3);
+  for (let pixel = 0; pixel < pixels; pixel += 1) {
+    rgb.set(data.subarray(pixel * stride, pixel * stride + 3), pixel * 3);
+  }
+  return rgb;
 }
 
 /** Node has no canvas: pdfjs hands raw pixels, which core's PNG encoder takes. */
@@ -57,17 +88,19 @@ export async function rasterizeInNode(image: unknown): Promise<RasterizedImage |
     kind?: number;
     data?: Uint8ClampedArray;
   };
-  if (data === undefined) return null;
-  const rgb = new Uint8Array(width * height * 3);
-  const stride = kind === 3 ? 4 : 3;
-  if (kind !== 2 && kind !== 3) return null;
-  for (let pixel = 0; pixel < width * height; pixel += 1) {
-    rgb.set(data.subarray(pixel * stride, pixel * stride + 3), pixel * 3);
-  }
+  if (data === undefined || (kind !== GRAY_1BPP && kind !== RGB && kind !== RGBA)) return null;
+  const bits = kind === GRAY_1BPP;
+  const rgb = bits
+    ? rgbOfBits(data, width, height)
+    : rgbOfColour(data, width * height, kind === RGBA ? 4 : 3);
+  const dark = bits
+    ? darkOfBits(data, width, height, 0)
+    : darkOfColour(data, width, height, kind === RGBA ? 4 : 3);
   return {
     png: encodeRgbPng({ widthPx: width, heightPx: height, rgb }),
     widthPx: width,
     heightPx: height,
+    rules: scanRulesOf(dark),
   };
 }
 

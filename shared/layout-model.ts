@@ -55,6 +55,12 @@ export interface LayoutTextRun {
   hidden?: boolean;
   /** The tagged PDF's own paragraph for this run; absent when the PDF is untagged. */
   block?: LayoutBlock;
+  /**
+   * The run is a column of its own on its line — one of a caption's column of
+   * ")" — so a cell starts at it and another after it. Set by the exporter
+   * (core/export/recognized-pages.ts), never by the page reader.
+   */
+  ownCell?: boolean;
 }
 
 export interface LayoutImage {
