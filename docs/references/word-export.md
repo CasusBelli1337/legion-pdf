@@ -201,6 +201,38 @@ Word after every change:
   eight numbered lines proves no pleading column on its own) and numbered
   paper is always one column (`isNumberedPaper`).
 
+## What scanned pleadings taught it (2026-11-18)
+
+Measured on a court's scanned order and a scanned cross-complaint (image
+pages with an OCR text layer), both of which had most line numbers one to
+three points off their lines.
+
+- **A scan's pages each sat differently on the glass.** Numbers and text
+  move together by a point or three from page to page, and the sheets differ
+  in height by a point (612x792 beside 613x793). Word draws the numbers once
+  per section, so the text followed its page while the numbers followed the
+  section. `pleading-pages.ts` (`pleadingPagesOf`, called first thing in
+  `assembleSection`) moves every page onto the section's grid — measured
+  from the TOP edge on the first page's sheet, because that is how Word
+  places — so line 14 stays beside number 14. The page as a whole then sits
+  where the section does, not where the scanner left it; that is the right
+  trade. A page whose grid is more than half a pitch away is left alone.
+- **A different pitch is a different section.** A proof of service on
+  22.8 pt paper behind a complaint on 24.1 pt drifted a full line by the
+  foot of the page under the complaint's numbers (`sameGrid` in
+  `groupSections`).
+- **Leftover space under a third of a point is owed, not dropped.**
+  Recognised baselines come in quarter-point steps; a page of short
+  paragraphs that each dropped a quarter point ended a point and a half
+  above its numbers (`asNumberedBlanks` in `numbered-lines.ts`).
+- **The last line of text can sit under number 28.** A court's order sets
+  its text below the numbers' baselines, and a footnote's second line runs
+  under line 28; the viewer's classifier calls everything under the last
+  number a footer, and the export then printed neither. A line within
+  three quarters of a pitch under the last number that no other page of the
+  section repeats goes back to the body (`withLastLine`). A real running
+  foot repeats, or sits further down.
+
 ## What is preserved
 
 | In the PDF | In the Word file |
@@ -281,6 +313,9 @@ from a layout read this way — its pictures are empty.
   again at 1) are left out with a note; sections are not yet split where the
   numbering changes.
 - **Checkbox glyphs** on form-style proofs of service are dropped.
+- **A scan's drawn lines** — the double rule beside the numbers, the rule
+  down the right edge, a caption's box — are pixels, not rules, and are not
+  redrawn on a scanned pleading.
 - **Condensed (4-up) transcripts** export as two Word columns per sheet.
 - **Rotated pages** keep their text coordinates in the unrotated frame.
 - **Small caps, letter spacing, shading** are not read.
@@ -311,7 +346,10 @@ Real served filings (opposing counsel's, the court's, scans) are graded the
 same way from a folder OUTSIDE the repository:
 `WORD_PRIVATE_CORPUS=<folder> npm run test:word -- private-corpus` writes
 `<folder>/report/SUMMARY.md` and the evidence beside it. They name real
-parties and never enter the public repository.
+parties and never enter the public repository. The summary counts line
+numbers off THEIR LINES (against the page's own text, `numbersOffLines` in
+`compare.ts`) and, in brackets, off the paper: on a scan the second is mostly
+the scanner's wobble, which the export deliberately does not copy.
 
 `WORD_DUMP=<pdf> npm run test:word -- dump-layout` writes what the pipeline
 sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
@@ -330,6 +368,7 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `electron/services/export/docx-exporter.ts` | Scans recognised, pages → layouts → docx → file, with progress |
 | `electron/services/export/export-plan.ts`, `plan-layouts.ts`, `scan-pages.ts` | The pre-export plan and the layouts it remembers; scan notes and the kept / left-out receipt |
 | `core/export/pleading.ts`, `docx-pleading.ts` | The grid read off the numbers; the header table and margins |
+| `core/export/pleading-pages.ts` | A pleading section's pages made ready for one header of numbers: scans onto one grid, the last line under number 28 back in the body |
 | `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
 | `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |
 | `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |

@@ -12,6 +12,7 @@ import { BASELINE_SHARE } from './model';
 import type { BodyFrame } from './model';
 import { isNumberedPaper, pleadingOfSection } from './pleading';
 import type { Pleading } from './pleading';
+import { sameGrid } from './pleading-pages';
 
 /** Points. Half an inch is the least a printer can hold; an inch is the default. */
 const MIN_MARGIN = 36;
@@ -123,7 +124,8 @@ function sameSheet(a: PageLayout, b: PageLayout): boolean {
     Math.abs(first.width - second.width) <= SHEET_TOLERANCE &&
     Math.abs(first.height - second.height) <= SHEET_TOLERANCE &&
     columnRunsOf(a).length === columnRunsOf(b).length &&
-    isNumberedPaper(a) === isNumberedPaper(b)
+    isNumberedPaper(a) === isNumberedPaper(b) &&
+    sameGrid(a, b)
   );
 }
 
