@@ -12,6 +12,11 @@
  * the body width, aligned the way it sat on the page. Inline, not floating:
  * a floating anchor drifts when the paragraphs around it are edited, and the
  * attorney is going to edit them.
+ *
+ * The exception is a picture drawn OVER the page's words — a signature laid
+ * across its "Dated:" line. Inline it would need a line of its own, and every
+ * line under it would move down (a 12-page brief became 13). It is pinned to
+ * the page where it sat, behind the text, and takes no room in the flow.
  */
 
 import type { LayoutImage, PageLayout, ScanPictureMode } from '@shared/types';
@@ -62,6 +67,38 @@ const BEHIND_PAGE = new WeakSet<ImageParagraph>();
 
 export function isBehindPage(paragraph: ImageParagraph): boolean {
   return BEHIND_PAGE.has(paragraph);
+}
+
+/** Where a pinned picture's top-left corner sits, points from the paper's top-left corner. */
+export interface PagePin {
+  leftPt: number;
+  topPt: number;
+}
+
+/** Pictures pinned to the page over its words; a side table for the same reason as BEHIND_PAGE. */
+const PINNED = new WeakMap<ImageParagraph, PagePin>();
+
+export function pinOf(paragraph: ImageParagraph): PagePin | null {
+  return PINNED.get(paragraph) ?? null;
+}
+
+/** A baseline this far inside the picture's box is a line the picture is drawn over. */
+const OVERLAP_PT = 2;
+
+/**
+ * True when a visible line of the page's text sits at the picture's height —
+ * through it or beside it. Either way the picture cannot have a line to itself.
+ */
+function isOverText(image: LayoutImage, layout: PageLayout): boolean {
+  const { y, height } = image.rect;
+  return layout.runs.some(
+    (run) =>
+      run.role === 'body' &&
+      run.hidden !== true &&
+      run.text.trim().length > 0 &&
+      run.y >= y + OVERLAP_PT &&
+      run.y <= y + height - OVERLAP_PT
+  );
 }
 
 /** Flush with the frame's edge, or centred, within this many points. */
@@ -133,6 +170,30 @@ function behindPage(image: LayoutImage, layout: PageLayout): ImageParagraph {
   return paragraph;
 }
 
+/** A picture over the page's words: its own size, pinned where it sat, no room taken in the flow. */
+function pinned(image: LayoutImage, layout: PageLayout): ImageParagraph {
+  const anchor = bodyExtents(layout)?.bottom ?? image.rect.y;
+  const paragraph: ImageParagraph = {
+    kind: 'image',
+    image: { ...image, rect: { ...image.rect, y: anchor } },
+    widthPt: image.rect.width,
+    heightPt: image.rect.height,
+    alignment: 'left',
+    indentLeftPt: 0,
+    spaceBeforePt: 0,
+    top: anchor,
+  };
+  PINNED.set(paragraph, {
+    leftPt: image.rect.x,
+    topPt: pageSizeOf(layout).height - (image.rect.y + image.rect.height),
+  });
+  return paragraph;
+}
+
+function placed(image: LayoutImage, layout: PageLayout, frame: BodyFrame): ImageParagraph {
+  return isOverText(image, layout) ? pinned(image, layout) : inline(image, frame);
+}
+
 /**
  * Which pictures go in and how. `hasText` / `hasHiddenText` describe the page's
  * body runs, which is what tells a scan from a photograph.
@@ -187,7 +248,7 @@ export function planImages(layout: PageLayout, frame: BodyFrame, text: ImagePlan
       );
       continue;
     }
-    plan.paragraphs.push(inline(image, frame));
+    plan.paragraphs.push(placed(image, layout, frame));
   }
   return plan;
 }

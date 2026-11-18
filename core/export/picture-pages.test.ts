@@ -58,6 +58,49 @@ const fullPagePicture = {
 };
 const picture: PagePicture = { data: new Uint8Array([9, 9, 9]), type: 'jpg' };
 
+/** A scanned page of prose: the words recognition found, invisible under the picture. */
+function scannedProse(number: number, words = 150, extra: Partial<PageLayout> = {}): PageLayout {
+  const text = Array.from({ length: words }, () => 'notice').join(' ');
+  return page(number, [run(text, { hidden: true })], { images: [fullPagePicture], ...extra });
+}
+const SIDEWAYS = { size: { width: 792, height: 612 } };
+
+describe('a loose sheet scanned in with the document', () => {
+  it('keeps a sideways scan with a handful of words (an envelope) as a picture', () => {
+    const layouts = [scannedProse(1), scannedProse(2, 40, SIDEWAYS)];
+    expect(picturePagesOf(layouts)).toEqual([2]);
+  });
+
+  it('answers the same for a sideways scan nobody has recognized yet', () => {
+    expect(picturePagesOf([bareScan(1), page(2, [], SIDEWAYS)])).toEqual([2]);
+  });
+
+  it('leaves a sideways scan full of words (a table) as editable text', () => {
+    expect(picturePagesOf([scannedProse(1), scannedProse(2, 150, SIDEWAYS)])).toEqual([]);
+  });
+
+  it('leaves an upright scanned page as text however few its words (a signature page)', () => {
+    expect(picturePagesOf([scannedProse(1), scannedProse(2, 20)])).toEqual([]);
+  });
+
+  it('leaves numbered pleading paper as text even when it is sideways', () => {
+    const numbers = Array.from({ length: 28 }, (_unused, index) =>
+      run(String(index + 1), { hidden: true, role: 'line-number' })
+    );
+    const sheet = page(2, [...numbers, run('Dated this day.', { hidden: true })], SIDEWAYS);
+    expect(picturePagesOf([scannedProse(1), sheet])).toEqual([]);
+  });
+
+  it('never takes the first page: every other sheet is measured against it', () => {
+    expect(picturePagesOf([scannedProse(1, 20, SIDEWAYS), scannedProse(2)])).toEqual([]);
+  });
+
+  it('leaves a sideways TYPED page as text', () => {
+    const sheet = page(2, [run('Schedule of payments')], SIDEWAYS);
+    expect(picturePagesOf([typed(1), sheet])).toEqual([]);
+  });
+});
+
 describe('picturePagesOf', () => {
   it('picks the scans behind typed pages, recognized or not', () => {
     const layouts = [typed(1), typed(2), bareScan(3), recognizedScan(4)];

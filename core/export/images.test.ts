@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBehindPage, planImages, scannedPictureOf } from './images';
+import { isBehindPage, pinOf, planImages, scannedPictureOf } from './images';
 import { image, page, run } from './layout-testkit';
 
 const FRAME = { left: 72, right: 540, textRight: 540 };
@@ -109,5 +109,42 @@ describe('scannedPictureOf', () => {
       images: [image(72, 400, 150, 100)],
     });
     expect(scannedPictureOf(small)).toBeNull();
+  });
+});
+
+describe("a picture drawn over the page's words (a signature across its line)", () => {
+  const signed = page(
+    [
+      run('I declare under penalty of perjury that the foregoing is true.', 72, 130),
+      run('Dated: March 3, 2025', 72, 86),
+      run('Marlow Ashford', 320, 66),
+    ],
+    { images: [image(307, 75, 135, 46)] }
+  );
+
+  it('pins it to the page where it sat and gives it no room in the flow', () => {
+    const plan = planImages(signed, FRAME, { hasText: true, hasHiddenText: false });
+    const [paragraph] = plan.paragraphs;
+    expect(pinOf(paragraph!)).toEqual({ leftPt: 307, topPt: 792 - (75 + 46) });
+    expect(paragraph).toMatchObject({ widthPt: 135, heightPt: 46 });
+    // Its box is a point at the foot of the page's text: nothing is left to displace.
+    expect(paragraph!.top).toBe(paragraph!.image.rect.y);
+    expect(isBehindPage(paragraph!)).toBe(false);
+  });
+
+  it('leaves a picture with no line of text at its height inline', () => {
+    const layout = page([run('Exhibit photograph follows.', 72, 700)], {
+      images: [image(72, 300, 200, 150)],
+    });
+    const plan = planImages(layout, FRAME, { hasText: true, hasHiddenText: false });
+    expect(pinOf(plan.paragraphs[0]!)).toBeNull();
+  });
+
+  it('does not pin for the invisible words under a scan', () => {
+    const layout = page([run('recognized words', 72, 350, { hidden: true })], {
+      images: [image(72, 300, 200, 150)],
+    });
+    const plan = planImages(layout, FRAME, { hasText: true, hasHiddenText: true });
+    expect(pinOf(plan.paragraphs[0]!)).toBeNull();
   });
 });

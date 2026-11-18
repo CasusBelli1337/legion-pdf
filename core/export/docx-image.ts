@@ -23,7 +23,8 @@ import {
 import type { IFloating } from 'docx';
 import { ALIGNMENT, withColumnBreak } from './docx-paragraph';
 import type { ParagraphPlacement } from './docx-paragraph';
-import { isBehindPage } from './images';
+import { isBehindPage, pinOf } from './images';
+import type { PagePin } from './images';
 import type { ImageParagraph } from './model';
 import { pixels, twips } from './model';
 
@@ -41,6 +42,24 @@ const BEHIND_THE_TEXT: IFloating = {
   wrap: { type: TextWrappingType.NONE },
 };
 
+/** Points → the EMUs Word positions a floating picture in. */
+const EMU_PER_POINT = 12700;
+
+/** Pinned to the paper where the picture sat, behind the words it was drawn over. */
+function pinnedAt(pin: PagePin): IFloating {
+  return {
+    ...BEHIND_THE_TEXT,
+    horizontalPosition: {
+      relative: HorizontalPositionRelativeFrom.PAGE,
+      offset: Math.round(pin.leftPt * EMU_PER_POINT),
+    },
+    verticalPosition: {
+      relative: VerticalPositionRelativeFrom.PAGE,
+      offset: Math.round(pin.topPt * EMU_PER_POINT),
+    },
+  };
+}
+
 function imageRun(paragraph: ImageParagraph, floating: IFloating | null): ImageRun {
   return new ImageRun({
     type: 'png',
@@ -50,8 +69,12 @@ function imageRun(paragraph: ImageParagraph, floating: IFloating | null): ImageR
   });
 }
 
-/** The scan behind the page: page-anchored, page-sized, zero height in the flow. */
-function behindParagraph(paragraph: ImageParagraph, placement: ParagraphPlacement): DocxParagraph {
+/** A page-anchored picture (the scan behind the page, a pinned signature): zero height in the flow. */
+function behindParagraph(
+  paragraph: ImageParagraph,
+  placement: ParagraphPlacement,
+  floating: IFloating
+): DocxParagraph {
   return new DocxParagraph({
     spacing: {
       before: twips(paragraph.spaceBeforePt),
@@ -60,7 +83,7 @@ function behindParagraph(paragraph: ImageParagraph, placement: ParagraphPlacemen
       lineRule: LineRuleType.EXACT,
     },
     pageBreakBefore: placement.pageBreakBefore,
-    children: withColumnBreak(paragraph, [imageRun(paragraph, BEHIND_THE_TEXT)]),
+    children: withColumnBreak(paragraph, [imageRun(paragraph, floating)]),
   });
 }
 
@@ -68,7 +91,9 @@ export function docxImageParagraph(
   paragraph: ImageParagraph,
   placement: ParagraphPlacement
 ): DocxParagraph {
-  if (isBehindPage(paragraph)) return behindParagraph(paragraph, placement);
+  if (isBehindPage(paragraph)) return behindParagraph(paragraph, placement, BEHIND_THE_TEXT);
+  const pin = pinOf(paragraph);
+  if (pin !== null) return behindParagraph(paragraph, placement, pinnedAt(pin));
   return new DocxParagraph({
     alignment: ALIGNMENT[paragraph.alignment],
     spacing: { before: twips(paragraph.spaceBeforePt), after: 0 },

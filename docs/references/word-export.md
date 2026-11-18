@@ -325,9 +325,9 @@ boxes. A scanned checkbox is part of the scan and is not read.
 | Pleading paper | The header table of numbers and rules on the page's grid; the footer's rule as a paragraph border |
 | Ruled tables (caption boxes, proofs of service, schedules) | Real Word tables from the rule grid, fixed widths, exact row heights, borders only where drawn (`tables.ts`, `table-grid.ts`, `docx-table.ts`) |
 | Columns of text without rules | Tab stops |
-| Pictures | Inline PNGs at their size; a page of many small pictures (pen strokes) keeps its text and drops the strokes |
+| Pictures | Inline PNGs at their size; one drawn over a line of text (a signature) is pinned to the page behind the text; a page of many small pictures (pen strokes) keeps its text and drops the strokes |
 | Scanned pages | Recognised with the bundled Tesseract first; the picture is left out, laid behind the text, or added as an appendix, as the Export panel's "Scanned pages" choice says; the receipt gives each page's average confidence |
-| Scanned exhibits behind typed pages | One picture of the whole page each, on a sheet of its own, never recognised (`picture-pages.ts`); the receipt lists the pages |
+| Scanned exhibits behind typed pages; loose sheets among scans (an envelope) | One picture of the whole page each, on a sheet of its own, never recognised (`picture-pages.ts`); the receipt lists the pages |
 | The court's e-filing stamp | Left out, and the receipt says so |
 
 ## Exhibits — a scan behind typed pages is a picture, not text
@@ -363,6 +363,43 @@ answers each picture's place and size without encoding its pixels
 bytes. Measured in the built app: 107 pages with 98 scans, 2.9 s; 500 typed
 pages, 3.6 s; asked again (a new page range), nothing is re-read. Never build
 from a layout read this way — its pictures are empty.
+
+**A loose sheet among scans is a picture too (2026-11-18).** A court's notice
+scanned with the envelope it came in is scans throughout, so nothing above
+applies — and the envelope, recognised, came out as "70S *+ S+" with its seal
+and postage mark gone. `isLooseSheet` (same file) keeps a page as a picture
+when all four hold: nothing on it is visible text (a scan), its paper is
+turned the other way from the first page of the export, it has fewer than
+eight printed line numbers, and its words — seen or recognised — number under
+100. Two real envelopes read 38 and 62 words; the thinnest scanned page of
+prose in the same filings read 150. A sideways sheet full of words (a scanned
+table) therefore stays text when the file carries its text layer; a sideways
+scan with NO text layer is a picture, because the decision is made before
+recognition and must not change after it. An upright scanned page stays text
+however few its words (a signature page). For the preview and the export to
+agree, `docx-exporter.ts` now looks before it recognises in a document that
+is scans throughout as well (`glance`: light layouts, no pixels, a page that
+will not answer is skipped) and sends no loose sheet to Tesseract.
+
+## Pictures drawn over the words — signatures (2026-11-18)
+
+Two bugs hid every e-signature on a proof of service:
+
+- **The picture was read at the page's corner, one point square.** pdfjs
+  hands a form XObject's matrix over as a Float32Array; `op-walk.ts` only
+  took plain arrays, so a picture inside a form (how Word's PDF export nests
+  a signature: three forms deep) lost its place and size, and `planImages`
+  dropped it as a speck. `matrixOf` reads both shapes.
+- **Placed, it pushed the page over.** A signature lies across its "Dated:"
+  line. Inline it took a line of its own and a 12-page brief became 13.
+  `planImages` now pins any picture that has a visible line of body text at
+  its height (`isOverText`): anchored to the PAGE at the spot it sat, behind
+  the text, its paragraph an exact 1-twip line at the foot of the page's text
+  — the same carrier the scan-behind-text mode uses. A picture with no text
+  at its height stays inline, where editing cannot strand it.
+
+The fidelity suite's Node rasteriser has no alpha channel, so it lays a
+see-through signature on white; the app's canvas keeps the transparency.
 
 ## Scans — two things paper does that a typed PDF never does
 

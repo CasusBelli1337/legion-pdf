@@ -107,6 +107,12 @@ function isMatrix(value: unknown): value is Matrix {
   return Array.isArray(value) && value.length === 6 && value.every((n) => typeof n === 'number');
 }
 
+/** pdfjs hands a form's matrix over as a Float32Array, a `cm` as a plain array: both are six numbers. */
+function matrixOf(value: unknown): Matrix | null {
+  const list = numbersOf(value);
+  return isMatrix(list) ? list : null;
+}
+
 function numbersOf(value: unknown): number[] | null {
   if (!ArrayBuffer.isView(value) && !Array.isArray(value)) return null;
   const list = Array.from(value as ArrayLike<number>);
@@ -260,7 +266,8 @@ function handlers(ops: OpsTable): Map<number, Handler> {
     paintImageXObjectRepeat: repeatImage,
     paintFormXObjectBegin: (state, [matrix]) => {
       state.stack.push(state.ctm);
-      if (isMatrix(matrix)) state.ctm = multiply(matrix, state.ctm);
+      const own = matrixOf(matrix);
+      if (own !== null) state.ctm = multiply(own, state.ctm);
     },
     paintFormXObjectEnd: (state) => {
       state.ctm = state.stack.pop() ?? IDENTITY;
