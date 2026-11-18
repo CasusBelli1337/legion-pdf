@@ -70,6 +70,16 @@ export interface LayoutRule {
   rect: PdfRect;
 }
 
+/** The characters a drawn checkbox stands in the text as (U+2610, U+2612) — Word's own. */
+export const CHECKBOX_EMPTY = '\u2610';
+export const CHECKBOX_CHECKED = '\u2612';
+
+/** A form's checkbox drawn as a small stroked square, and whether it was ticked or crossed. */
+export interface LayoutCheckbox {
+  rect: PdfRect;
+  checked: boolean;
+}
+
 export interface PageLayout {
   page: number;
   size: PageSize;
@@ -79,6 +89,8 @@ export interface PageLayout {
   runs: LayoutTextRun[];
   images: LayoutImage[];
   rules: LayoutRule[];
+  /** Drawn checkboxes; each also stands in `runs` as a box character, so it flows with its line. */
+  checkboxes?: LayoutCheckbox[];
   /** The number PRINTED on the page, when one was recognised. */
   printedPageNumber: number | null;
 }

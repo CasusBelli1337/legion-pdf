@@ -33,10 +33,17 @@ export interface ImageOp {
   ctm: Matrix;
 }
 
+/** A small stroked square — a form's checkbox — and whether strokes were drawn across it. */
+export interface BoxOp {
+  rect: PdfRect;
+  checked: boolean;
+}
+
 export interface OpWalk {
   texts: TextOp[];
   images: ImageOp[];
   rules: PdfRect[];
+  boxes: BoxOp[];
 }
 
 interface State {
@@ -53,6 +60,12 @@ const INVISIBLE_MODES = new Set([3, 7]);
 /** A filled shape thinner than this and longer than the other is a rule. */
 const RULE_THICKNESS = 2.5;
 const RULE_LENGTH = 4;
+/** A stroked square between these sizes (points), square to this fraction, is a checkbox. */
+const BOX_MIN = 6;
+const BOX_MAX = 18;
+const BOX_SQUARENESS = 0.15;
+/** A stroke whose bounds sit within this of a box's is drawn in that box. */
+const BOX_REACH = 1.5;
 
 export function multiply(left: Matrix, right: Matrix): Matrix {
   const [a1, b1, c1, d1, e1, f1] = left;
@@ -117,38 +130,88 @@ function isRule(rect: PdfRect): boolean {
   );
 }
 
-type Handler = (state: State, args: readonly unknown[]) => void;
+function isBox(rect: PdfRect): boolean {
+  const long = Math.max(rect.width, rect.height);
+  const short = Math.min(rect.width, rect.height);
+  return short >= BOX_MIN && long <= BOX_MAX && long - short <= BOX_SQUARENESS * long;
+}
 
-function paintedOps(ops: OpsTable): Set<number> {
-  return new Set(
-    [
-      'fill',
-      'eoFill',
-      'fillStroke',
-      'eoFillStroke',
-      'closeFillStroke',
-      'closeEOFillStroke',
-      'stroke',
-      'closeStroke',
-    ]
-      .map((name) => ops[name])
-      .filter((value): value is number => value !== undefined)
+function within(inner: PdfRect, outer: PdfRect): boolean {
+  return (
+    inner.x >= outer.x - BOX_REACH &&
+    inner.y >= outer.y - BOX_REACH &&
+    inner.x + inner.width <= outer.x + outer.width + BOX_REACH &&
+    inner.y + inner.height <= outer.y + outer.height + BOX_REACH
   );
 }
 
-function constructPath(state: State, args: readonly unknown[], painted: Set<number>): void {
+/** pdfjs' path data is a flat list: 0 x y moves, 1 x y draws a line, 4 closes; anything else is a curve. */
+const MOVE_TO = 0;
+const LINE_TO = 1;
+
+/**
+ * True for an open stroke of one or two straight lines — half of a box's X
+ * (corner to corner), or a tick. The box itself is four corners and a close,
+ * so outlining a box twice never checks it.
+ */
+function isMark(path: unknown): boolean {
+  const data = Array.isArray(path) ? numbersOf(path[0]) : null;
+  if (data === null) return false;
+  let lines = 0;
+  for (let index = 0; index < data.length; index += 3) {
+    const code = data[index];
+    if (code === LINE_TO) lines += 1;
+    else if (code !== MOVE_TO) return false;
+  }
+  return lines === 1 || lines === 2;
+}
+
+/** A stroked square opens a box; a mark drawn inside one checks it. */
+function noteBox(out: OpWalk, rect: PdfRect, path: unknown): void {
+  const mark = isMark(path);
+  const box = out.boxes.find((entry) => within(rect, entry.rect));
+  if (box !== undefined && mark) box.checked = true;
+  else if (box === undefined && !mark && isBox(rect)) out.boxes.push({ rect, checked: false });
+}
+
+type Handler = (state: State, args: readonly unknown[]) => void;
+
+const STROKES = ['stroke', 'closeStroke'];
+const FILLS = [
+  'fill',
+  'eoFill',
+  'fillStroke',
+  'eoFillStroke',
+  'closeFillStroke',
+  'closeEOFillStroke',
+];
+
+function opCodes(ops: OpsTable, names: readonly string[]): Set<number> {
+  return new Set(
+    names.map((name) => ops[name]).filter((value): value is number => value !== undefined)
+  );
+}
+
+/** The upright box a painted path covers on the page, or null when the operator painted nothing. */
+function paintedBox(state: State, args: readonly unknown[], painted: Set<number>): PdfRect | null {
   const [op, , minMax] = args;
-  if (typeof op !== 'number' || !painted.has(op)) return;
+  if (typeof op !== 'number' || !painted.has(op)) return null;
   const bounds = numbersOf(minMax);
-  if (bounds === null || bounds.length < 4) return;
+  if (bounds === null || bounds.length < 4) return null;
   const [minX = 0, minY = 0, maxX = 0, maxY = 0] = bounds;
-  const rect = transformedBox(state.ctm, {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  });
+  return transformedBox(state.ctm, { x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+}
+
+function constructPath(
+  state: State,
+  args: readonly unknown[],
+  painted: Set<number>,
+  stroked: Set<number>
+): void {
+  const rect = paintedBox(state, args, painted);
+  if (rect === null) return;
   if (isRule(rect)) state.out.rules.push(rect);
+  else if (stroked.has(args[0] as number)) noteBox(state.out, rect, args[1]);
 }
 
 function repeatImage(state: State, args: readonly unknown[]): void {
@@ -163,7 +226,8 @@ function repeatImage(state: State, args: readonly unknown[]): void {
 }
 
 function handlers(ops: OpsTable): Map<number, Handler> {
-  const painted = paintedOps(ops);
+  const painted = opCodes(ops, [...FILLS, ...STROKES]);
+  const stroked = opCodes(ops, STROKES);
   const table: Record<string, Handler> = {
     save: (state) => state.stack.push(state.ctm),
     restore: (state) => {
@@ -201,7 +265,7 @@ function handlers(ops: OpsTable): Map<number, Handler> {
     paintFormXObjectEnd: (state) => {
       state.ctm = state.stack.pop() ?? IDENTITY;
     },
-    constructPath: (state, args) => constructPath(state, args, painted),
+    constructPath: (state, args) => constructPath(state, args, painted, stroked),
   };
   const byNumber = new Map<number, Handler>();
   for (const [name, handler] of Object.entries(table)) {
@@ -218,7 +282,7 @@ export function walkOperators(list: OpList, ops: OpsTable): OpWalk {
     stack: [],
     fill: '#000000',
     hidden: false,
-    out: { texts: [], images: [], rules: [] },
+    out: { texts: [], images: [], rules: [], boxes: [] },
   };
   const table = handlers(ops);
   list.fnArray.forEach((fn, index) => {

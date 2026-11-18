@@ -7,10 +7,13 @@
  * the text is set in, so nothing that slips past a run style lands in Calibri.
  */
 
-import { Document, Packer, Paragraph as DocxParagraph } from 'docx';
+import { Paragraph as DocxParagraph } from 'docx';
 import type { ISectionOptions, Table } from 'docx';
 import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@shared/types';
+import { FOOTNOTES_NOTE, footnoteBook, footnoteNotes, takeFootnotes } from './docx-footnotes';
+import type { FootnoteBook } from './docx-footnotes';
 import { docxImageParagraph } from './docx-image';
+import { packDocx } from './docx-pack';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { STAMP_NOTE, hasStamps } from './docx-section';
 import { NUMBERED_LINES_NOTE, PLEADING_NOTE } from './pleading';
@@ -19,7 +22,7 @@ import type { Paragraph, TextParagraph } from './model';
 import { opensNumbering } from './first-page-foot';
 import { numberingRuns, withFootNumbers } from './page-numbering';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
-import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
+import { groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
 import {
   isPicturePagesNote,
   partsOf,
@@ -31,7 +34,6 @@ import type { PagePicture } from './picture-pages';
 import { pleadingPagesOf } from './pleading-pages';
 import { scanAppendixSections } from './scan-appendix';
 import { sectionBands } from './section-bands';
-import { halfPoints, runStyleFor } from './styles';
 import { verifyDocx } from './verify';
 
 export interface DocxBuildOptions {
@@ -62,6 +64,7 @@ interface Assembly {
   paragraphCount: number;
   samples: string[];
   notes: Set<string>;
+  footnotes: FootnoteBook;
 }
 
 /** The plain prefix of a text: letters, digits, simple punctuation, before any field. */
@@ -121,20 +124,36 @@ function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] 
   });
 }
 
-type PageBuild = ReturnType<typeof pageParagraphs>;
+/** Where Word ends the section's body, points above the paper's bottom edge (a negative margin is exact). */
+function wordBottomOf(section: Pick<ISectionOptions, 'properties'>, fallback: number): number {
+  const bottom = section.properties?.page?.margin?.bottom;
+  return typeof bottom === 'number' ? Math.abs(bottom) / 20 : fallback;
+}
+
+interface SectionPage {
+  build: ReturnType<typeof pageParagraphs>;
+  layout: PageLayout;
+}
+
+/** Where a section's body starts and ends, points above the paper's bottom edge. */
+interface BodyEdges {
+  top: number;
+  bottom: number;
+}
 
 /** One section's body: each page's paragraphs, a page break before every page but the first. */
 function sectionChildren(
-  builds: readonly PageBuild[],
-  topOfBody: number,
+  pages: readonly SectionPage[],
+  body: BodyEdges,
   fonts: Fonts,
   assembly: Assembly
 ): (DocxParagraph | Table)[] {
   const children: (DocxParagraph | Table)[] = [];
-  builds.forEach((built, index) => {
+  pages.forEach(({ build: built, layout }, index) => {
     built.notes.forEach((note) => assembly.notes.add(note));
+    takeFootnotes(assembly.footnotes, { build: built, layout }, fonts, body.bottom);
     // An empty page still turns the paper: one empty paragraph carries the break.
-    const settled = withSpacers(settlePage(built, topOfBody), index > 0);
+    const settled = withSpacers(settlePage(built, body.top), index > 0);
     if (hasTabColumns(settled)) assembly.notes.add(COLUMNS_NOTE);
     const paragraphs = settled.length === 0 ? [null] : settled;
     paragraphs.forEach((paragraph, position) => {
@@ -173,33 +192,19 @@ function assembleSections(
   const topOfBody = geometry.size.height - geometry.margins.top;
   let done = 0;
   for (const run of numberingRuns(pages, opensNumbering)) {
-    const own = builds.slice(done, done + run.length);
+    const own = run.flatMap((layout, index) => {
+      const build = builds[done + index];
+      return build === undefined ? [] : [{ build, layout }];
+    });
     done += run.length;
     const bands = sectionBands(run, fonts, geometry);
     bands.notes.forEach((note) => assembly.notes.add(note));
+    const body = { top: topOfBody, bottom: wordBottomOf(bands.section, geometry.margins.bottom) };
     assembly.sections.push({
       ...bands.section,
-      children: sectionChildren(own, topOfBody, fonts, assembly),
+      children: sectionChildren(own, body, fonts, assembly),
     });
   }
-}
-
-/** The face and size most of the document's characters are set in. */
-function dominantStyle(layouts: readonly PageLayout[], fonts: Fonts) {
-  const byFont = new Map<string, number>();
-  const bySize = new Map<number, number>();
-  for (const layout of layouts) {
-    for (const run of bodyRuns(layout)) {
-      const font = fonts[run.fontKey];
-      const name = font === undefined ? 'Times New Roman' : runStyleFor(font).wordFont;
-      byFont.set(name, (byFont.get(name) ?? 0) + run.text.length);
-      const size = halfPoints(run.sizePt);
-      bySize.set(size, (bySize.get(size) ?? 0) + run.text.length);
-    }
-  }
-  const top = <T>(counts: Map<T, number>, fallback: T): T =>
-    [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? fallback;
-  return { font: top(byFont, 'Times New Roman'), size: top(bySize, 24) };
 }
 
 export async function buildDocx(
@@ -209,7 +214,13 @@ export async function buildDocx(
   if (source.length === 0) throw new Error('There are no pages to export.');
   const layouts = withFootNumbers(source);
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
-  const assembly: Assembly = { sections: [], paragraphCount: 0, samples: [], notes: new Set() };
+  const assembly: Assembly = {
+    sections: [],
+    paragraphCount: 0,
+    samples: [],
+    notes: new Set(),
+    footnotes: footnoteBook(),
+  };
   const pictures = picturesToKeep(layouts, options.pagePictures);
   for (const part of partsOf(layouts, pictures)) {
     if (part.kind === 'picture') {
@@ -225,17 +236,12 @@ export async function buildDocx(
   const textPages = layouts.filter((layout) => !pictures.has(layout.page));
   assembly.sections.push(...scanAppendixSections(textPages, options.scanPictures ?? 'omit'));
   if (hasStamps(layouts)) assembly.notes.add(STAMP_NOTE);
-  const style = dominantStyle(layouts, fonts);
-  const document = new Document({
-    ...(options.title === undefined ? {} : { title: options.title }),
-    creator: 'Legion PDF',
-    styles: { default: { document: { run: { font: style.font, size: style.size } } } },
-    sections: assembly.sections,
-  });
-  const bytes = new Uint8Array(await Packer.toBuffer(document));
+  footnoteNotes(assembly.footnotes).forEach((note) => assembly.notes.add(note));
+  const bytes = await packDocx(layouts, fonts, assembly, options.title);
   await verifyDocx(bytes, {
     paragraphCount: assembly.paragraphCount,
     samples: assembly.samples.slice(0, 200),
+    footnotes: assembly.footnotes.notes.size,
   });
   const notes = [...assembly.notes];
   return {
@@ -248,7 +254,12 @@ export async function buildDocx(
 }
 
 /** Notes that say what the file KEPT; every other note says what it had to leave out. */
-const KEPT_NOTES: ReadonlySet<string> = new Set([PLEADING_NOTE, NUMBERED_LINES_NOTE, COLUMNS_NOTE]);
+const KEPT_NOTES: ReadonlySet<string> = new Set([
+  PLEADING_NOTE,
+  NUMBERED_LINES_NOTE,
+  COLUMNS_NOTE,
+  FOOTNOTES_NOTE,
+]);
 
 function isKept(note: string): boolean {
   return KEPT_NOTES.has(note) || isPicturePagesNote(note);

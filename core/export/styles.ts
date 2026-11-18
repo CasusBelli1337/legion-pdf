@@ -35,6 +35,7 @@ const FONT_RULES: readonly { pattern: RegExp; wordFont: string }[] = [
   { pattern: /trebuchet/i, wordFont: 'Trebuchet MS' },
   { pattern: /franklin/i, wordFont: 'Franklin Gothic' },
   { pattern: /consolas/i, wordFont: 'Consolas' },
+  { pattern: /ms ?gothic/i, wordFont: 'MS Gothic' },
   { pattern: /wingdings/i, wordFont: 'Wingdings' },
   { pattern: /^symbol/i, wordFont: 'Symbol' },
 ];

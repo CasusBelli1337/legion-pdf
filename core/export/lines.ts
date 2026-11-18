@@ -8,6 +8,7 @@
  * sentence stays bold.
  */
 
+import { CHECKBOX_CHECKED, CHECKBOX_EMPTY } from '@shared/layout-model';
 import type { LayoutRule, LayoutTextRun } from '@shared/types';
 import { columnsOf } from './columns';
 import { leaderParts } from './leaders';
@@ -77,6 +78,16 @@ function styled(
   };
 }
 
+/** Raised alike, condensed alike, and neither one a footnote's reference mark (a mark never merges). */
+function sameSetting(a: StyledRun, b: StyledRun): boolean {
+  return (
+    (a.superscript ?? false) === (b.superscript ?? false) &&
+    (a.scalePct ?? 100) === (b.scalePct ?? 100) &&
+    a.footnote === undefined &&
+    b.footnote === undefined
+  );
+}
+
 /** Two runs that would look identical in Word — the ones that merge into one. */
 export function sameStyle(a: StyledRun, b: StyledRun): boolean {
   return (
@@ -84,8 +95,7 @@ export function sameStyle(a: StyledRun, b: StyledRun): boolean {
     Math.abs(a.sizePt - b.sizePt) < 0.25 &&
     a.colorHex === b.colorHex &&
     a.underline === b.underline &&
-    (a.superscript ?? false) === (b.superscript ?? false) &&
-    (a.scalePct ?? 100) === (b.scalePct ?? 100)
+    sameSetting(a, b)
   );
 }
 
@@ -246,9 +256,20 @@ function withoutTrailingLeader(text: string): { text: string; leads: boolean } {
   return { text: text.slice(0, text.length - (match[2]?.length ?? 0)), leads: true };
 }
 
+/**
+ * A drawn checkbox, standing in the text as a box character. It is always a
+ * cell of its own: the text after it began at a tab stop, not a space away,
+ * and flowed from the box it would wrap its paragraph differently.
+ */
+function isCheckbox(run: LayoutTextRun): boolean {
+  return run.text === CHECKBOX_EMPTY || run.text === CHECKBOX_CHECKED;
+}
+
 interface Cursor {
   /** Right edge of everything placed so far. */
   right: number;
+  /** A checkbox was just placed: the next run opens a cell. */
+  box: boolean;
   /** A dot leader was just passed: the next run opens a right-tabbed cell. */
   leader: boolean;
 }
@@ -263,6 +284,8 @@ function opensCell(
   const gap = run.x - cursor.right;
   return (
     cursor.leader ||
+    cursor.box ||
+    isCheckbox(run) ||
     gap > COLUMN_GAP * Math.max(run.sizePt, 1) ||
     ruledBetween(rules, cursor.right, run.x, baseline)
   );
@@ -299,7 +322,7 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
   const sizePt = dominantSize(ordered);
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];
-  const cursor: Cursor = { right: Number.NEGATIVE_INFINITY, leader: false };
+  const cursor: Cursor = { right: Number.NEGATIVE_INFINITY, leader: false, box: false };
   for (const run of ordered) {
     if (DOT_LEADER.test(run.text) && cells.length > 0) {
       // The dots are not text; the cell after them is a right-tabbed page number.
@@ -309,6 +332,7 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
       const opens = opensCell(run, cursor, rules, line.baseline);
       placeRun(cells, run, styled({ ...run, text }, rules, line), cursor, opens);
       cursor.leader = leads;
+      cursor.box = isCheckbox(run);
     }
     cursor.right = Math.max(cursor.right, run.x + run.width);
   }

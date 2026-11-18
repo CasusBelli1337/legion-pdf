@@ -159,11 +159,11 @@ Word after every change:
 - **A tagged line in the footer zone is the page's own text.** Word and
   Acrobat leave real running feet outside the structure tree; a footnote that
   reaches the foot of the page was being filed as a footer and either dropped
-  or printed on every page (`src/lib/layout/tagged-body.ts`). Footnotes stay
-  ordinary paragraphs at the foot of the page (not Word footnotes): a one-line
-  footnote takes a single-spaced box, and where Word's own numbering counts
-  the lines, paragraphs with no printed number beside them are not counted
-  (`numbered-lines.ts`).
+  or printed on every page (`src/lib/layout/tagged-body.ts`). Where a page's
+  footnotes cannot become Word footnotes (below), they stay paragraphs at the
+  foot of the page: a one-line footnote takes a single-spaced box, and where
+  Word's own numbering counts the lines, paragraphs with no printed number
+  beside them are not counted (`numbered-lines.ts`).
 - **Word's widths are measured, not guessed.** Times New Roman's advance
   widths are public; the ratio between them and a page's own runs says how
   much wider Word will set that page (a proof of service pasted from an old
@@ -262,6 +262,57 @@ three points off their lines.
   section repeats goes back to the body (`withLastLine`). A real running
   foot repeats, or sits further down.
 
+## Footnotes and checkboxes (2026-11-18)
+
+**Footnotes are real Word footnotes** (`footnotes.ts`, `docx-footnotes.ts`):
+the mark in the body is Word's own reference, the text lives in
+`word/footnotes.xml`, and a note moves with its mark as the attorney edits.
+
+- **Finding them.** A page's footnotes are the paragraphs under the short
+  rule Word draws above them (100–200 pt wide, with a small raised number
+  opening the paragraph right under it). A note is lifted only when its
+  number has exactly ONE raised twin in the text above the rule and the
+  numbers run on from the last page's (Word numbers footnotes itself, 1, 2,
+  3…). A page that fails — no mark, two marks, a number out of turn — keeps
+  its notes as paragraphs, and so does every page after it, because Word's
+  numbering would otherwise be one off; the receipt names the pages. Text
+  carried over from the previous page's note (no mark of its own) stays a
+  paragraph.
+- **Where Word puts them.** Word sets a page's footnotes hard against the
+  bottom margin and takes their height out of the body. The notes keep the
+  exact line boxes the page gave them, and the page's last note carries, as
+  space after, the distance between it and Word's bottom margin — so each
+  note sits where it sat (within 0.2 pt on the real briefs).
+- **The separator is the trap.** The docx package writes the separator as a
+  single-spaced line and does NOT name it in `settings.xml`; unnamed, Word
+  ignores the file's separator and draws its own, one line of the default
+  face tall. On a brief set in Century Schoolbook that line is 14.4 pt where
+  the page left 11.8, and Word moved the body's last lines — and the footnote
+  with them — to the next page (15 pages became 17). `withFootnoteSeparator`
+  rewrites the packed file: the separators get an exact height (the one that
+  draws the rule where the pages drew theirs — the rule sits 3.1 pt above a
+  baseline that is a fifth of the height above the notes — and never more
+  than the tightest page's gap less 1.5 pt), and `<w:footnotePr>` names them.
+- **What it will not do.** Where Word's own line numbering follows the text
+  (no header grid), the printed numbers beside the notes are blank body
+  lines, and body lines cannot share the page's foot with a footnote area:
+  those pages keep their notes as paragraphs. So do two-column pages.
+- The file's self-check counts the footnotes in `footnotes.xml` against the
+  ones built (`verify.ts`).
+
+**Checkboxes** on a proof of service are drawings, not type: Word prints its
+form checkboxes as an 11.6 pt stroked square, crossed corner to corner when
+ticked. `op-walk.ts` reads a small stroked square as a box and an open stroke
+of one or two lines inside it as its mark (outlining a box twice does not
+tick it); `checkbox-runs.ts` stands each in the page's runs as ☐ or ☒ in MS
+Gothic — the characters and face Word's own checkbox uses — on the baseline
+of the text beside it. `lines.ts` keeps a box in a cell of its own, so the
+text after it starts at its tab stop: flowed from the box, it would wrap its
+paragraph differently. "Ticked" rests on pdfjs' path data, so
+`checkbox-runs.test.ts` reads a drawn form through pdfjs itself — a pdfjs
+upgrade that changes the data fails the test instead of silently unticking
+boxes. A scanned checkbox is part of the scan and is not read.
+
 ## What is preserved
 
 | In the PDF | In the Word file |
@@ -336,13 +387,16 @@ from a layout read this way — its pictures are empty.
 ## What is not preserved (yet)
 
 - **Bates stamps** are left out (they differ on every page); a note says so.
-- **Footnotes** come through as small paragraphs at the foot of the page,
-  not as Word footnotes; the short rule above them is not drawn.
+- **Footnotes that cannot be paired** with one reference mark each, that sit
+  beside numbers Word's own line numbering prints, or that are carried over
+  from the page before stay paragraphs at the foot of the page (the receipt
+  says which pages); the short rule above those is not drawn.
+- **Scanned checkboxes** are left to the OCR (a ticked box reads as stray
+  letters); only drawn ones become ☐ / ☒.
 - **Page numbers on a sheet that prints several** (a condensed transcript)
   are left out with a note. Upper-case roman numbers (I, II) are not read.
 - **A scan's firm slug** in the margin is left out with a note, and a scan
   has no drawn rules, so its footer rule is not rebuilt.
-- **Checkbox glyphs** on form-style proofs of service are dropped.
 - **A scan's drawn lines** — the double rule beside the numbers, the rule
   down the right edge, a caption's box — are pixels, not rules, and are not
   redrawn on a scanned pleading.
@@ -402,6 +456,8 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
 | `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |
 | `core/export/page-numbering.ts`, `first-page-foot.ts`, `recognized-foot.ts`, `footer-rule.ts` | Stretches of numbering (roman, restarts), the first page's own foot, a scan's clearest foot, the footer's rule |
+| `core/export/footnotes.ts`, `docx-footnotes.ts` | Footnotes found under their rule; Word footnotes, the mark's style, the separator |
+| `src/lib/layout/checkbox-runs.ts` (+ `op-walk.ts`) | Drawn checkboxes as ☐ / ☒ on their lines |
 | `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |
 | `core/export/tables.ts`, `table-grid.ts`, `docx-table.ts` | Ruled tables |
 | `core/export/images.ts`, `docx-image.ts`, `scan-appendix.ts` | Pictures and scans |

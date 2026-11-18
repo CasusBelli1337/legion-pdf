@@ -92,6 +92,52 @@ describe('walkOperators', () => {
   });
 });
 
+describe('checkboxes', () => {
+  /** pdfjs' path data: moveTo is 0, lineTo is 1, close is 4. */
+  const square = [0, 0, 0, 1, 11.6, 0, 1, 11.6, -11.6, 1, 0, -11.6, 4];
+  const stroke = (data: number[], bounds: number[]): [number, unknown[]] => [
+    OPS.constructPath!,
+    [OPS.stroke!, [new Float32Array(data)], new Float32Array(bounds)],
+  ];
+
+  it('reads a small stroked square as an empty box, and one crossed corner to corner as checked', () => {
+    const walk = walkOperators(
+      list([
+        stroke(square, [100, 400, 111.6, 411.6]),
+        stroke(square, [100, 300, 111.6, 311.6]),
+        stroke([0, 0, 0, 1, 11.8, -11.8], [99.9, 299.9, 111.7, 311.7]),
+        stroke([0, 0, 0, 1, -11.8, -11.8], [99.9, 299.9, 111.7, 311.7]),
+      ]),
+      OPS
+    );
+    expect(walk.boxes.map((box) => box.checked)).toEqual([false, true]);
+    expect(walk.boxes[1]!.rect).toMatchObject({ x: 100, y: 300 });
+  });
+
+  it('does not call a box checked for being outlined twice', () => {
+    const walk = walkOperators(
+      list([stroke(square, [100, 400, 111.6, 411.6]), stroke(square, [100, 400, 111.6, 411.6])]),
+      OPS
+    );
+    expect(walk.boxes).toEqual([{ rect: expect.anything(), checked: false }]);
+  });
+
+  it('ignores filled squares, large frames, and a lone diagonal', () => {
+    const walk = walkOperators(
+      list([
+        [
+          OPS.constructPath!,
+          [OPS.fill!, [new Float32Array(square)], new Float32Array([72, 500, 80, 508])],
+        ],
+        stroke(square, [72, 300, 200, 420]),
+        stroke([0, 0, 0, 1, 10, 10], [300, 300, 310, 310]),
+      ]),
+      OPS
+    );
+    expect(walk.boxes).toEqual([]);
+  });
+});
+
 describe('countLetters', () => {
   it('counts letters and digits, with ligatures decomposed', () => {
     expect(countLetters('Q. On page 3, yes')).toBe(11);

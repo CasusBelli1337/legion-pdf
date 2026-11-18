@@ -12,6 +12,8 @@ export interface DocxExpectations {
   paragraphCount: number;
   /** Plain text the document must contain, verbatim. */
   samples: readonly string[];
+  /** Footnotes the file must hold, when the document has any. */
+  footnotes?: number;
 }
 
 function escapeXml(text: string): string {
@@ -29,6 +31,20 @@ export async function documentXmlOf(bytes: Uint8Array): Promise<string> {
   return entry.async('string');
 }
 
+/** A footnote the attorney can see: every one but the separators, which carry a type. */
+const FOOTNOTE_TAG = /<w:footnote w:id="\d+">/g;
+
+async function verifyFootnotes(bytes: Uint8Array, expected: number): Promise<void> {
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = (await zip.file('word/footnotes.xml')?.async('string')) ?? '';
+  const held = xml.match(FOOTNOTE_TAG)?.length ?? 0;
+  if (held !== expected) {
+    throw new Error(
+      `The Word file holds ${held} footnotes where ${expected} were built — refusing to hand it over.`
+    );
+  }
+}
+
 /** Throws in plain English when the bytes do not hold what was built. */
 export async function verifyDocx(bytes: Uint8Array, expected: DocxExpectations): Promise<void> {
   if (bytes.byteLength === 0) throw new Error('The Word file came out empty.');
@@ -39,6 +55,7 @@ export async function verifyDocx(bytes: Uint8Array, expected: DocxExpectations):
       `The Word file holds ${paragraphs} paragraphs where ${expected.paragraphCount} were built — refusing to hand it over.`
     );
   }
+  if ((expected.footnotes ?? 0) > 0) await verifyFootnotes(bytes, expected.footnotes ?? 0);
   const missing = expected.samples.find((sample) => !xml.includes(escapeXml(sample)));
   if (missing !== undefined) {
     throw new Error(
