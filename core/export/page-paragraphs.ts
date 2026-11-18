@@ -22,11 +22,13 @@
 
 import type { LayoutTextRun, PageLayout, ScanPictureMode } from '@shared/types';
 import { planImages } from './images';
+import { pageWidthScale } from './font-widths';
 import { linesOf } from './lines';
 import { BASELINE_SHARE } from './model';
 import type { BodyFrame, Paragraph, TextParagraph } from './model';
 import type { SectionGeometry } from './page-setup';
 import { columnRunsOf } from './page-setup';
+import { blankLine, markUnnumbered, numberedBlanks } from './numbered-lines';
 import { paragraphsOf } from './paragraphs';
 import { LINE_NUMBERS_NOTE, NUMBERED_LINES_NOTE, PLEADING_NOTE, type Pleading } from './pleading';
 import { ruledTablesOf } from './tables';
@@ -127,22 +129,6 @@ function pageBox(paragraphs: readonly Paragraph[], pleading: Pleading | null): P
     bottom: Math.min(...boxes.map((box) => box.bottom)),
   };
 }
-
-function blankLine(pitchPt: number): TextParagraph {
-  return {
-    kind: 'text',
-    lines: [],
-    alignment: 'left',
-    leadingPt: pitchPt,
-    indentLeftPt: 0,
-    indentRightPt: 0,
-    firstLinePt: 0,
-    spaceBeforePt: 0,
-    tabStops: [],
-    top: 0,
-  };
-}
-
 /**
  * On pleading paper, space above a paragraph is so many numbered blank lines;
  * what is left over (never a whole line) stays as space, so nothing is pushed
@@ -159,35 +145,6 @@ function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[]
     out.push(paragraph);
   }
   return out;
-}
-
-/** A body run sits on this baseline, within a couple of points (a few, when recognised). */
-function hasTextAt(layout: PageLayout, y: number): boolean {
-  return layout.runs.some(
-    (run) =>
-      run.role === 'body' &&
-      run.text.trim().length > 0 &&
-      Math.abs(run.y - y) <= (run.hidden === true ? 4 : 2)
-  );
-}
-
-/**
- * When the numbers followed the text (Word's own numbering), a printed number
- * with no text beside it was an empty paragraph, and Word must be given one
- * of the same height there so its numbering counts the same lines.
- */
-function numberedBlanks(layout: PageLayout, pleading: Pleading): TextParagraph[] {
-  const numbers = layout.runs
-    .filter((run) => run.role === 'line-number' && /^\d{1,2}$/.test(run.text.trim()))
-    .sort((a, b) => b.y - a.y);
-  return numbers.flatMap((run, index) => {
-    if (hasTextAt(layout, run.y)) return [];
-    const next = numbers[index + 1];
-    const leading = next === undefined ? pleading.pitchPt : run.y - next.y;
-    const blank = blankLine(leading);
-    blank.top = run.y + BASELINE_SHARE * leading;
-    return [blank];
-  });
 }
 
 function byPosition(a: Paragraph, b: Paragraph): number {
@@ -223,6 +180,7 @@ function columnFlow(
   const lines = linesOf(withoutStrayNumbers(runs, pleading), layout.rules);
   const ruled = ruledTablesOf(lines, layout.rules, frame);
   const recognized = isRecognized(runs);
+  const widthScale = pageWidthScale(layout);
   const text = paragraphsOf(
     lines.filter((line) => !ruled.consumed.has(line)),
     {
@@ -230,6 +188,7 @@ function columnFlow(
       ...(pleading?.grid === true ? { leadingPt: pleading.pitchPt } : {}),
       linePerParagraph: recognized || (pleading !== null && isTranscript(layout)),
       fullWidth: recognized,
+      ...(widthScale === null ? {} : { widthScale }),
     }
   );
   const images = layout.images.filter((image) => {
@@ -242,7 +201,9 @@ function columnFlow(
     scanPictures: options.scanPictures,
   });
   notes.push(...plan.notes);
-  const blanks = pleading !== null && !pleading.grid ? numberedBlanks(layout, pleading) : [];
+  const follows = pleading !== null && !pleading.grid;
+  if (pleading !== null) markUnnumbered(text, layout);
+  const blanks = follows ? numberedBlanks(layout, pleading) : [];
   return [...text, ...blanks, ...ruled.tables, ...plan.paragraphs].sort(byPosition);
 }
 
@@ -298,8 +259,29 @@ function giveWay(previous: Paragraph | null, current: TextParagraph, previousBot
     )
       return;
   }
+  if (previous?.kind === 'text' && current.lines.length > 1 && yields(previous, current)) return;
   const room = previousBottom - firstBaseline(current);
   current.leadingPt = Math.max(MIN_LEADING, room / BASELINE_SHARE);
+}
+
+/** The least of its pitch a paragraph of several lines may give up to the one below it. */
+const MIN_YIELD = 0.93;
+
+/**
+ * A block quote ending a few points too close to the double-spaced paragraph
+ * under it: tightening the lower paragraph takes those points off every one
+ * of its lines, and the rest of the page rides up by the sum. Tightening the
+ * upper one by a hair per line moves only its own lines, by less — so it
+ * yields, when a hair is all it takes. True when it did.
+ */
+function yields(previous: TextParagraph, current: TextParagraph): boolean {
+  const count = previous.lines.length;
+  if (count < 2) return false;
+  const currentTop = firstBaseline(current) + BASELINE_SHARE * current.leadingPt;
+  const pitch = (firstBaseline(previous) - currentTop) / (count - BASELINE_SHARE);
+  if (pitch >= previous.leadingPt || pitch < MIN_YIELD * previous.leadingPt) return false;
+  previous.leadingPt = pitch;
+  return true;
 }
 
 /**

@@ -52,8 +52,10 @@ function ruleBorder(style: RuleStyle): IBorderOptions {
 
 /** The pleading section's vertical layout, measured from the paper's top edge, points. */
 export interface PleadingFrame {
-  /** Top of line 1's box — the body's fixed top margin. */
+  /** Top of line 1's box — where the numbers are placed from. */
   lineOneTop: number;
+  /** The body's fixed top margin: line 1's box top, or the page's first text line's when that sits higher. */
+  bodyTop: number;
   headerPt: number;
   /** Space above the numbers inside the header, so number 1 lands on line 1. */
   numbersBefore: number;
@@ -80,6 +82,7 @@ export function pleadingFrame(pleading: Pleading, geometry: SectionGeometry): Pl
   );
   return {
     lineOneTop,
+    bodyTop: Math.min(lineOneTop, geometry.margins.top),
     headerPt,
     numbersBefore: lineOneTop - headerPt,
     // The section already settled its bottom (the grid, or lower for footnotes under line 28).
@@ -97,7 +100,7 @@ export function pleadingFrame(pleading: Pleading, geometry: SectionGeometry): Pl
 export function pleadingMargins(frame: PleadingFrame, margins: PageMargins): PageMargins {
   return {
     ...margins,
-    top: -twips(frame.lineOneTop),
+    top: -twips(frame.bodyTop),
     bottom: twips(frame.bottomPt),
     header: twips(frame.headerPt),
   };

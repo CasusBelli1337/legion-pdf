@@ -10,7 +10,7 @@ import type { LayoutTextRun, PageLayout, PageSize } from '@shared/types';
 import { columnsOf } from './columns';
 import { BASELINE_SHARE } from './model';
 import type { BodyFrame } from './model';
-import { pleadingOf, pleadingOfSection } from './pleading';
+import { isNumberedPaper, pleadingOfSection } from './pleading';
 import type { Pleading } from './pleading';
 
 /** Points. Half an inch is the least a printer can hold; an inch is the default. */
@@ -103,7 +103,9 @@ export function bodyExtents(layout: PageLayout): Extents | null {
 export function columnRunsOf(layout: PageLayout): LayoutTextRun[][] {
   const runs = bodyRuns(layout);
   const extents = runsExtents(runs);
-  if (extents === null) return [runs];
+  // Numbered lines run across the page: a signature block set left and right
+  // of a tab is one column, however much its halves look like two.
+  if (extents === null || isNumberedPaper(layout)) return [runs];
   return columnsOf(runs, { left: extents.left, right: extents.right, textRight: extents.right });
 }
 
@@ -114,7 +116,7 @@ function sameSheet(a: PageLayout, b: PageLayout): boolean {
     Math.abs(first.width - second.width) <= 1 &&
     Math.abs(first.height - second.height) <= 1 &&
     columnRunsOf(a).length === columnRunsOf(b).length &&
-    (pleadingOf(a) === null) === (pleadingOf(b) === null)
+    isNumberedPaper(a) === isNumberedPaper(b)
   );
 }
 
@@ -230,7 +232,15 @@ function withPleadingMargins(
   boxes: readonly { top: number; bottom: number }[]
 ): SectionGeometry {
   const lineOneTop = pleading.firstBaseline + BASELINE_SHARE * pleading.pitchPt;
-  const top = geometry.size.height - lineOneTop;
+  // Some templates set the text a couple of points above the numbers' own
+  // baselines: the first line's box then starts above line 1's, and a body
+  // that began at line 1 had to squeeze the page's first paragraph to fit it
+  // (every line of it a few points tighter, the rest of the page a line up).
+  // The body begins where the highest first line needs it; the numbers stay
+  // on their own grid in the header.
+  const highest = Math.max(lineOneTop, ...boxes.map((box) => box.top));
+  const bodyTop = highest - lineOneTop <= pleading.pitchPt ? highest : lineOneTop;
+  const top = geometry.size.height - bodyTop;
   const lowest = Math.min(...boxes.map((box) => box.bottom), Number.POSITIVE_INFINITY);
   const bottom = Math.min(
     lineOneTop - (pleading.count + 0.5) * pleading.pitchPt,

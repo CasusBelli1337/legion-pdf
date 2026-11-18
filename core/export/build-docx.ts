@@ -7,18 +7,19 @@
  * the text is set in, so nothing that slips past a run style lands in Calibri.
  */
 
-import { Document, Footer, Header, LineRuleType, Packer, Paragraph as DocxParagraph } from 'docx';
+import { Document, Packer, Paragraph as DocxParagraph } from 'docx';
 import type { ISectionOptions, Table } from 'docx';
 import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@shared/types';
 import { docxImageParagraph } from './docx-image';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
-import { STAMP_NOTE, footerFor, hasStamps, headerFor, sectionProperties } from './docx-section';
+import { STAMP_NOTE, hasStamps } from './docx-section';
 import { NUMBERED_LINES_NOTE, PLEADING_NOTE } from './pleading';
 import { docxTable } from './docx-table';
 import type { Paragraph, TextParagraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
 import { scanAppendixSections } from './scan-appendix';
+import { sectionBands } from './section-bands';
 import { halfPoints, runStyleFor } from './styles';
 import { verifyDocx } from './verify';
 
@@ -107,18 +108,6 @@ function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] 
   });
 }
 
-/**
- * A section with no running head or foot still states one, a point tall: Word
- * hands a section that states none the PREVIOUS section's — and an exhibit
- * that inherits a pleading's page-tall header of line numbers has room for one
- * line of body per page (a 107-page declaration came out as 3,455).
- */
-function emptyBandLine(): DocxParagraph {
-  return new DocxParagraph({
-    spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT },
-  });
-}
-
 function assembleSection(
   pages: PageLayout[],
   fonts: Fonts,
@@ -150,19 +139,9 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const { header, headerPt, headerReachPt } = headerFor(pages, fonts, geometry);
-  const { footer, footerPt, footerReachPt } = footerFor(pages, fonts, geometry);
-  assembly.sections.push({
-    properties: sectionProperties(geometry, {
-      ...(headerPt === undefined ? {} : { headerPt }),
-      ...(headerReachPt === undefined ? {} : { headerReachPt }),
-      ...(footerPt === undefined ? {} : { footerPt }),
-      ...(footerReachPt === undefined ? {} : { footerReachPt }),
-    }),
-    headers: { default: header ?? new Header({ children: [emptyBandLine()] }) },
-    footers: { default: footer ?? new Footer({ children: [emptyBandLine()] }) },
-    children,
-  });
+  const bands = sectionBands(pages, fonts, geometry);
+  bands.notes.forEach((note) => assembly.notes.add(note));
+  assembly.sections.push({ ...bands.section, children });
 }
 
 /** The face and size most of the document's characters are set in. */

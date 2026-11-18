@@ -10,6 +10,7 @@
 
 import type { LayoutRule, LayoutTextRun } from '@shared/types';
 import { columnsOf } from './columns';
+import { leaderParts } from './leaders';
 import type { BodyFrame, Cell, Line, StyledRun } from './model';
 import { hexColor } from './styles';
 
@@ -89,6 +90,30 @@ function onBaseline(draft: Draft, run: LayoutTextRun): boolean {
   return Math.abs(run.y - draft.baseline) <= tolerance;
 }
 
+/** A raised reference sits at most this far (× the line's size) above the line it marks. */
+const RAISED_REACH = 0.6;
+
+/**
+ * A footnote reference raised further than the baseline tolerance (Word lifts
+ * an 8 pt mark 4.5 pt over 12 pt text) clusters alone, above its line. It is
+ * part of that line: left alone it became a paragraph of its own, one line
+ * taller than the page had room for.
+ */
+function joinRaised(drafts: Draft[]): Draft[] {
+  const joined: Draft[] = [];
+  drafts.forEach((draft, index) => {
+    const below = drafts[index + 1];
+    const rise = below === undefined ? 0 : draft.baseline - below.baseline;
+    const small =
+      below !== undefined &&
+      draft.runs.every((run) => run.sizePt < SUPERSCRIPT_SIZE * below.sizePt);
+    if (below !== undefined && small && rise > 0 && rise <= RAISED_REACH * below.sizePt) {
+      below.runs.push(...draft.runs);
+    } else joined.push(draft);
+  });
+  return joined;
+}
+
 /** Runs grouped by baseline, top of the page first. Whitespace-only runs are noise. */
 function clusterByBaseline(runs: readonly LayoutTextRun[]): Draft[] {
   const drafts: Draft[] = [];
@@ -100,7 +125,7 @@ function clusterByBaseline(runs: readonly LayoutTextRun[]): Draft[] {
     if (draft !== undefined && onBaseline(draft, run)) draft.runs.push(run);
     else drafts.push({ baseline: run.y, sizePt: run.sizePt, runs: [run] });
   }
-  return drafts;
+  return joinRaised(drafts);
 }
 
 /** The size most of the line's characters are set in. */
@@ -264,7 +289,7 @@ function placeRun(
 
 /** One line's runs, left to right, joined into cells with spaces where the gaps say so. */
 function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
-  const ordered = [...draft.runs].sort((a, b) => a.x - b.x);
+  const ordered = [...draft.runs].sort((a, b) => a.x - b.x).flatMap(leaderParts);
   const sizePt = dominantSize(ordered);
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];

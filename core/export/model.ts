@@ -90,6 +90,12 @@ export interface TextParagraph {
   columnBreakBefore?: boolean;
   /** An empty line standing in for space Word would drop; never a numbered line. */
   spacer?: boolean;
+  /**
+   * No printed line number stood beside any of its lines (a footnote under the
+   * last numbered line): where Word's own numbering counts the lines, it must
+   * not count these.
+   */
+  unnumbered?: boolean;
 }
 
 export interface ImageParagraph {
