@@ -26,7 +26,13 @@ import type {
 } from '@shared/types';
 import { writeFileAtomic } from '../services/atomic-write';
 import { chooseExportOutput } from '../services/native-dialogs';
-import { ExportRunner, exportPlan, openPdfText, resolvePages } from '../services/export';
+import {
+  ExportRunner,
+  exportPlan,
+  openPdfText,
+  rememberedLayout,
+  resolvePages,
+} from '../services/export';
 import type { ExporterContext, PageRaster } from '../services/export';
 import { OcrService, resolveTesseract } from '../services/ocr';
 import type { TesseractLocation } from '../services/ocr';
@@ -116,11 +122,18 @@ function exporterContext(context: IpcContext): ExporterContext {
 }
 
 function planFor(context: IpcContext, docId: string, options: ExportOptions): Promise<ExportPlan> {
+  const bytes = context.store.bytes(docId);
   return exportPlan({
     format: options.format,
     pages: resolvePages(options.pages, context.store.session(docId).pageCount),
-    bytes: context.store.bytes(docId),
-    requestLayout: async (page) => (await context.requestLayout({ docId, page })).layout,
+    bytes,
+    requestLayout: (page) =>
+      rememberedLayout(
+        bytes,
+        page,
+        async (asked) =>
+          (await context.requestLayout({ docId, page: asked, pictures: false })).layout
+      ),
   });
 }
 

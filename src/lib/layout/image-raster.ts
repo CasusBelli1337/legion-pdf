@@ -65,9 +65,31 @@ async function toPng(canvas: OffscreenCanvas): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
+/** True for an image `rasterizeImageObject` can draw: the two must never disagree about a page. */
+function readable(value: unknown): value is PixelImage {
+  if (!isPixelImage(value) || value.width < 1 || value.height < 1) return false;
+  if (value.bitmap !== undefined && value.bitmap !== null) return true;
+  const { data, kind, width, height } = value;
+  if (data === undefined) return false;
+  return kind === RGB_24BPP || kind === GRAYSCALE_1BPP || data.length === width * height * 4;
+}
+
+/**
+ * The image's size without its pixels, for a reader that only needs to know a
+ * picture is there (the export preview). Answers null exactly when
+ * `rasterizeImageObject` would.
+ */
+export function measureImageObject(value: unknown): Promise<RasterizedImage | null> {
+  return Promise.resolve(
+    readable(value)
+      ? { png: new Uint8Array(0), widthPx: value.width, heightPx: value.height }
+      : null
+  );
+}
+
 /** PNG bytes for a pdfjs image object, or null when it is not one this can read. */
 export async function rasterizeImageObject(value: unknown): Promise<RasterizedImage | null> {
-  if (!isPixelImage(value) || value.width < 1 || value.height < 1) return null;
+  if (!readable(value)) return null;
   const canvas = new OffscreenCanvas(value.width, value.height);
   const context = canvas.getContext('2d');
   if (context === null) return null;

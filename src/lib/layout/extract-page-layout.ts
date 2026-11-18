@@ -18,6 +18,8 @@ import { alignTextStyles } from './colour-align';
 import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
 import { stampRunIndexes } from './efiling-stamp';
+import { fromOrigin, originOf } from './page-origin';
+import type { PageMarks } from './page-origin';
 import { blockOfEachText, blocksOf } from './struct-tags';
 import { reclaimTaggedBody } from './tagged-body';
 import type { BlockRef, MarkedItemLike, StructNodeLike } from './struct-tags';
@@ -194,22 +196,22 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
   const items = content.items.map((item) => (isTextItem(item) ? item : { str: '' }));
   const styles = alignTextStyles(items, walk.texts);
   const blocks = await blocksOfTextItems(page);
-  const runs: LayoutTextRun[] = [];
+  const raw: PageMarks = { runs: [], images: [], rules: walk.rules.map((rect) => ({ rect })) };
   content.items.forEach((item, index) => {
     if (!isTextItem(item) || item.str.length === 0) return;
     const style = styles[index] ?? { colorHex: '#000000', hidden: false };
-    runs.push(runOf(item, index, input, style, blocks[index]));
+    raw.runs.push(runOf(item, index, input, style, blocks[index]));
   });
+  for (const op of walk.images) {
+    const image = await imageOf(page, op, input);
+    if (image !== null) raw.images.push(image);
+  }
+  const { runs, images, rules } = fromOrigin(raw, originOf(page.view));
   reclaimTaggedBody(runs);
   const size = { width: x1 - x0, height: y1 - y0 };
   for (const index of stampRunIndexes(runs, size)) {
     const run = runs[index];
     if (run !== undefined) run.role = 'stamp';
-  }
-  const images: LayoutImage[] = [];
-  for (const op of walk.images) {
-    const image = await imageOf(page, op, input);
-    if (image !== null) images.push(image);
   }
   return {
     page: input.page,
@@ -218,7 +220,7 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     fonts: await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles),
     runs,
     images,
-    rules: walk.rules.map((rect) => ({ rect })),
+    rules,
     printedPageNumber: input.printedPageNumber,
   };
 }

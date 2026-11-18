@@ -88,6 +88,11 @@ export interface LayoutRequest {
   requestId: string;
   docId: string;
   page: number;
+  /**
+   * False asks for the pictures' places without their pixels (`png` comes back
+   * empty) — enough to plan an export, and far cheaper. Never build from one.
+   */
+  pictures?: boolean;
 }
 
 export interface LayoutResponse {

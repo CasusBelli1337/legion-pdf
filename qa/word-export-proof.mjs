@@ -64,13 +64,21 @@ const bodyText = () => page.evaluate(() => document.body.innerText);
 await clickText('Export');
 await page.waitForTimeout(600);
 await clickText('Word document');
+// The plan reads every page to count the picture pages exactly as the export
+// will, so on a long document it takes a moment: wait for the panel to stop
+// looking rather than for a fixed time, and say how long it took.
+const asked = Date.now();
+await page.waitForTimeout(400);
 await page.waitForFunction(
-  () =>
-    /Pleading paper detected|scanned page|Looking at the document/.test(document.body.innerText),
+  () => !document.body.innerText.includes('Looking at the document'),
   null,
-  { timeout: 15000 }
+  {
+    timeout: 5 * 60_000,
+    polling: 100,
+  }
 );
-await page.waitForTimeout(1200);
+say('plan ready after', `${Date.now() - asked} ms`);
+await page.waitForTimeout(300);
 await page.screenshot({ path: path.join(SHOTS, '01-plan.png') });
 const plan = (await bodyText())
   .split('\n')

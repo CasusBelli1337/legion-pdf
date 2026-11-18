@@ -6,24 +6,27 @@
  * pictures, pleading paper whose numbered lines have to be rebuilt, and Bates
  * numbers that cannot come across. Saying them first turns "why is my export wrong?" into a choice.
  *
- * Looking is cheap and must stay cheap — the panel asks again on every change
- * of document, format, or page range — so only the first few pages that hold
- * text are read, and a page that will not answer is skipped rather than taking
- * the whole preview down with it.
+ * Which pages are kept as pictures is the exporter's own decision
+ * (`picturePagesOf`), made over the same pages it will read — a count taken
+ * any other way disagreed with the export (96 promised, 98 kept). So every
+ * page in the range is read, once: the caller reads them light (no picture
+ * pixels) and remembers them per document (plan-layouts.ts), which keeps the
+ * panel's second question — a new page range — instant. A page that will not
+ * answer is skipped rather than taking the whole preview down with it.
  */
 
 import { detectTextLayer } from '@core/ocr';
 import { picturePagesOf, pleadingOf } from '@core/export';
 import type { ExportFormat, ExportPlan, OcrDetectResult, PageLayout } from '@shared/types';
 
-/** Pages sampled for pleading paper and stamps. Three is enough to know. */
+/** Typed pages looked at for pleading paper and stamps. Three is enough to know. */
 export const SAMPLE_PAGES = 3;
 
 export interface PlanFacts {
   pageCount: number;
   /** 1-based pages with no text layer that will be recognized. */
   scannedPages: number[];
-  /** 1-based pages with no text layer that come behind typed pages: kept as pictures. */
+  /** 1-based pages the export keeps as pictures: scans and drawings behind typed pages. */
   exhibitPages?: number[];
   /** 1-based sampled pages that are pleading paper. */
   pleadingPages: number[];
@@ -71,7 +74,7 @@ export interface PlanInput {
   /** The pages the export would cover, already resolved against the document. */
   pages: readonly number[];
   bytes: Uint8Array;
-  /** One page's layout, or null when the renderer could not read it. */
+  /** One page's layout (its pictures' pixels are not needed), or null when the renderer could not read it. */
   requestLayout(page: number): Promise<PageLayout | null>;
   /** Injectable for tests; the real text-layer detector otherwise. */
   detect?(bytes: Uint8Array): Promise<OcrDetectResult>;
@@ -86,48 +89,31 @@ async function layoutOrNull(input: PlanInput, page: number): Promise<PageLayout 
   }
 }
 
-/**
- * The scans that come after the first sampled page the exporter would call
- * typed — the ones it keeps as pictures. Judged with the exporter's own rule
- * (`picturePagesOf`) over the sampled page and bare stand-ins for the scans,
- * so the plan and the export cannot disagree about a page with no text.
- */
-function exhibitsAmong(scannedPages: readonly number[], sampled: readonly PageLayout[]): number[] {
-  const bare = scannedPages.map((page): PageLayout => ({
-    page,
-    size: { width: 612, height: 792 },
-    rotation: 0,
-    fonts: {},
-    runs: [],
-    images: [],
-    rules: [],
-    printedPageNumber: null,
-  }));
-  const inOrder = [...sampled, ...bare].sort((a, b) => a.page - b.page);
-  const pictures = new Set(picturePagesOf(inOrder));
-  return scannedPages.filter((page) => pictures.has(page));
+async function layoutsOf(input: PlanInput): Promise<PageLayout[]> {
+  const layouts: PageLayout[] = [];
+  for (const page of input.pages) {
+    const layout = await layoutOrNull(input, page);
+    if (layout !== null) layouts.push(layout);
+  }
+  return layouts;
 }
 
 async function factsOf(input: PlanInput, noTextPages: number[]): Promise<PlanFacts> {
-  const typed = input.pages.filter((page) => !noTextPages.includes(page)).slice(0, SAMPLE_PAGES);
+  const layouts = await layoutsOf(input);
+  const exhibits = picturePagesOf(layouts);
   const facts: PlanFacts = {
     pageCount: input.pages.length,
-    scannedPages: noTextPages,
+    scannedPages: noTextPages.filter((page) => !exhibits.includes(page)),
     pleadingPages: [],
     stamped: false,
   };
-  const sampled: PageLayout[] = [];
-  for (const page of typed) {
-    const layout = await layoutOrNull(input, page);
-    if (layout === null) continue;
-    sampled.push(layout);
-    if (pleadingOf(layout) !== null) facts.pleadingPages.push(page);
+  if (exhibits.length > 0) facts.exhibitPages = exhibits;
+  const typed = layouts
+    .filter((layout) => !noTextPages.includes(layout.page) && !exhibits.includes(layout.page))
+    .slice(0, SAMPLE_PAGES);
+  for (const layout of typed) {
+    if (pleadingOf(layout) !== null) facts.pleadingPages.push(layout.page);
     if (layout.runs.some((run) => run.role === 'stamp')) facts.stamped = true;
-  }
-  const exhibits = exhibitsAmong(noTextPages, sampled);
-  if (exhibits.length > 0) {
-    facts.exhibitPages = exhibits;
-    facts.scannedPages = noTextPages.filter((page) => !exhibits.includes(page));
   }
   return facts;
 }
