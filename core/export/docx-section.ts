@@ -7,17 +7,10 @@
  * by a PAGE field so the numbers keep counting after the attorney edits.
  */
 
-import {
-  BorderStyle,
-  Column,
-  Footer,
-  Header,
-  LineNumberRestartFormat,
-  PageOrientation,
-} from 'docx';
+import { Column, Header, LineNumberRestartFormat, PageOrientation } from 'docx';
 import type { ISectionOptions, Paragraph as DocxParagraph } from 'docx';
 import type { LayoutFont, LayoutTextRun, PageLayout } from '@shared/types';
-import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
+import { docxTextParagraph } from './docx-paragraph';
 import { pleadingFrame, pleadingHeader, pleadingMargins } from './docx-pleading';
 import { linesOf } from './lines';
 import { BASELINE_SHARE, twips } from './model';
@@ -31,9 +24,7 @@ type Fonts = Readonly<Record<string, LayoutFont>>;
 /** Word will not number lines closer to the text than this. */
 const MIN_NUMBER_DISTANCE = 4;
 /** A header or footer may not start closer to the paper's edge than this. */
-const MIN_BAND_PT = 12;
-/** Room between a band's inner edge and the body, so Word never has to move the body. */
-const BAND_CLEARANCE = 1;
+export const MIN_BAND_PT = 12;
 
 /** Numbers that followed the text lines are Word's own numbering, restarted per page. */
 function lineNumbersFor(geometry: SectionGeometry): Pick<SectionProperties, 'lineNumbers'> {
@@ -63,18 +54,55 @@ export interface BandDistances {
   footerReachPt?: number;
 }
 
+/**
+ * Word never lets a header or footer overlap the body: a foot that reaches a
+ * point above the bottom margin takes that point — and with it the page's last
+ * lines — out of the body, and a head that reaches below the top margin pushes
+ * the whole page down. A NEGATIVE margin is Word's "exactly here, whatever the
+ * band holds" (the device the pleading's fixed top margin uses), so a section
+ * with a band states that margin negative and the band may sit as close to the
+ * text as it did on the page.
+ */
+function fixedMargin(marginPt: number, bandReachPt: number | undefined): number {
+  if (bandReachPt === undefined) return twips(marginPt);
+  return -Math.max(1, twips(marginPt));
+}
+
+/** An empty band is a point tall (build-docx.ts): it must end this far short of the margin. */
+const EMPTY_BAND_ROOM = 2;
+
+/**
+ * A band's distance from the paper's edge. A section with no head or foot
+ * still carries an empty one, and its margin stays positive — so the empty
+ * band is kept clear of the body, or it would push the body all the same.
+ */
+function bandDistance(
+  placedPt: number | undefined,
+  reachPt: number | undefined,
+  fallbackPt: number,
+  marginPt: number
+): number {
+  const distance = placedPt ?? fallbackPt;
+  if (reachPt !== undefined) return distance;
+  return Math.max(0, Math.min(distance, marginPt - EMPTY_BAND_ROOM));
+}
+
 export function sectionProperties(
   geometry: SectionGeometry,
   bands: BandDistances = {}
 ): SectionProperties {
   const { size, margins, pleading } = geometry;
   const margin = {
-    top: twips(Math.max(margins.top, (bands.headerReachPt ?? 0) + BAND_CLEARANCE)),
+    top: fixedMargin(margins.top, bands.headerReachPt),
     right: twips(margins.right),
-    bottom: twips(Math.max(margins.bottom, (bands.footerReachPt ?? 0) + BAND_CLEARANCE)),
+    bottom: fixedMargin(margins.bottom, bands.footerReachPt),
     left: twips(margins.left),
-    header: twips(bands.headerPt ?? geometry.headerPt),
-    footer: twips(bands.footerPt ?? geometry.footerPt),
+    header: twips(
+      bandDistance(bands.headerPt, bands.headerReachPt, geometry.headerPt, margins.top)
+    ),
+    footer: twips(
+      bandDistance(bands.footerPt, bands.footerReachPt, geometry.footerPt, margins.bottom)
+    ),
   };
   // The docx package swaps width and height itself for a landscape section,
   // so it is handed the portrait measurements and the orientation.
@@ -117,7 +145,7 @@ function columnsFor(geometry: SectionGeometry): Pick<SectionProperties, 'column'
 }
 
 /** A running head or foot laid out exactly: where its box starts and ends, and its paragraphs. */
-interface Band {
+export interface Band {
   paragraphs: TextParagraph[];
   /** PDF y of the band's top and bottom edges. */
   top: number;
@@ -163,13 +191,13 @@ function settleBand(paragraphs: readonly TextParagraph[]): Pick<Band, 'top' | 'b
  * measured from the band's own top edge. A firm's letter-spaced slug of three
  * eight-point lines then makes a 24-point footer, not a page-and-a-half one.
  */
-function bandOf(runs: readonly LayoutTextRun[], frame: BodyFrame): Band {
+export function bandOf(runs: readonly LayoutTextRun[], frame: BodyFrame): Band {
   const paragraphs = paragraphsOf(linesOf(runs, []), { frame });
   tightenLonePitches(paragraphs);
   return { paragraphs, ...settleBand(paragraphs) };
 }
 
-function bandParagraphs(band: Band, fonts: Fonts): DocxParagraph[] {
+export function bandParagraphs(band: Band, fonts: Fonts): DocxParagraph[] {
   return band.paragraphs.map((paragraph) =>
     docxTextParagraph(paragraph, fonts, { pageBreakBefore: false })
   );
@@ -222,7 +250,7 @@ function nearEdge(run: LayoutTextRun, page: PageLayout): boolean {
 }
 
 /** The band's runs on the first page of the section that carries the band at all. */
-function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]): LayoutTextRun[] {
+export function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]): LayoutTextRun[] {
   for (const page of pages) {
     const runs = page.runs.filter(
       (run) =>
@@ -267,81 +295,6 @@ export function headerFor(
     headerPt,
     headerReachPt: geometry.size.height - band.bottom,
   };
-}
-
-/** A horizontal rule drawn just above the footer's text — the line under the body on pleading paper. */
-function footerRuleAbove(
-  pages: readonly PageLayout[],
-  runs: readonly LayoutTextRun[]
-): number | null {
-  const page = pages.find((candidate) => candidate.runs.some((run) => runs.includes(run)));
-  if (page === undefined || runs.length === 0) return null;
-  const textTop = Math.max(...runs.map((run) => run.y + run.sizePt));
-  const rules = page.rules
-    .filter((rule) => rule.rect.height <= 3 && rule.rect.width >= 0.3 * page.size.width)
-    .map((rule) => rule.rect.y)
-    .filter((y) => y >= textTop - 2 && y <= textTop + 30);
-  return rules.length === 0 ? null : Math.min(...rules);
-}
-
-/**
- * The first page's foot as a Word footer. The printed page number becomes a
- * PAGE field. Bates stamps are NOT carried: they differ on every page, and a
- * footer that said the first page's number on every page would be a lie.
- */
-export function footerFor(
-  pages: readonly PageLayout[],
-  fonts: Fonts,
-  geometry: SectionGeometry
-): { footer: Footer | null; footerPt?: number; footerReachPt?: number } {
-  const band = bandRuns(pages, ['footer', 'page-number']);
-  // Several printed numbers on one sheet (a condensed transcript) are not the
-  // sheet's number: no field can stand in for them. Nor can one stand in for a
-  // number that does not count up page by page — a phone number in the foot.
-  const numbers = band.filter((run) => run.role === 'page-number').length;
-  const counting = numbers === 1 && countsPages(pages);
-  const runs = band
-    .filter((run) => run.role !== 'page-number' || numbers === 1)
-    .map((run) =>
-      run.role === 'page-number' && counting
-        ? { ...run, text: run.text.replace(/\d+/, PAGE_FIELD) }
-        : run
-    );
-  if (runs.length === 0) return { footer: null };
-  const placed = bandOf(runs, geometry.frame);
-  const children = bandParagraphs(placed, fonts);
-  const ruleY = footerRuleAbove(pages, band);
-  const first = placed.paragraphs[0];
-  if (ruleY !== null && first !== undefined) {
-    children[0] = withTopRule(first, fonts, Math.max(1, ruleY - placed.top));
-  }
-  // Word measures the footer from the paper's bottom edge to the footer's bottom.
-  const footerPt = Math.max(MIN_BAND_PT, placed.bottom);
-  return { footer: new Footer({ children }), footerPt, footerReachPt: placed.top };
-}
-
-/** The footer's first paragraph again, with a rule above it `spacePt` from its box. */
-function withTopRule(paragraph: TextParagraph, fonts: Fonts, spacePt: number): DocxParagraph {
-  return docxTextParagraph(paragraph, fonts, {
-    pageBreakBefore: false,
-    border: {
-      top: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: Math.round(spacePt) },
-    },
-  });
-}
-
-/** The printed numbers rise by one from each page to the next (where both are known). */
-function countsPages(pages: readonly PageLayout[]): boolean {
-  const known = pages.filter((page) => page.printedPageNumber !== null);
-  if (known.length <= 1) return true;
-  return known.slice(1).every((page, index) => {
-    const previous = known[index];
-    return (
-      previous !== undefined &&
-      (page.printedPageNumber ?? 0) - (previous.printedPageNumber ?? 0) ===
-        page.page - previous.page
-    );
-  });
 }
 
 export const STAMP_NOTE =

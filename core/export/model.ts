@@ -23,6 +23,8 @@ export interface StyledRun {
   hidden: boolean;
   /** A footnote reference or ordinal, raised and small; Word draws it as superscript. */
   superscript?: boolean;
+  /** Word character scaling, per cent, when the line was set narrower than Word's face (run-scale.ts). */
+  scalePct?: number;
 }
 
 /** One column of a line. Nearly every line has exactly one. */

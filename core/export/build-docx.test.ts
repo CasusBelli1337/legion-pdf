@@ -205,7 +205,7 @@ describe('buildDocx — scanner noise in the foot', () => {
 });
 
 describe('buildDocx — the foot never pushes the body', () => {
-  it('widens the bottom margin to the footer’s reach when the foot sits high on the page', async () => {
+  it('fixes the bottom margin (negative) so a foot that sits high takes no room from the body', async () => {
     const layout = page([
       ...paragraphLines(3, 700),
       run('FIRM SLUG LINE ONE', 90, 120, { role: 'footer', sizePt: 6 }),
@@ -215,8 +215,78 @@ describe('buildDocx — the foot never pushes the body', () => {
     const { document } = await partsOf((await buildDocx([layout])).bytes);
     const bottom = Number(/w:bottom="(-?\d+)"/.exec(document)?.[1]);
     const footer = Number(/w:footer="(-?\d+)"/.exec(document)?.[1]);
-    // The foot's top edge is about 125 pt (2500 twips) up the page; the body must stop above it.
-    expect(bottom).toBeGreaterThanOrEqual(2480);
-    expect(footer).toBeLessThan(bottom);
+    // The foot's top edge is about 125 pt up the page. A positive bottom margin would let
+    // Word push the body above it; a negative one is exact, whatever the footer holds.
+    expect(bottom).toBeLessThan(0);
+    expect(footer).toBeGreaterThan(0);
+  });
+});
+
+describe('buildDocx — feet that sit close under the text, and text set narrower than Word’s', () => {
+  const slug = (y: number, text: string) =>
+    run(text, 18, y, { role: 'footer', sizePt: 6, width: 40 });
+  const footOf = (pageNumber: number | null) => [
+    slug(53, 'HARTWELL LLP'),
+    slug(45, 'ATTORNEYS AT LAW'),
+    run('OPPOSITION TO MOTION FOR SUMMARY JUDGMENT', 72, 41, { role: 'footer', sizePt: 10 }),
+    ...(pageNumber === null
+      ? []
+      : [run(`- ${pageNumber} -`, 300, 54, { role: 'page-number', sizePt: 12 })]),
+  ];
+
+  it('frames a firm’s slug in the margin so it adds nothing to the footer’s height', async () => {
+    const layout = page([...paragraphLines(3, 700), ...footOf(null)]);
+    const { footer, document } = await partsOf((await buildDocx([layout])).bytes);
+    expect(footer.match(/<w:framePr /g)).toHaveLength(2);
+    expect(footer).toMatch(
+      /w:hAnchor="page"[^>]*w:vAnchor="page"|w:vAnchor="page"[^>]*w:hAnchor="page"/
+    );
+    expect(footer).toContain('OPPOSITION TO MOTION');
+    // The bottom margin is exact: the foot cannot take the page's last lines.
+    expect(Number(/w:bottom="(-?\d+)"/.exec(document)?.[1])).toBeLessThan(0);
+  });
+
+  it('reads the running foot off the page that prints a number and keeps the caption page’s own', async () => {
+    const caption = page([...paragraphLines(3, 700), ...footOf(null)], { page: 1 });
+    const second = page([...paragraphLines(3, 700), ...footOf(2)], {
+      page: 2,
+      printedPageNumber: 2,
+    });
+    const zip = await JSZip.loadAsync((await buildDocx([caption, second])).bytes);
+    const feet = await Promise.all(
+      Object.keys(zip.files)
+        .filter((name) => /^word\/footer\d+\.xml$/.test(name))
+        .map((name) => zip.file(name)?.async('string'))
+    );
+    const document = (await zip.file('word/document.xml')?.async('string')) ?? '';
+    expect(document).toContain('<w:titlePg');
+    expect(feet).toHaveLength(2);
+    expect(feet.filter((foot) => foot?.includes('PAGE'))).toHaveLength(1);
+  });
+
+  it('does not borrow a numbered page’s foot when it is a different foot', async () => {
+    const caption = page([...paragraphLines(3, 700), ...footOf(null)], { page: 1 });
+    const service = page(
+      [
+        ...paragraphLines(3, 700),
+        run('PROOF OF SERVICE', 72, 41, { role: 'footer', sizePt: 10 }),
+        run('- 2 -', 300, 54, { role: 'page-number', sizePt: 12 }),
+      ],
+      { page: 2, printedPageNumber: 2 }
+    );
+    const { document, footer } = await partsOf((await buildDocx([caption, service])).bytes);
+    expect(document).not.toContain('<w:titlePg');
+    expect(footer).toContain('OPPOSITION TO MOTION');
+  });
+
+  it('condenses a recognised line to the width the scan’s words had', async () => {
+    const text = 'The court now orders as follows, in Department 1';
+    const layout = page([
+      run(text, 72, 700, { hidden: true, width: 200 }),
+      run(text, 72, 676, { hidden: true, width: 200 }),
+    ]);
+    const { document } = await partsOf((await buildDocx([layout])).bytes);
+    // Times sets the line in 238 pt; the scan had it in 200 — 83 per cent.
+    expect(document.match(/<w:w w:val="83"\/>/g)).toHaveLength(2);
   });
 });

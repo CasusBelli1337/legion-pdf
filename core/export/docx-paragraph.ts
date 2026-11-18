@@ -25,6 +25,7 @@ import type { LayoutFont } from '@shared/types';
 import { sameStyle } from './lines';
 import type { Alignment, Line, StyledRun, TextParagraph } from './model';
 import { twips } from './model';
+import { withLineScales } from './run-scale';
 import { halfPoints, runStyleFor } from './styles';
 
 /**
@@ -58,6 +59,7 @@ function runOptions(run: StyledRun, fonts: Fonts): IRunOptions {
     color: run.colorHex,
     ...(run.underline ? { underline: {} } : {}),
     ...(run.superscript === true ? { superScript: true } : {}),
+    ...(run.scalePct === undefined ? {} : { scale: run.scalePct }),
   };
 }
 
@@ -166,15 +168,16 @@ function tabbedChildren(line: Line, fonts: Fonts): TextRun[] {
 }
 
 function childrenOf(paragraph: TextParagraph, fonts: Fonts): TextRun[] {
+  const lines = withLineScales(paragraph.lines, fonts);
   if (paragraph.tabStops.length > 0) {
     // Tabbed lines keep their line ends: a table-of-contents entry that wrapped
     // before its leader must wrap there in Word too, or the tab lands elsewhere.
-    return paragraph.lines.flatMap((line, index) => [
+    return lines.flatMap((line, index) => [
       ...(index > 0 ? [new TextRun({ break: 1 })] : []),
       ...tabbedChildren(line, fonts),
     ]);
   }
-  return joinLines(paragraph.lines, paragraph.alignment).flatMap((run) => textRun(run, fonts));
+  return joinLines(lines, paragraph.alignment).flatMap((run) => textRun(run, fonts));
 }
 
 function indentOf(paragraph: TextParagraph): IParagraphOptions['indent'] | undefined {
