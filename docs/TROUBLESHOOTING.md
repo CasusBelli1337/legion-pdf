@@ -63,6 +63,15 @@ multi-size `.ico` it stamps on the exe, the installer, and the shortcut.
 The installer is built ON the Windows host with a portable Node — WSL has no
 Wine and no passwordless sudo, and this is the more faithful environment anyway.
 
+Since the move to native Linux (2026-10-19) there is no Windows host: the
+build machine is the `word-vm` Windows 11 VM (`ssh word-vm`, PowerShell).
+v0.7.0 was built there on 2026-11-18: portable Node under
+`%LOCALAPPDATA%\librarius-build\node`, the tracked files plus
+`build/icon.png`, `resources/tesseract-win/` and `src/public/` sent over as
+one tarball (`scp`, then `tar -xzf` on the VM), then steps 4 and 5 below with
+that Node first on `Path`. Copy the installer back with `scp` and compare
+SHA-256 on both sides.
+
 1. One-time host setup (already done on this rig, re-do after a reset):
    - Portable Node: unzip `node-v24.x-win-x64.zip` under
      `C:\Users\<user>\AppData\Local\librarius-build\`. No installer, no admin.
