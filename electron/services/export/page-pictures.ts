@@ -2,7 +2,7 @@
  * Exhibit pages as pictures, for the Word exporter.
  *
  * core/export decides WHICH pages are picture pages (a scan or drawing behind
- * typed pages — `picturePagesOf`); this draws each of them whole through the
+ * typed pages, a loose sheet among scans — `picturePagesOf`); this draws each of them whole through the
  * renderer and hands core the picture. JPEG at 150 dpi: a hundred pages of
  * exhibits stay near 20 MB where PNGs would run past 100.
  *

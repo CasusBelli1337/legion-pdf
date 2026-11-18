@@ -26,7 +26,7 @@ export interface PlanFacts {
   pageCount: number;
   /** 1-based pages with no text layer that will be recognized. */
   scannedPages: number[];
-  /** 1-based pages the export keeps as pictures: scans and drawings behind typed pages. */
+  /** 1-based pages the export keeps as pictures: exhibits behind typed pages, loose sheets among scans. */
   exhibitPages?: number[];
   /** 1-based sampled pages that are pleading paper. */
   pleadingPages: number[];
@@ -53,8 +53,8 @@ function scanLine(count: number): string {
 
 function exhibitLine(count: number): string {
   return count === 1
-    ? '1 scanned page sits behind typed pages (an exhibit). It will be kept as a picture of the page; export it on its own to get its words.'
-    : `${count} scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.`;
+    ? '1 scanned page is an attachment (an exhibit, an envelope). It will be kept as a picture of the page; export it on its own to get its words.'
+    : `${count} scanned pages are attachments (exhibits, an envelope). Each will be kept as a picture of the page; export them on their own to get their words.`;
 }
 
 /** The sentences the panel shows, in the order they matter to the attorney. */

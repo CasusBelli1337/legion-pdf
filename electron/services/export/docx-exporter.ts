@@ -123,22 +123,45 @@ function assertExportable(job: ExportJob): string {
 }
 
 /**
- * Scans stapled behind typed pages are exhibits: core keeps each as a picture
- * of the page, so they are not recognized at all. Telling them apart takes the
- * layouts, which is why a document that MIXES typed pages and scans is read
- * once before recognition; one that is typed throughout, or scans throughout,
- * is read once as before.
+ * The pages as the export's preview reads them: no picture pixels, and a page
+ * that will not answer is skipped. Enough to tell which scans are loose
+ * sheets; never built from.
+ */
+async function glance(job: ExportJob, context: ExportContext): Promise<PageLayout[]> {
+  const layouts: PageLayout[] = [];
+  for (const page of job.pages) {
+    if (job.signal.aborted) throw new Error('The export was stopped.');
+    const request = { docId: job.docId, page, pictures: false };
+    const response = await context.requestLayout(request).catch(() => null);
+    if (response !== null && response.layout !== null) layouts.push(response.layout);
+  }
+  return layouts;
+}
+
+/**
+ * Some scans are not recognized at all: exhibits stapled behind typed pages
+ * and loose sheets among scans (an envelope) each go in as a picture of the
+ * page. Telling them apart takes the layouts BEFORE recognition — the same
+ * unrecognized pages the preview read, which keeps the preview's count and
+ * the export's the same. A document that mixes typed pages and scans is read
+ * in full (with nothing to recognize, that read is the export's); one that is
+ * scans throughout only needs a glance; one typed throughout is read once.
  */
 async function firstRead(
   job: ExportJob,
   context: ExportContext,
   scans: readonly number[]
 ): Promise<{ layouts: PageLayout[] | null; toRecognize: number[] }> {
-  const mixed = scans.length > 0 && scans.length < job.pages.length;
-  if (!mixed || !canDrawPages(context)) return { layouts: null, toRecognize: [...scans] };
-  const layouts = await layoutsOf(job, context, job.docId);
-  const exhibits = new Set(picturePagesOf(layouts));
-  return { layouts, toRecognize: scans.filter((page) => !exhibits.has(page)) };
+  if (scans.length === 0 || !canDrawPages(context))
+    return { layouts: null, toRecognize: [...scans] };
+  const mixed = scans.length < job.pages.length;
+  if (!mixed) job.report(0, scans.length, PHASE_RECOGNIZE);
+  const layouts = mixed ? await layoutsOf(job, context, job.docId) : await glance(job, context);
+  const pictures = new Set(picturePagesOf(layouts));
+  return {
+    layouts: mixed ? layouts : null,
+    toRecognize: scans.filter((page) => !pictures.has(page)),
+  };
 }
 
 /** The first read when nothing had to be recognized; otherwise the recognized copy, read anew. */

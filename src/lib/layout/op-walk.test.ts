@@ -70,6 +70,25 @@ describe('walkOperators', () => {
     expect(walk.images[1]!.ctm).toEqual([1, 0, 0, 1, 0, 0]);
   });
 
+  it('reads a form matrix pdfjs sends as a Float32Array (a signature placed inside nested forms)', () => {
+    const walk = walkOperators(
+      list([
+        [OPS.paintFormXObjectBegin!, [new Float32Array([1, 0, 0, 1, 0, 0]), null]],
+        [OPS.paintFormXObjectBegin!, [new Float32Array([135, 0, 0, 45, 307, 75]), null]],
+        [OPS.paintImageXObject!, ['img_p10_1', 1000, 338]],
+        [OPS.paintFormXObjectEnd!, []],
+        [OPS.paintFormXObjectEnd!, []],
+      ]),
+      OPS
+    );
+    expect(transformedBox(walk.images[0]!.ctm, { x: 0, y: 0, width: 1, height: 1 })).toEqual({
+      x: 307,
+      y: 75,
+      width: 135,
+      height: 45,
+    });
+  });
+
   it('expands a repeated image into one placement per position', () => {
     const walk = walkOperators(
       list([[OPS.paintImageXObjectRepeat!, ['img', 10, 10, new Float32Array([0, 0, 100, 100])]]]),

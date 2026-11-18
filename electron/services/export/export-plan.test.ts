@@ -205,7 +205,7 @@ describe('exportPlan', () => {
     // Page 1 is a scan BEFORE any typed page: it is still recognized.
     expect(plan.scannedPages).toEqual([1]);
     expect(plan.lines).toContain(
-      '2 scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.'
+      '2 scanned pages are attachments (exhibits, an envelope). Each will be kept as a picture of the page; export them on their own to get their words.'
     );
   });
 
@@ -231,7 +231,24 @@ describe('exportPlan', () => {
     expect(picturePagesOf(pages)).toEqual([2, 3, 4]);
     expect(plan.scannedPages).toEqual([]);
     expect(plan.lines).toEqual([
-      '3 scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.',
+      '3 scanned pages are attachments (exhibits, an envelope). Each will be kept as a picture of the page; export them on their own to get their words.',
     ]);
+  });
+
+  it('counts a loose sheet among scans (an envelope) the way the exporter does', async () => {
+    const sideways = layout(2, { runs: [], size: { width: 792, height: 612 } });
+    const pages = [layout(1, { runs: [] }), sideways];
+    const plan = await exportPlan({
+      format: 'docx',
+      pages: [1, 2],
+      bytes,
+      requestLayout: (page) => Promise.resolve(pages[page - 1] ?? null),
+      detect: detected([1, 2], 2),
+    });
+    expect(picturePagesOf(pages)).toEqual([2]);
+    expect(plan.scannedPages).toEqual([1]);
+    expect(plan.lines).toContain(
+      '1 scanned page is an attachment (an exhibit, an envelope). It will be kept as a picture of the page; export it on its own to get its words.'
+    );
   });
 });

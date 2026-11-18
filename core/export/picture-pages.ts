@@ -17,9 +17,19 @@
  *   - after that, a page with no visible body words is a picture page, and so
  *     is a page under a full-page picture with only a few (a sticker, a label).
  *
- * A typed slip sheet ("EXHIBIT A") keeps its words and stays text. To get an
- * exhibit's words anyway, export its pages on their own: with no typed page
- * in front of them they are recognised like any other scan.
+ * A document that is scans throughout has one more kind of picture page: a
+ * LOOSE SHEET — the envelope a court's notice came in, a receipt, a snapshot —
+ * scanned in with the pleading. Recognised, an envelope's handwriting comes
+ * out as "70S *+ S+" and its seal and postage mark are gone. The evidence is
+ * on the sheet: it is a scan (no visible words), it is turned the other way
+ * from the document's first page, it carries no pleading numbers, and what
+ * words it has are a handful (two real envelopes read 38 and 62; the thinnest
+ * scanned page of prose in the same filings read 150). A sideways sheet full
+ * of words — a scanned table — stays text.
+ *
+ * A typed slip sheet ("EXHIBIT A") keeps its words and stays text. To get a
+ * picture page's words anyway, export it on its own: as the first page of its
+ * own export it is recognised like any other scan.
  */
 
 import {
@@ -45,6 +55,10 @@ export interface PagePicture {
 const TYPED_WORDS = 12;
 /** Fewer visible words than this over a full-page picture are a label on a scan. */
 const LABEL_WORDS = 12;
+/** A scanned sheet with fewer words than this, seen or recognised, is not a page of prose. */
+const PROSE_WORDS = 100;
+/** This many printed line numbers make a sheet pleading paper, however few its words. */
+const PLEADING_NUMBERS = 8;
 /** A picture covering this share of the page is the page (as in images.ts). */
 const FULL_PAGE_SHARE = 0.6;
 /** Taken off the picture's height so Word never needs a second sheet for it. */
@@ -71,13 +85,38 @@ function isPicturePage(layout: PageLayout): boolean {
   return words === 0 || (words < LABEL_WORDS && hasFullPagePicture(layout));
 }
 
+/** Every word on the sheet, seen or recognised, whatever the classifier called it. */
+function wordsOnSheet(layout: PageLayout): number {
+  return layout.runs.flatMap((run) => run.text.split(/\s+/)).filter((word) => WORD.test(word))
+    .length;
+}
+
+function isSideways(layout: PageLayout, opening: PageLayout): boolean {
+  const own = pageSizeOf(layout);
+  const first = pageSizeOf(opening);
+  return own.width > own.height !== first.width > first.height;
+}
+
+/** A scanned sheet that is not a page of the document: sideways, unnumbered, a handful of words. */
+function isLooseSheet(layout: PageLayout, opening: PageLayout): boolean {
+  if (layout.runs.some((run) => run.hidden !== true && WORD.test(run.text))) return false;
+  if (!isSideways(layout, opening)) return false;
+  const numbered = layout.runs.filter((run) => run.role === 'line-number').length;
+  return numbered < PLEADING_NUMBERS && wordsOnSheet(layout) < PROSE_WORDS;
+}
+
 /** The 1-based pages that should go in as pictures, in page order. */
 export function picturePagesOf(layouts: readonly PageLayout[]): number[] {
+  const opening = layouts[0];
+  if (opening === undefined) return [];
   const firstTyped = layouts.findIndex((layout) => visibleBodyWords(layout) >= TYPED_WORDS);
-  if (firstTyped < 0) return [];
+  const behindTyped = (index: number): boolean => firstTyped >= 0 && index > firstTyped;
   return layouts
-    .slice(firstTyped + 1)
-    .filter(isPicturePage)
+    .filter(
+      (layout, index) =>
+        (behindTyped(index) && isPicturePage(layout)) ||
+        (index > 0 && isLooseSheet(layout, opening))
+    )
     .map((layout) => layout.page);
 }
 
@@ -191,8 +230,8 @@ const NOTE_TAIL =
 /** What the receipt says was kept as pictures. */
 export function picturePagesNote(pages: readonly number[]): string {
   return pages.length === 1
-    ? `Page ${pageRanges(pages)} is a scan or drawing attached behind typed pages (an exhibit): it was ${NOTE_TAIL}`
-    : `Pages ${pageRanges(pages)} are scans or drawings attached behind typed pages (exhibits): each was ${NOTE_TAIL}`;
+    ? `Page ${pageRanges(pages)} is a scan or drawing attached to the document (an exhibit, an envelope): it was ${NOTE_TAIL}`
+    : `Pages ${pageRanges(pages)} are scans or drawings attached to the document (exhibits, an envelope): each was ${NOTE_TAIL}`;
 }
 
 export function isPicturePagesNote(note: string): boolean {

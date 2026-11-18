@@ -62,7 +62,12 @@ export async function rasterizeInNode(image: unknown): Promise<RasterizedImage |
   const stride = kind === 3 ? 4 : 3;
   if (kind !== 2 && kind !== 3) return null;
   for (let pixel = 0; pixel < width * height; pixel += 1) {
-    rgb.set(data.subarray(pixel * stride, pixel * stride + 3), pixel * 3);
+    // No alpha in this encoder: a see-through picture (a signature) is laid on white paper.
+    const alpha = stride === 4 ? (data[pixel * 4 + 3] ?? 255) / 255 : 1;
+    for (let channel = 0; channel < 3; channel += 1) {
+      const value = data[pixel * stride + channel] ?? 0;
+      rgb[pixel * 3 + channel] = Math.round(value * alpha + 255 * (1 - alpha));
+    }
   }
   return {
     png: encodeRgbPng({ widthPx: width, heightPx: height, rgb }),

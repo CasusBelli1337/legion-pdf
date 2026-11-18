@@ -68,3 +68,17 @@ describe('a scan kept behind the recognized text', () => {
     expect(xml).not.toContain('<wp:anchor');
   });
 });
+
+describe('a signature drawn across its line', () => {
+  it('is anchored to the page at its own place and size, on a line of no height', async () => {
+    const layout = page([run('Dated: March 3, 2025', 72, 86), run('Marlow Ashford', 320, 66)], {
+      images: [image(307, 75, 135, 46)],
+    });
+    const xml = await documentXmlOf((await buildDocx([layout])).bytes);
+    expect(xml).toContain('behindDoc="1"');
+    expect(xml).toContain(`<wp:posOffset>${307 * 12700}</wp:posOffset>`);
+    expect(xml).toContain(`<wp:posOffset>${(792 - 121) * 12700}</wp:posOffset>`);
+    expect(xml).toContain(`w:line="${ANCHOR_LINE_TWIPS}"`);
+    expect(xml).toMatch(new RegExp(`<wp:extent cx="${Math.round((135 * 96) / 72) * 9525}"`));
+  });
+});
