@@ -8,30 +8,39 @@
 import { BorderStyle, Footer } from 'docx';
 import type { Paragraph as DocxParagraph } from 'docx';
 import type { LayoutFont, LayoutTextRun, PageLayout } from '@shared/types';
-import { docxTextParagraph } from './docx-paragraph';
+import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { MIN_BAND_PT, bandOf, bandParagraphs, bandRuns } from './docx-section';
-import { countsPages, firstPageDiffers, footRuns, pageNumberStart } from './first-page-foot';
-import { RULE_PT, emptyLine, ruleSpace } from './footer-rule';
+import {
+  countsPages,
+  firstPageDiffers,
+  footRuns,
+  numberedTwin,
+  pageNumberStart,
+} from './first-page-foot';
+import { RULE_PT, emptyLine, footerRuleY, rulePlace } from './footer-rule';
 import { linesOf } from './lines';
 import { slugParagraph, splitMarginRuns } from './margin-slug';
 import type { TextParagraph } from './model';
+import { sectionNumberStyle } from './page-numbering';
+import { clearestFootFirst } from './recognized-foot';
+import type { NumberStyle } from './page-numbering';
 import type { SectionGeometry } from './page-setup';
 
 type Fonts = Readonly<Record<string, LayoutFont>>;
 
-/** A horizontal rule drawn just above the footer's text — the line under the body on pleading paper. */
-function footerRuleAbove(
-  pages: readonly PageLayout[],
-  runs: readonly LayoutTextRun[]
-): number | null {
-  const page = pages.find((candidate) => candidate.runs.some((run) => runs.includes(run)));
-  if (page === undefined || runs.length === 0) return null;
-  const textTop = Math.max(...runs.map((run) => run.y + run.sizePt));
-  const rules = page.rules
-    .filter((rule) => rule.rect.height <= 3 && rule.rect.width >= 0.3 * page.size.width)
-    .map((rule) => rule.rect.y)
-    .filter((y) => y >= textTop - 2 && y <= textTop + 30);
-  return rules.length === 0 ? null : Math.min(...rules);
+/**
+ * A page number grows — "9" becomes "10", "i" becomes "viii". A left-set line
+ * that ends on one was measured to the number it happened to print, and the
+ * next wider number wrapped onto a line of its own: the line keeps the whole
+ * width instead.
+ */
+function giveNumberRoom(paragraph: TextParagraph): void {
+  const numbered = paragraph.lines.some((line) =>
+    line.cells.some((cell) => cell.runs.some((run) => run.text.includes(PAGE_FIELD)))
+  );
+  if (numbered && paragraph.alignment === 'left') {
+    paragraph.indentRightPt = Math.min(paragraph.indentRightPt, 0);
+  }
 }
 
 export interface SectionFoot {
@@ -44,10 +53,14 @@ export interface SectionFoot {
   numberDropped?: boolean;
   /** The number the section's first page takes, so the PAGE field prints what the pages did. */
   pageNumberStart?: number;
+  /** How the section counts: roman front matter, arabic argument. */
+  numberStyle?: NumberStyle;
 }
 
 export const PAGE_NUMBERS_NOTE =
-  'Page numbers were left out: the filing does not number its pages straight through (front matter, a restart), and one footer cannot count that way. Add them in Word with Insert > Page Number.';
+  'Page numbers were left out on some pages: a sheet that prints several numbers, or numbers that do not count up page by page, cannot be carried as a Word page number. Add them in Word with Insert > Page Number.';
+export const SLUG_NOTE =
+  'The firm name printed small in the margin of a scanned page was left out: it is too small to read reliably.';
 
 /**
  * The foot of the first of `source` that carries one, as a Word footer. The
@@ -64,21 +77,25 @@ function footOf(
   geometry: SectionGeometry,
   sharedPt?: number
 ): SectionFoot {
-  const band = bandRuns(source, ['footer', 'page-number']);
+  const wanted = ['footer', 'page-number'];
+  const band = bandRuns(
+    clearestFootFirst(source, (page) => bandRuns([page], wanted)),
+    wanted
+  );
   const { runs, numberDropped } = footRuns(pages, band);
   if (runs.length === 0) return { footer: null, numberDropped };
   const { margin, main } = splitMarginRuns(runs, geometry.frame);
   const placed = bandOf(main, geometry.frame);
+  placed.paragraphs.forEach(giveNumberRoom);
   const children = bandParagraphs(placed, fonts);
   const padPt = sharedPt === undefined ? 0 : placed.bottom - sharedPt;
   if (padPt > 0.05) children.push(emptyLine(padPt));
-  const ruleY = footerRuleAbove(source, band);
-  const first = placed.paragraphs[0];
+  const rule = rulePlace(placed, footerRuleY(source, band), source);
+  const ruled = rule === null ? undefined : placed.paragraphs[rule.index];
   let footerReachPt = placed.top;
-  if (ruleY !== null && first !== undefined) {
-    const space = ruleSpace(ruleY - placed.top, placed.top, source);
-    children[0] = withTopRule(first, fonts, space);
-    footerReachPt = placed.top + space + RULE_PT;
+  if (rule !== null && ruled !== undefined) {
+    children[rule.index] = withTopRule(ruled, fonts, rule.spacePt);
+    if (rule.index === 0) footerReachPt = placed.top + rule.spacePt + RULE_PT;
   }
   // Word measures the footer from the paper's bottom edge to the footer's bottom.
   const footerPt = Math.max(MIN_BAND_PT, placed.bottom);
@@ -89,28 +106,6 @@ function footOf(
     footerReachPt,
     numberDropped,
   };
-}
-
-/** The foot's words apart from the page number, spacing aside. */
-function footText(page: PageLayout): string {
-  return bandRuns([page], ['footer'])
-    .map((run) => run.text)
-    .join('')
-    .replace(/\s+/g, '');
-}
-
-/** Two pages carry the same running foot — all that differs is whether a number is printed. */
-function sameFoot(a: PageLayout, b: PageLayout): boolean {
-  const text = footText(a);
-  return text.length > 0 && text === footText(b);
-}
-
-/** The first page that prints a number, when the opening page carries the same foot without one. */
-function numberedTwin(pages: readonly PageLayout[]): PageLayout | undefined {
-  const numbered = pages.find((page) => page.runs.some((run) => run.role === 'page-number'));
-  const opening = pages[0];
-  if (numbered === undefined || opening === undefined || numbered === opening) return undefined;
-  return sameFoot(opening, numbered) ? numbered : undefined;
 }
 
 /**
@@ -128,7 +123,11 @@ export function footerFor(
   geometry: SectionGeometry
 ): SectionFoot {
   const start = countsPages(pages) ? pageNumberStart(pages) : undefined;
-  const numbering = start === undefined ? {} : { pageNumberStart: start };
+  const style = sectionNumberStyle(pages);
+  const numbering =
+    start === undefined
+      ? {}
+      : { pageNumberStart: start, ...(style === undefined ? {} : { numberStyle: style }) };
   const twin = numberedTwin(pages);
   const differs = firstPageDiffers(pages);
   if (!differs && twin === undefined)

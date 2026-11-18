@@ -156,11 +156,27 @@ describe('page numbers', () => {
     expect((await partsOf(build.bytes)).document).toContain('w:start="45"');
   });
 
-  it('leaves out numbers that restart, and says so, rather than print one page’s on all', async () => {
+  it('restarts the numbering in a new section where the pages restarted it', async () => {
     const build = await buildDocx([sheet(1, 1), sheet(2, 1), sheet(3, 2)]);
     const parts = await partsOf(build.bytes);
-    expect(parts.footers.some((footer) => footer.includes('PAGE'))).toBe(false);
+    expect(parts.document.match(/w:start="1"/g)).toHaveLength(2);
+    expect(parts.footers.filter((footer) => footer.includes('PAGE'))).toHaveLength(2);
     expect(parts.footers.join('')).not.toContain('- 1 -');
+    expect(build.notes).not.toContain(PAGE_NUMBERS_NOTE);
+  });
+
+  it('says so when a sheet prints several numbers no page field can stand in for', async () => {
+    const twice = (index: number) =>
+      page(
+        [
+          ...paragraphLines(3, 700),
+          run(`${index * 2 - 1}`, 150, 46, { role: 'page-number' }),
+          run(`${index * 2}`, 450, 46, { role: 'page-number' }),
+        ],
+        { page: index, printedPageNumber: index * 2 - 1 }
+      );
+    const build = await buildDocx([twice(1), twice(2)]);
+    expect((await partsOf(build.bytes)).footers.some((foot) => foot.includes('PAGE'))).toBe(false);
     expect(build.notes).toContain(PAGE_NUMBERS_NOTE);
   });
 });

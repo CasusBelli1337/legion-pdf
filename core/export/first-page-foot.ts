@@ -7,6 +7,8 @@
 
 import type { LayoutTextRun, PageLayout } from '@shared/types';
 import { PAGE_FIELD } from './docx-paragraph';
+import { bandRuns } from './docx-section';
+import { numberStyleOf, withNumeralAs } from './page-numbering';
 
 function hasPageNumber(page: PageLayout): boolean {
   return page.runs.some((run) => run.role === 'page-number' && run.text.trim().length > 0);
@@ -21,6 +23,28 @@ export function firstPageDiffers(pages: readonly PageLayout[]): boolean {
   const [first, ...rest] = pages;
   if (first === undefined || rest.length === 0 || hasPageNumber(first)) return false;
   return rest.every((page) => hasPageNumber(page) && page.printedPageNumber === page.page);
+}
+
+/** The foot's words apart from the page number, spacing aside. */
+function footText(page: PageLayout): string {
+  return bandRuns([page], ['footer'])
+    .map((run) => run.text)
+    .join('')
+    .replace(/\s+/g, '');
+}
+
+/** The first page that prints a number, when the opening page carries the same foot without one. */
+export function numberedTwin(pages: readonly PageLayout[]): PageLayout | undefined {
+  const numbered = pages.find((page) => page.runs.some((run) => run.role === 'page-number'));
+  const opening = pages[0];
+  if (numbered === undefined || opening === undefined || numbered === opening) return undefined;
+  const text = footText(opening);
+  return text.length > 0 && text === footText(numbered) ? numbered : undefined;
+}
+
+/** An unnumbered page that opens these pages can be their "different first page". */
+export function opensNumbering(pages: readonly PageLayout[]): boolean {
+  return firstPageDiffers(pages) || numberedTwin(pages) !== undefined;
 }
 
 /**
@@ -47,6 +71,7 @@ export function countsPages(pages: readonly PageLayout[]): boolean {
     const previous = known[index];
     return (
       previous !== undefined &&
+      numberStyleOf(page) === numberStyleOf(previous) &&
       (page.printedPageNumber ?? 0) - (previous.printedPageNumber ?? 0) ===
         page.page - previous.page
     );
@@ -77,7 +102,7 @@ export function footRuns(
     .filter((run) => run.role !== 'page-number' || counting || literal)
     .map((run) =>
       run.role === 'page-number' && counting
-        ? { ...run, text: run.text.replace(/\d+/, PAGE_FIELD) }
+        ? { ...run, text: withNumeralAs(run.text, PAGE_FIELD) }
         : run
     );
   // One page's number printed on every page is worse than none: where no
