@@ -46,15 +46,16 @@ function isTextItem(item: unknown): item is TextItemLike {
 }
 
 /** An item's words, each given a share of the item's advance in proportion to its characters. */
-function wordsOfItem(item: TextItemLike, height: number): BboxWord[] {
+/** `top` is the page box's upper edge and `left` its left edge: a box need not start at zero. */
+function wordsOfItem(item: TextItemLike, top: number, left: number): BboxWord[] {
   const [, , , d = 0, e = 0, f = 0] = item.transform;
   const size = item.height > 0 ? item.height : Math.abs(d);
-  const baseline = height - f;
+  const baseline = top - f;
   const perChar = item.str.length === 0 ? 0 : item.width / item.str.length;
   const words: BboxWord[] = [];
   const pattern = /\S+/g;
   for (const match of item.str.matchAll(pattern)) {
-    const start = e + perChar * match.index;
+    const start = e - left + perChar * match.index;
     words.push({
       text: match[0],
       xMin: start,
@@ -75,7 +76,7 @@ export async function wordsOf(pdfPath: string): Promise<BboxPage[]> {
     const height = y1 - y0;
     const content = await page.getTextContent();
     const words = content.items.flatMap((item) =>
-      isTextItem(item) ? wordsOfItem(item, height) : []
+      isTextItem(item) ? wordsOfItem(item, y1, x0) : []
     );
     pages.push({ page: number, width: x1 - x0, height, words });
   }

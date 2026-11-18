@@ -16,7 +16,7 @@ import { DetachedDocuments } from '../detached-raster';
 import type { PDFDocumentProxy } from '../pdfjs';
 import { extractPageLayout } from './extract-page-layout';
 import type { PageLike } from './extract-page-layout';
-import { rasterizeImageObject } from './image-raster';
+import { measureImageObject, rasterizeImageObject } from './image-raster';
 import { rolesOf } from './page-roles';
 
 async function layoutOf(document: PDFDocumentProxy, request: LayoutRequest) {
@@ -28,7 +28,7 @@ async function layoutOf(document: PDFDocumentProxy, request: LayoutRequest) {
     ops: OPS as unknown as Readonly<Record<string, number>>,
     roles: rolesOf(classification),
     printedPageNumber: classification.printedPageNumber,
-    rasterize: rasterizeImageObject,
+    rasterize: request.pictures === false ? measureImageObject : rasterizeImageObject,
   });
 }
 

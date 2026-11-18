@@ -13,6 +13,7 @@ import { columnsOf } from './columns';
 import { leaderParts } from './leaders';
 import type { BodyFrame, Cell, Line, StyledRun } from './model';
 import { hexColor } from './styles';
+import { onTiltedLine } from './tilted-line';
 
 /** Two runs share a baseline within this fraction of the type size. */
 const BASELINE_TOLERANCE = 0.35;
@@ -36,6 +37,8 @@ interface Draft {
   baseline: number;
   sizePt: number;
   runs: LayoutTextRun[];
+  /** The lowest baseline taken in so far (tilted-line.ts). */
+  low: number;
 }
 
 /** An underline is a thin rule just under the baseline, spanning the run. */
@@ -88,7 +91,7 @@ export function sameStyle(a: StyledRun, b: StyledRun): boolean {
 
 function onBaseline(draft: Draft, run: LayoutTextRun): boolean {
   const tolerance = Math.max(1.5, BASELINE_TOLERANCE * Math.max(run.sizePt, draft.sizePt));
-  return Math.abs(run.y - draft.baseline) <= tolerance;
+  return Math.abs(run.y - draft.baseline) <= tolerance || onTiltedLine(draft, run, tolerance);
 }
 
 /** A raised reference sits at most this far (× the line's size) above the line it marks. */
@@ -123,8 +126,10 @@ function clusterByBaseline(runs: readonly LayoutTextRun[]): Draft[] {
     .sort((a, b) => b.y - a.y || a.x - b.x);
   for (const run of ordered) {
     const draft = drafts.at(-1);
-    if (draft !== undefined && onBaseline(draft, run)) draft.runs.push(run);
-    else drafts.push({ baseline: run.y, sizePt: run.sizePt, runs: [run] });
+    if (draft !== undefined && onBaseline(draft, run)) {
+      draft.runs.push(run);
+      draft.low = Math.min(draft.low, run.y);
+    } else drafts.push({ baseline: run.y, sizePt: run.sizePt, runs: [run], low: run.y });
   }
   return joinRaised(drafts);
 }

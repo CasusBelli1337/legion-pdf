@@ -9,6 +9,7 @@
  * them would shift every later index by one and mis-role half the page.
  */
 
+import { atOrigin, originOf, transformFromOrigin } from '../../lib/layout/page-origin';
 import type { PDFDocumentProxy } from '../../lib/pdfjs';
 import type { PageItemSource } from './engine';
 import type { TextItemLike } from './item-geometry';
@@ -48,9 +49,17 @@ export function createPdfjsSource(document: PDFDocumentProxy, docId: string): Pa
       const pdfPage = await document.getPage(page);
       const viewport = pdfPage.getViewport({ scale: 1 });
       const content = await pdfPage.getTextContent();
+      const origin = originOf(pdfPage.view);
+      const items = toTextItems(content.items);
       return {
         page,
-        items: toTextItems(content.items),
+        // The classifier measures from the page's corner; a box that starts elsewhere is moved to it.
+        items: atOrigin(origin)
+          ? items
+          : items.map((item) => ({
+              ...item,
+              transform: transformFromOrigin(item.transform, origin),
+            })),
         size: { width: viewport.width, height: viewport.height },
       };
     },

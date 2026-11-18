@@ -15,6 +15,7 @@ export type { Exporter, ExporterContext, ExportJob, PageRaster, TextSource } fro
 export { ExportRunner, resolvePages } from './export-runner';
 export type { ExportRunnerDeps } from './export-runner';
 export { SAMPLE_PAGES, exportPlan, planLines } from './export-plan';
+export { rememberedLayout } from './plan-layouts';
 export type { PlanFacts, PlanInput } from './export-plan';
 export {
   DETECTION_FAILED_NOTE,

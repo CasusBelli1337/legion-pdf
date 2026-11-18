@@ -240,6 +240,38 @@ the whole export); the plan says how many pages will be pictures before the
 button, and the receipt lists them under Kept. The fidelity suite takes the
 same path (`qa/word-export/page-pictures.ts`, poppler for the picture).
 
+The plan's count IS the exporter's: `export-plan.ts` runs `picturePagesOf`
+over the layouts of every page in the range, not over the pages that lack a
+text layer (that shortcut promised 96 on a filing whose export kept 98 — one
+exhibit somebody's scanner had already recognised, one blank sheet). The plan
+asks for layouts with `pictures: false` (`LayoutRequest`): the renderer
+answers each picture's place and size without encoding its pixels
+(`measureImageObject`, which says null exactly when the rasterizer would), and
+`plan-layouts.ts` remembers each page per document, keyed on the document's
+bytes. Measured in the built app: 107 pages with 98 scans, 2.9 s; 500 typed
+pages, 3.6 s; asked again (a new page range), nothing is re-read. Never build
+from a layout read this way — its pictures are empty.
+
+## Scans — two things paper does that a typed PDF never does
+
+- **A page box that does not start at zero.** A scanner that crops a landscape
+  envelope out of a portrait sheet writes `MediaBox [0 180 792 792]`. Every
+  coordinate pdfjs reports is then 180 pt above the page's own corner, the
+  classifier read all of it as sitting in the top margin (role `header`), and
+  the page came out 50 pt high. `src/lib/layout/page-origin.ts` takes the
+  origin off once, for the classifier's items (`pdfjs-source.ts`) and for the
+  layout's runs, pictures, and rules (`extract-page-layout.ts`); the comparer
+  (`qa/word-export/bbox.ts`) measures from the box's top edge the same way.
+- **A tilted line.** A recognised line off a scan that was not square on the
+  glass steps down a fraction of a point a word; its last words sat further
+  below its first than the baseline tolerance and became a line of their own,
+  and each such stray pushed the rest of the page down ~3 pt (a scanned
+  pleading was 7 pt low by mid-page). `onTiltedLine` (`tilted-line.ts`, used by `lines.ts`) measures
+  a recognised word against the last word its line took in, within 0.8 of the
+  type size from the first — closer than any second line comes. Typed text
+  keeps the strict tolerance. The Word line is flat, so words at the two ends
+  of a tilted line still sit ±2 pt from the scan; that is the tilt itself.
+
 ## What is not preserved (yet)
 
 - **Bates stamps** are left out (they differ on every page); a note says so.
@@ -293,10 +325,10 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `src/lib/layout/op-walk.ts` | Operator-list walk: colour, render mode, images through the CTM, rules |
 | `src/lib/layout/struct-tags.ts` | The tagged PDF's paragraphs, per text item |
 | `src/lib/layout/efiling-stamp.ts` | The court's e-filing stamp block |
-| `src/lib/layout/extract-page-layout.ts` | pdfjs page → `PageLayout` |
+| `src/lib/layout/extract-page-layout.ts`, `page-origin.ts` | pdfjs page → `PageLayout`, measured from the page's own corner |
 | `src/lib/layout/node-pipeline.testkit.ts` | The pipeline under Node, for the fixture test and the fidelity suite |
 | `electron/services/export/docx-exporter.ts` | Scans recognised, pages → layouts → docx → file, with progress |
-| `electron/services/export/export-plan.ts`, `scan-pages.ts` | The pre-export plan; scan notes and the kept / left-out receipt |
+| `electron/services/export/export-plan.ts`, `plan-layouts.ts`, `scan-pages.ts` | The pre-export plan and the layouts it remembers; scan notes and the kept / left-out receipt |
 | `core/export/pleading.ts`, `docx-pleading.ts` | The grid read off the numbers; the header table and margins |
 | `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
 | `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |

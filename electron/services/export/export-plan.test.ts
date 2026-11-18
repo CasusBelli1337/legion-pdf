@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { picturePagesOf } from '@core/export';
 import type { OcrDetectResult, PageLayout } from '@shared/types';
 import { exportPlan, planLines } from './export-plan';
 
@@ -134,8 +135,10 @@ describe('exportPlan', () => {
     expect(plan.pageCount).toBe(3);
   });
 
-  it('samples at most the first three pages that hold text', async () => {
-    const requestLayout = vi.fn((page: number) => Promise.resolve(pleadingPage(page)));
+  it('reads every page once, and looks at the first three typed ones for pleading paper', async () => {
+    const requestLayout = vi.fn((page: number) =>
+      Promise.resolve(page === 1 ? layout(page, { runs: [] }) : pleadingPage(page))
+    );
     const plan = await exportPlan({
       format: 'docx',
       pages: [1, 2, 3, 4, 5, 6],
@@ -143,8 +146,8 @@ describe('exportPlan', () => {
       requestLayout,
       detect: detected([1]),
     });
-    // Page 1 is a scan, so the sample is 2, 3, 4 — never the whole document.
-    expect(requestLayout.mock.calls.map((call) => call[0])).toEqual([2, 3, 4]);
+    expect(requestLayout.mock.calls.map((call) => call[0])).toEqual([1, 2, 3, 4, 5, 6]);
+    // Page 1 is a scan, so the pages looked at are 2, 3, 4.
     expect(plan.pleadingPages).toEqual([2, 3, 4]);
     expect(plan.lines[0]).toMatch(/Pleading paper detected/);
   });
@@ -195,7 +198,8 @@ describe('exportPlan', () => {
       format: 'docx',
       pages: [1, 2, 3, 4],
       bytes,
-      requestLayout: (page) => Promise.resolve(typed(page)),
+      requestLayout: (page) =>
+        Promise.resolve(page === 2 ? typed(page) : layout(page, { runs: [] })),
       detect: detected([1, 3, 4], 4),
     });
     // Page 1 is a scan BEFORE any typed page: it is still recognized.
@@ -203,5 +207,31 @@ describe('exportPlan', () => {
     expect(plan.lines).toContain(
       '2 scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.'
     );
+  });
+
+  it('counts the picture pages the exporter itself would keep, text layer or not', async () => {
+    const words =
+      'I declare under penalty of perjury that the attached exhibits are true and correct copies.';
+    const base = layout(1);
+    const typed: PageLayout = { ...base, runs: base.runs.map((run) => ({ ...run, text: words })) };
+    // Page 2 was recognized by somebody else's scanner: its words are there but invisible.
+    const recognized: PageLayout = {
+      ...layout(2),
+      runs: base.runs.map((run) => ({ ...run, text: words, hidden: true })),
+    };
+    const pages = [typed, recognized, layout(3, { runs: [] }), layout(4, { runs: [] })];
+    const plan = await exportPlan({
+      format: 'docx',
+      pages: [1, 2, 3, 4],
+      bytes,
+      requestLayout: (page) => Promise.resolve(pages[page - 1] ?? null),
+      // Only pages 3 and 4 lack a text layer; the export keeps 2, 3 and 4 as pictures.
+      detect: detected([3, 4], 4),
+    });
+    expect(picturePagesOf(pages)).toEqual([2, 3, 4]);
+    expect(plan.scannedPages).toEqual([]);
+    expect(plan.lines).toEqual([
+      '3 scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.',
+    ]);
   });
 });
