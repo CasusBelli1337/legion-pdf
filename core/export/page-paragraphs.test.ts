@@ -124,7 +124,27 @@ describe('pageParagraphs — leadings that never overlap, transcripts, numbered 
     const blanks = build.columns[0]?.filter((p) => p.kind === 'text' && p.lines.length === 0) ?? [];
     expect(blanks).toHaveLength(1);
     const blank = blanks[0];
-    expect(blank?.kind === 'text' ? blank.leadingPt : null).toBeCloseTo(24, 3);
+    // Its number sat 12 pt under a line on a 12 pt pitch: a 12 pt box starts
+    // where that line ended and puts the number where the page had it.
+    expect(blank?.kind === 'text' ? blank.leadingPt : null).toBeCloseTo(12, 3);
+  });
+
+  it('keeps a sliver of an empty paragraph under the last line a sliver', () => {
+    // Number 13 sits 4.8 pt under number 12's line: the empty paragraph Word
+    // left under a signature block. A full line there pushed the text above it.
+    const ys = [700, 688, 676, 664, 640, 616, 592, 568, 544, 520, 496, 472, 467.2];
+    const numbers = ys.map((y, index) =>
+      run(String(index + 1), 54, y, { role: 'line-number', width: 6 })
+    );
+    const text = ys.slice(0, -1).map((y) => run('A line of text beside its number', 90, y));
+    const layout = page([...numbers, ...text]);
+    const geometry = sectionGeometry([layout]);
+    expect(geometry.pleading?.grid).toBe(false);
+    const build = pageParagraphs(layout, geometry);
+    const blanks = build.columns[0]?.filter((p) => p.kind === 'text' && p.lines.length === 0) ?? [];
+    expect(blanks).toHaveLength(1);
+    const blank = blanks[0];
+    expect(blank?.kind === 'text' ? blank.leadingPt : null).toBeLessThan(1);
   });
 });
 

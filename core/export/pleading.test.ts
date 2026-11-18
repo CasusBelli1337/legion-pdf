@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pleadingOf, pleadingOfSection } from './pleading';
+import { isNumberedPaper, pleadingOf, pleadingOfSection } from './pleading';
 import { page, run } from './layout-testkit';
 
 function pleadingPage(count = 28) {
@@ -162,5 +162,23 @@ describe('pleadingOf — what an OCR makes of a numbered column', () => {
     expect(pleading?.firstBaseline).toBeCloseTo(720, 1);
     expect(pleading?.pitchPt).toBeCloseTo(24, 2);
     expect(pleading?.count).toBe(28);
+  });
+});
+
+describe('isNumberedPaper', () => {
+  const numbered = (values: number[]) =>
+    page(
+      values.map((value, index) =>
+        run(String(value), 54, 700 - 24 * index, { role: 'line-number', width: 5 })
+      )
+    );
+
+  it('takes a short page numbered 1, 2, 3… as numbered paper', () => {
+    expect(isNumberedPaper(numbered([1, 2, 3, 4, 5, 6, 7, 8]))).toBe(true);
+  });
+
+  it('does not take a few scattered margin numbers for numbered paper', () => {
+    expect(isNumberedPaper(numbered([4, 9, 15]))).toBe(false);
+    expect(isNumberedPaper(numbered([1, 2]))).toBe(false);
   });
 });

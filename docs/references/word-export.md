@@ -142,6 +142,65 @@ Courier New were cut to) and given Word's character scaling when it was
 narrower: always for recognised text, only below 97% for visible type. Other
 faces are left alone.
 
+## What real briefs taught it (2026-11-17)
+
+Measured on opposing counsel's Acrobat-PDFMaker briefs (tagged, pleading
+paper, tables of contents, footnotes, block quotes) and re-measured in real
+Word after every change:
+
+- **A raised footnote reference belongs to its line.** Word lifts an 8 pt mark
+  4.5 pt over 12 pt text — past the baseline tolerance — so it clustered alone
+  and became a paragraph of its own, one line more than the page held
+  (`joinRaised`, `lines.ts`).
+- **A dot leader inside one run** ("Introduction ........ 1" as a single text
+  item) is split into entry, leader and page number, so the dots become a
+  right tab's leader instead of literal text whose width Word sets a hair
+  differently (`leaders.ts`).
+- **A tagged line in the footer zone is the page's own text.** Word and
+  Acrobat leave real running feet outside the structure tree; a footnote that
+  reaches the foot of the page was being filed as a footer and either dropped
+  or printed on every page (`src/lib/layout/tagged-body.ts`). Footnotes stay
+  ordinary paragraphs at the foot of the page (not Word footnotes): a one-line
+  footnote takes a single-spaced box, and where Word's own numbering counts
+  the lines, paragraphs with no printed number beside them are not counted
+  (`numbered-lines.ts`).
+- **Word's widths are measured, not guessed.** Times New Roman's advance
+  widths are public; the ratio between them and a page's own runs says how
+  much wider Word will set that page (a proof of service pasted from an old
+  form came out 0.9% narrower than Word sets it). Where the page is set in
+  Times the paragraph is exactly that wide plus a point; the 1.2% slack and
+  the wrap ceiling remain for other faces (`font-widths.ts`).
+- **A justified paragraph gets no slack**, and one whose first line is
+  indented is still justified: its natural widths are unknown, so any room
+  past the measure lets the next line's first word climb.
+- **The body starts where the highest first line needs it.** Some templates
+  set the text two or three points above the numbers' baselines; a body that
+  began at line 1's box squeezed the page's first paragraph to fit (every
+  line tighter, the rest of the page up to a line high). The numbers keep
+  their own grid in the header (`withPleadingMargins`, `PleadingFrame.bodyTop`).
+- **The upper paragraph yields.** Where a single-spaced block quote ends a
+  few points too close to the double-spaced paragraph under it, the quote is
+  tightened by a hair per line (never more than 7%) instead of every line of
+  the paragraph below (`yields`, `page-paragraphs.ts`).
+- **A caption cell's line never has a taller box than the room it had** — to
+  the row's top edge, the line above, or the line below — and a table's
+  drawn bottom border is taken off its last row (Word adds it; everything
+  under the caption sat half a point low) (`docx-table.ts`).
+- **Different first page.** A caption page with the running foot but no page
+  number, followed by numbered pages, is a first-page footer plus a default
+  footer with a PAGE field (`first-page-foot.ts`, `section-bands.ts`). Each
+  section states the number its first page takes. Numbers that restart or
+  skip (front matter in roman, the body restarting at 1) cannot be counted by
+  one footer: they are left out and the receipt says so, rather than one
+  page's number printed on every page.
+- **The footer's rule is part of the footer's height.** Where the page's last
+  line ends hard against it, the rule gives way by a point or so; drawn
+  exactly, Word moved the body up and the footnote onto the next page
+  (`footer-rule.ts`).
+- **A short numbered page stays with its section** (a signature page with
+  eight numbered lines proves no pleading column on its own) and numbered
+  paper is always one column (`isNumberedPaper`).
+
 ## What is preserved
 
 | In the PDF | In the Word file |
@@ -185,7 +244,11 @@ same path (`qa/word-export/page-pictures.ts`, poppler for the picture).
 
 - **Bates stamps** are left out (they differ on every page); a note says so.
 - **Footnotes** come through as small paragraphs at the foot of the page,
-  not as Word footnotes.
+  not as Word footnotes; the short rule above them is not drawn.
+- **Page numbers that restart** (roman front matter, a body that begins
+  again at 1) are left out with a note; sections are not yet split where the
+  numbering changes.
+- **Checkbox glyphs** on form-style proofs of service are dropped.
 - **Condensed (4-up) transcripts** export as two Word columns per sheet.
 - **Rotated pages** keep their text coordinates in the unrotated frame.
 - **Small caps, letter spacing, shading** are not read.
@@ -193,8 +256,7 @@ same path (`qa/word-export/page-pictures.ts`, poppler for the picture).
 ## How fidelity is measured — "perfect" as a diff, not an impression
 
 `npm run test:word` (`qa/word-export/fidelity.test.ts`) exports every fixture
-in the corpus, renders the `.docx` in REAL Word on the Windows host
-(`docx-render` skill, Word COM), reads every word's true baseline from both
+in the corpus, renders the `.docx` in REAL Word (`docx-render` skill: this machine's Word, else the Word VM), reads every word's true baseline from both
 PDFs with pdf.js, and asserts per page: the same page count, the same words
 (a multiset), every baseline within the fixture's tolerance (0.5 pt median
 for Word-made sources), and every pleading line number within 0.5 pt of the

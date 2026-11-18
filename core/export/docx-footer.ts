@@ -8,8 +8,10 @@
 import { BorderStyle, Footer } from 'docx';
 import type { Paragraph as DocxParagraph } from 'docx';
 import type { LayoutFont, LayoutTextRun, PageLayout } from '@shared/types';
-import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
+import { docxTextParagraph } from './docx-paragraph';
 import { MIN_BAND_PT, bandOf, bandParagraphs, bandRuns } from './docx-section';
+import { countsPages, firstPageDiffers, footRuns, pageNumberStart } from './first-page-foot';
+import { RULE_PT, emptyLine, ruleSpace } from './footer-rule';
 import { linesOf } from './lines';
 import { slugParagraph, splitMarginRuns } from './margin-slug';
 import type { TextParagraph } from './model';
@@ -32,45 +34,51 @@ function footerRuleAbove(
   return rules.length === 0 ? null : Math.min(...rules);
 }
 
-interface Foot {
+export interface SectionFoot {
   footer: Footer | null;
   footerPt?: number;
   footerReachPt?: number;
+  /** Set when the first page's foot differs; null when that page has none. */
+  firstFooter?: Footer | null;
+  /** The printed page numbers could not be carried as a field and were left out. */
+  numberDropped?: boolean;
+  /** The number the section's first page takes, so the PAGE field prints what the pages did. */
+  pageNumberStart?: number;
 }
+
+export const PAGE_NUMBERS_NOTE =
+  'Page numbers were left out: the filing does not number its pages straight through (front matter, a restart), and one footer cannot count that way. Add them in Word with Insert > Page Number.';
 
 /**
  * The foot of the first of `source` that carries one, as a Word footer. The
- * printed page number becomes a PAGE field. Bates stamps are NOT carried: they
- * differ on every page, and a footer that said the first page's number on
- * every page would be a lie.
+ * printed page number becomes a PAGE field (first-page-foot.ts). Bates stamps
+ * are NOT carried: they differ on every page. `sharedPt` is the section's
+ * footer distance when this foot is not the one that sets it (a first-page
+ * footer): Word keeps one distance per section, so a foot that ended higher
+ * is padded down to it with an empty line.
  */
 function footOf(
   source: readonly PageLayout[],
   pages: readonly PageLayout[],
   fonts: Fonts,
-  geometry: SectionGeometry
-): Foot {
+  geometry: SectionGeometry,
+  sharedPt?: number
+): SectionFoot {
   const band = bandRuns(source, ['footer', 'page-number']);
-  // Several printed numbers on one sheet (a condensed transcript) are not the
-  // sheet's number: no field can stand in for them. Nor can one stand in for a
-  // number that does not count up page by page — a phone number in the foot.
-  const numbers = band.filter((run) => run.role === 'page-number').length;
-  const counting = numbers === 1 && countsPages(pages);
-  const runs = band
-    .filter((run) => run.role !== 'page-number' || numbers === 1)
-    .map((run) =>
-      run.role === 'page-number' && counting
-        ? { ...run, text: run.text.replace(/\d+/, PAGE_FIELD) }
-        : run
-    );
-  if (runs.length === 0) return { footer: null };
+  const { runs, numberDropped } = footRuns(pages, band);
+  if (runs.length === 0) return { footer: null, numberDropped };
   const { margin, main } = splitMarginRuns(runs, geometry.frame);
   const placed = bandOf(main, geometry.frame);
   const children = bandParagraphs(placed, fonts);
-  const ruleY = footerRuleAbove(pages, band);
+  const padPt = sharedPt === undefined ? 0 : placed.bottom - sharedPt;
+  if (padPt > 0.05) children.push(emptyLine(padPt));
+  const ruleY = footerRuleAbove(source, band);
   const first = placed.paragraphs[0];
+  let footerReachPt = placed.top;
   if (ruleY !== null && first !== undefined) {
-    children[0] = withTopRule(first, fonts, Math.max(1, ruleY - placed.top));
+    const space = ruleSpace(ruleY - placed.top, placed.top, source);
+    children[0] = withTopRule(first, fonts, space);
+    footerReachPt = placed.top + space + RULE_PT;
   }
   // Word measures the footer from the paper's bottom edge to the footer's bottom.
   const footerPt = Math.max(MIN_BAND_PT, placed.bottom);
@@ -78,7 +86,8 @@ function footOf(
   return {
     footer: new Footer({ children: [...slugs, ...children] }),
     footerPt,
-    footerReachPt: placed.top,
+    footerReachPt,
+    numberDropped,
   };
 }
 
@@ -96,32 +105,41 @@ function sameFoot(a: PageLayout, b: PageLayout): boolean {
   return text.length > 0 && text === footText(b);
 }
 
+/** The first page that prints a number, when the opening page carries the same foot without one. */
+function numberedTwin(pages: readonly PageLayout[]): PageLayout | undefined {
+  const numbered = pages.find((page) => page.runs.some((run) => run.role === 'page-number'));
+  const opening = pages[0];
+  if (numbered === undefined || opening === undefined || numbered === opening) return undefined;
+  return sameFoot(opening, numbered) ? numbered : undefined;
+}
+
 /**
  * The section's foot. A caption page often prints its foot without a page
- * number: the running foot is then read off the first page that has the
- * number, and the opening page keeps its own as Word's "different first page"
- * — so the number is neither lost to every page behind the caption nor
- * printed on a page that never had one. Only when the two feet are otherwise
- * the same: a later page with a different foot says nothing about this one.
+ * number: the running foot is then read off the numbered pages, and the
+ * opening page keeps its own as Word's "different first page" — so the number
+ * is neither lost to every page behind the caption nor printed on a page that
+ * never had one. That holds when every later page prints its own place
+ * (firstPageDiffers), or when the first numbered page's foot is otherwise the
+ * opening page's: a later page with a different foot says nothing about this one.
  */
 export function footerFor(
   pages: readonly PageLayout[],
   fonts: Fonts,
   geometry: SectionGeometry
-): Foot & { firstFooter?: Footer } {
-  const numbered = pages.find((page) => page.runs.some((run) => run.role === 'page-number'));
-  const opening = pages[0];
-  if (
-    numbered === undefined ||
-    opening === undefined ||
-    numbered === opening ||
-    !sameFoot(opening, numbered)
-  ) {
-    return footOf(pages, pages, fonts, geometry);
-  }
-  const running = footOf([numbered, ...pages], pages, fonts, geometry);
-  const own = footOf([opening], pages, fonts, geometry);
-  return own.footer === null ? running : { ...running, firstFooter: own.footer };
+): SectionFoot {
+  const start = countsPages(pages) ? pageNumberStart(pages) : undefined;
+  const numbering = start === undefined ? {} : { pageNumberStart: start };
+  const twin = numberedTwin(pages);
+  const differs = firstPageDiffers(pages);
+  if (!differs && twin === undefined)
+    return { ...footOf(pages, pages, fonts, geometry), ...numbering };
+  const rest = pages.slice(1);
+  const running = differs
+    ? footOf(rest, rest, fonts, geometry)
+    : footOf([twin as PageLayout, ...pages], pages, fonts, geometry);
+  const own = footOf(pages.slice(0, 1), pages.slice(0, 1), fonts, geometry, running.footerPt);
+  if (!differs && own.footer === null) return { ...running, ...numbering };
+  return { ...running, ...numbering, firstFooter: own.footer };
 }
 
 /** The firm's slug in the left margin, each line framed where it sat (margin-slug.ts). */
@@ -142,19 +160,5 @@ function withTopRule(paragraph: TextParagraph, fonts: Fonts, spacePt: number): D
     border: {
       top: { style: BorderStyle.SINGLE, size: 4, color: '000000', space: Math.round(spacePt) },
     },
-  });
-}
-
-/** The printed numbers rise by one from each page to the next (where both are known). */
-function countsPages(pages: readonly PageLayout[]): boolean {
-  const known = pages.filter((page) => page.printedPageNumber !== null);
-  if (known.length <= 1) return true;
-  return known.slice(1).every((page, index) => {
-    const previous = known[index];
-    return (
-      previous !== undefined &&
-      (page.printedPageNumber ?? 0) - (previous.printedPageNumber ?? 0) ===
-        page.page - previous.page
-    );
   });
 }

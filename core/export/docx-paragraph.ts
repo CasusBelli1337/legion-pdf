@@ -225,7 +225,9 @@ export function docxTextParagraph(
     pageBreakBefore: placement.pageBreakBefore,
     ...(placement.border === undefined ? {} : { border: placement.border }),
     // Word's line numbering counts every paragraph line; a spacer is not one.
-    ...(paragraph.spacer === true ? { suppressLineNumbers: true } : {}),
+    ...(paragraph.spacer === true || paragraph.unnumbered === true
+      ? { suppressLineNumbers: true }
+      : {}),
     children: withColumnBreak(paragraph, childrenOf(paragraph, fonts)),
   });
 }

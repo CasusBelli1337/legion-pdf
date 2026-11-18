@@ -19,6 +19,7 @@ import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
 import { stampRunIndexes } from './efiling-stamp';
 import { blockOfEachText, blocksOf } from './struct-tags';
+import { reclaimTaggedBody } from './tagged-body';
 import type { BlockRef, MarkedItemLike, StructNodeLike } from './struct-tags';
 
 export interface TextItemLike {
@@ -199,6 +200,7 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     const style = styles[index] ?? { colorHex: '#000000', hidden: false };
     runs.push(runOf(item, index, input, style, blocks[index]));
   });
+  reclaimTaggedBody(runs);
   const size = { width: x1 - x0, height: y1 - y0 };
   for (const index of stampRunIndexes(runs, size)) {
     const run = runs[index];

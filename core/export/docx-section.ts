@@ -52,6 +52,7 @@ export interface BandDistances {
   footerPt?: number;
   /** The foot's top edge from the paper's bottom, points. */
   footerReachPt?: number;
+  pageNumberStart?: number;
 }
 
 /**
@@ -120,6 +121,9 @@ export function sectionProperties(
         pleading?.grid === true
           ? pleadingMargins(pleadingFrame(pleading, geometry), margin)
           : margin,
+      ...(bands.pageNumberStart === undefined
+        ? {}
+        : { pageNumbers: { start: bands.pageNumberStart } }),
     },
     ...columnsFor(geometry),
     ...lineNumbersFor(geometry),

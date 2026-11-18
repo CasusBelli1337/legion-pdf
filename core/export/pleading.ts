@@ -19,6 +19,8 @@ import { median } from './paragraphs';
 
 /** Fewer numbers than this in one column is a list, not pleading paper. */
 const MIN_NUMBERS = 10;
+/** A page with fewer numbered lines than this proves nothing about its paper. */
+const MIN_SHORT_PAGE = 3;
 /** Line numbers never exceed this; a larger integer in the margin is something else. */
 const MAX_LINE_NUMBER = 32;
 /** Numbers within this many points of x sit in one column. */
@@ -264,6 +266,22 @@ export function pleadingOf(layout: PageLayout): Pleading | null {
     sizePt: median(column.map((entry) => entry.sizePt)),
     rules: rulesOf(layout, numberRight),
   };
+}
+
+/**
+ * Numbered paper, for telling which pages belong together: a pleading column,
+ * or a page too short to prove one (a signature page with eight numbered
+ * lines) that still carries numbers down its margin. Such a page takes its
+ * section's numbering; set apart, it lost its numbers altogether.
+ */
+export function isNumberedPaper(layout: PageLayout): boolean {
+  if (pleadingOf(layout) !== null) return true;
+  const numbers = numbersOf(layout);
+  const values = new Set(numbers.map((entry) => entry.value));
+  // 1, 2, 3… once each with none skipped: lines counted from the top of the
+  // page — not a list's items, and not a condensed transcript's four mini-pages.
+  if (values.size < MIN_SHORT_PAGE || values.size !== numbers.length) return false;
+  return [...values].every((value) => value <= values.size);
 }
 
 function majority<T extends string>(values: readonly T[], fallback: T): T {

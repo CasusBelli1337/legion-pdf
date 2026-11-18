@@ -264,7 +264,7 @@ describe('buildDocx — feet that sit close under the text, and text set narrowe
     expect(feet.filter((foot) => foot?.includes('PAGE'))).toHaveLength(1);
   });
 
-  it('does not borrow a numbered page’s foot when it is a different foot', async () => {
+  it('never prints a later page’s different foot on the opening page', async () => {
     const caption = page([...paragraphLines(3, 700), ...footOf(null)], { page: 1 });
     const service = page(
       [
@@ -274,9 +274,17 @@ describe('buildDocx — feet that sit close under the text, and text set narrowe
       ],
       { page: 2, printedPageNumber: 2 }
     );
-    const { document, footer } = await partsOf((await buildDocx([caption, service])).bytes);
-    expect(document).not.toContain('<w:titlePg');
-    expect(footer).toContain('OPPOSITION TO MOTION');
+    const zip = await JSZip.loadAsync((await buildDocx([caption, service])).bytes);
+    const feet = await Promise.all(
+      Object.keys(zip.files)
+        .filter((name) => /^word\/footer\d+\.xml$/.test(name))
+        .map((name) => zip.file(name)?.async('string'))
+    );
+    // Each page keeps its own: the opening page's as Word's "different first page".
+    const own = feet.find((foot) => foot?.includes('OPPOSITION TO MOTION'));
+    expect(own).toBeDefined();
+    expect(own).not.toContain('PROOF OF SERVICE');
+    expect(feet.find((foot) => foot?.includes('PROOF OF SERVICE'))).not.toContain('OPPOSITION');
   });
 
   it('condenses a recognised line to the width the scan’s words had', async () => {

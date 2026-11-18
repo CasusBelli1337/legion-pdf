@@ -59,6 +59,12 @@ export interface ParagraphOptions {
    * the scan's lines ended, and a line held to its own width would wrap.
    */
   fullWidth?: boolean;
+  /**
+   * How much wider Word sets the page's text than the PDF did (font-widths.ts),
+   * when that could be measured: paragraphs are then exactly as wide as Word
+   * needs, with no slack for a word to climb into.
+   */
+  widthScale?: number;
 }
 
 export function median(values: readonly number[]): number {
@@ -233,9 +239,11 @@ function isJustified(lines: readonly Line[], tolerance: number): boolean {
   if (first === undefined || lines.length < 3) return false;
   const body = lines.slice(0, -1);
   const widest = Math.max(...body.map((line) => line.right));
+  // The first line may be indented (or hang): only the lines after it share an edge.
+  const left = lines[1]?.x ?? first.x;
   return (
     body.every((line) => Math.abs(line.right - widest) <= tolerance) &&
-    body.every((line) => Math.abs(line.x - first.x) <= tolerance)
+    lines.slice(1).every((line) => Math.abs(line.x - left) <= tolerance)
   );
 }
 
@@ -295,7 +303,8 @@ function indentsOf(
   lines: readonly Line[],
   frame: BodyFrame,
   alignment: Alignment,
-  fullWidth = false
+  fullWidth = false,
+  widthScale?: number
 ): Indents {
   const first = lines[0];
   if (first === undefined || alignment === 'center') return { left: 0, right: 0, first: 0 };
@@ -314,11 +323,21 @@ function indentsOf(
   // Six points, or 1.2% of the width: a court's Aspose-set order comes out a
   // hair narrower than Word's Times, and one per cent over a full line is what
   // it takes to keep the last word from dropping.
-  const slack = Math.max(WRAP_SLACK, 0.012 * (widest - paragraphLeft));
+  // A justified line was stretched to the measure: its natural width is
+  // shorter by an unknown amount, so any slack past the measure can pull the
+  // next line's first word up — and the stretch already absorbs a hair of
+  // metric difference.
+  const slack =
+    alignment === 'justify' ? 0 : Math.max(WRAP_SLACK, 0.012 * (widest - paragraphLeft));
   // At least a point past the widest line whatever the ceiling says: a line
   // held to its exact width wraps its last word (a superscript, a period) when
   // Word's metrics differ by a hair, and an orphan word is the worse failure.
-  const blockRight = Math.max(widest + 1, Math.min(widest + slack, wrapCeiling(lines) - 0.5));
+  const guessed = Math.max(widest + 1, Math.min(widest + slack, wrapCeiling(lines) - 0.5));
+  // Where Word's widths for the page's face are known there is nothing to
+  // guess: every line is that much wider in Word, and so is the paragraph.
+  const origin = Math.min(first.x, paragraphLeft);
+  const blockRight =
+    widthScale === undefined ? guessed : origin + widthScale * (widest - origin) + 1;
   // Negative when the line reaches past the margin (a running head at the paper's
   // edge, a caption cell): Word lets a paragraph hang into the margin, and the
   // alternative is a word per line.
@@ -339,7 +358,7 @@ function describe(group: Line[], leading: number, options: ParagraphOptions): Te
     group.some(isTabular) || options.fullWidth === true
       ? 'left'
       : alignmentOf(group, options.frame);
-  const indents = indentsOf(group, options.frame, alignment, options.fullWidth);
+  const indents = indentsOf(group, options.frame, alignment, options.fullWidth, options.widthScale);
   const own = group.length >= 2 ? medianLeading(group) : (options.leadingPt ?? leading);
   return {
     kind: 'text',

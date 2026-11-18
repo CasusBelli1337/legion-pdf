@@ -118,17 +118,32 @@ function cellFrame(build: Build, cell: TableCell, column: number): BodyFrame {
  * A caption cell is not set on one pitch: the party block runs on twelve
  * points and the blanks between blocks on twenty-four. A lone line handed the
  * cell's MEDIAN pitch gets a line box taller than the gap it sat in, and Word
- * pushes it down the cell — so a lone line keeps the pitch it actually
- * followed, never tighter than its own type.
+ * pushes it — or the tighter line under it — down the cell. So a lone line's
+ * box is never taller than the room it had: the gap to the line above (to the
+ * row's top edge, for the cell's first line) or to the line below, whichever
+ * is less, and never tighter than its own type.
  */
-function ownPitch(paragraph: TextParagraph, previousBaseline: number | null): number {
-  const line = paragraph.lines[0];
-  if (line === undefined || paragraph.lines.length > 1 || previousBaseline === null) {
-    return paragraph.leadingPt;
-  }
-  const gap = previousBaseline - line.baseline;
-  if (gap <= 0 || gap >= paragraph.leadingPt) return paragraph.leadingPt;
-  return Math.max(gap, line.sizePt);
+function ownPitch(paragraphs: readonly TextParagraph[], index: number, top: number): number {
+  const paragraph = paragraphs[index];
+  const line = paragraph?.lines[0];
+  if (paragraph === undefined || line === undefined) return 0;
+  if (paragraph.lines.length > 1) return paragraph.leadingPt;
+  const rooms = [roomAbove(paragraphs, index, top), roomBelow(paragraphs, index)];
+  const fitting = rooms.filter((room) => room > 0);
+  return Math.max(line.sizePt, Math.min(paragraph.leadingPt, ...fitting));
+}
+
+/** The pitch whose box would reach from the line to the one above, or to the row's top edge. */
+function roomAbove(paragraphs: readonly TextParagraph[], index: number, top: number): number {
+  const baseline = paragraphs[index]?.lines[0]?.baseline ?? 0;
+  const above = paragraphs[index - 1]?.lines.at(-1)?.baseline;
+  return above === undefined ? (top - baseline) / BASELINE_SHARE : above - baseline;
+}
+
+function roomBelow(paragraphs: readonly TextParagraph[], index: number): number {
+  const baseline = paragraphs[index]?.lines[0]?.baseline ?? 0;
+  const below = paragraphs[index + 1]?.lines[0]?.baseline;
+  return below === undefined ? Number.POSITIVE_INFINITY : baseline - below;
 }
 
 /**
@@ -138,17 +153,16 @@ function ownPitch(paragraph: TextParagraph, previousBaseline: number | null): nu
  * the line above.
  */
 function settle(paragraphs: readonly TextParagraph[], top: number): void {
+  const pitches = paragraphs.map((_paragraph, index) => ownPitch(paragraphs, index, top));
   let previousBottom = top;
-  let previousBaseline: number | null = null;
-  for (const paragraph of paragraphs) {
-    paragraph.leadingPt = ownPitch(paragraph, previousBaseline);
+  paragraphs.forEach((paragraph, index) => {
+    paragraph.leadingPt = pitches[index] ?? paragraph.leadingPt;
     const first = paragraph.lines[0]?.baseline ?? 0;
     const last = paragraph.lines.at(-1)?.baseline ?? 0;
     const boxTop = first + BASELINE_SHARE * paragraph.leadingPt;
     paragraph.spaceBeforePt = Math.max(0, previousBottom - boxTop);
     previousBottom = last - (1 - BASELINE_SHARE) * paragraph.leadingPt;
-    previousBaseline = last;
-  }
+  });
 }
 
 /**
@@ -208,7 +222,15 @@ function tableCell(build: Build, row: number, column: number): DocxTableCell {
 
 function tableRow(build: Build, row: number): TableRow {
   const { rowEdges, columnEdges } = build.table;
-  const height = Math.max(1, edge(rowEdges, row) - edge(rowEdges, row + 1));
+  // Word adds the table's drawn bottom border to its last row: left in,
+  // everything under the table sits half a point low (measured in real Word).
+  const ruledBelow =
+    row === rowEdges.length - 2 &&
+    build.table.borders.horizontal[row + 1]?.some((drawn) => drawn) === true;
+  const height = Math.max(
+    1,
+    edge(rowEdges, row) - edge(rowEdges, row + 1) - (ruledBelow ? BORDER_PT : 0)
+  );
   return new TableRow({
     height: { value: twips(height), rule: HeightRule.EXACT },
     cantSplit: true,
