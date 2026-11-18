@@ -28,7 +28,7 @@ import { BASELINE_SHARE } from './model';
 import type { BodyFrame, Paragraph, TextParagraph } from './model';
 import type { SectionGeometry } from './page-setup';
 import { columnRunsOf } from './page-setup';
-import { blankLine, markUnnumbered, numberedBlanks } from './numbered-lines';
+import { asNumberedBlanks, markUnnumbered, numberedBlanks } from './numbered-lines';
 import { paragraphsOf } from './paragraphs';
 import { fitRecognizedLines } from './recognized-fit';
 import { LINE_NUMBERS_NOTE, NUMBERED_LINES_NOTE, PLEADING_NOTE, type Pleading } from './pleading';
@@ -130,24 +130,6 @@ function pageBox(paragraphs: readonly Paragraph[], pleading: Pleading | null): P
     bottom: Math.min(...boxes.map((box) => box.bottom)),
   };
 }
-/**
- * On pleading paper, space above a paragraph is so many numbered blank lines;
- * what is left over (never a whole line) stays as space, so nothing is pushed
- * down by a line that the PDF did not have.
- */
-function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[] {
-  const out: Paragraph[] = [];
-  for (const paragraph of paragraphs) {
-    const blanks = Math.floor(paragraph.spaceBeforePt / pitchPt + 0.05);
-    for (let count = 0; count < blanks; count += 1) out.push(blankLine(pitchPt));
-    const remainder = paragraph.spaceBeforePt - blanks * pitchPt;
-    // Under a third of a point is measurement noise, not a gap the page had.
-    paragraph.spaceBeforePt = remainder < 0.3 ? 0 : remainder;
-    out.push(paragraph);
-  }
-  return out;
-}
-
 function byPosition(a: Paragraph, b: Paragraph): number {
   return b.top - a.top;
 }

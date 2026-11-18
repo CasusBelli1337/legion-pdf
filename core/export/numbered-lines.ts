@@ -6,7 +6,7 @@
 
 import type { LayoutTextRun, PageLayout } from '@shared/types';
 import { BASELINE_SHARE } from './model';
-import type { TextParagraph } from './model';
+import type { Paragraph, TextParagraph } from './model';
 import type { Pleading } from './pleading';
 
 /** An empty paragraph exactly one line box tall. */
@@ -99,4 +99,31 @@ export function markUnnumbered(paragraphs: readonly TextParagraph[], layout: Pag
       paragraph.leadingPt = Math.min(paragraph.leadingPt, FOOTNOTE_PITCH * first.sizePt);
     }
   }
+}
+
+/** Space above a numbered line smaller than this, points, is carried to the next paragraph. */
+const MIN_SPACE = 0.3;
+
+/**
+ * On pleading paper, space above a paragraph is so many numbered blank lines;
+ * what is left over (never a whole line) stays as space, so nothing is pushed
+ * down by a line that the PDF did not have. A leftover too small to set is
+ * owed to the next paragraph, not dropped: a scan's recognised baselines sit
+ * a quarter point apart, and a page of short paragraphs that each lost a
+ * quarter point ended a point and a half above its own line numbers.
+ */
+export function asNumberedBlanks(paragraphs: Paragraph[], pitchPt: number): Paragraph[] {
+  const out: Paragraph[] = [];
+  let owed = 0;
+  for (const paragraph of paragraphs) {
+    const gap = paragraph.spaceBeforePt + owed;
+    const blanks = Math.max(0, Math.floor(gap / pitchPt + 0.05));
+    for (let count = 0; count < blanks; count += 1) out.push(blankLine(pitchPt));
+    const remainder = gap - blanks * pitchPt;
+    // Under a third of a point is too little to set on its own.
+    owed = remainder < MIN_SPACE ? remainder : 0;
+    paragraph.spaceBeforePt = remainder < MIN_SPACE ? 0 : remainder;
+    out.push(paragraph);
+  }
+  return out;
 }

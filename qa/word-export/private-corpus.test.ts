@@ -12,6 +12,8 @@ import { existsSync } from 'node:fs';
 import { readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { numbersOffLines, numbersOffPaper } from './compare';
+import type { PageFidelity } from './compare';
 import { grade } from './grade';
 import type { Graded } from './grade';
 import { tesseractReachable } from './ocr';
@@ -34,8 +36,10 @@ function row(graded: Graded, pages: number): string {
     0
   );
   const numbers = graded.fidelity.pages.flatMap((page) => page.lineNumbers);
-  const off = numbers.filter((entry) => entry.dy === null || Math.abs(entry.dy) > 0.5).length;
-  return `| ${graded.name} | ${pages} → ${graded.fidelity.exportedPages} | ${worst.toFixed(2)} | ${missing} | ${numbers.length === 0 ? '—' : `${off} of ${numbers.length}`} | ${graded.notes.join(' ').slice(0, 120)} |`;
+  const sum = (count: (page: PageFidelity) => number): number =>
+    graded.fidelity.pages.reduce((total, page) => total + count(page), 0);
+  const off = `${sum(numbersOffLines)} of ${numbers.length} (${sum(numbersOffPaper)} off the paper)`;
+  return `| ${graded.name} | ${pages} → ${graded.fidelity.exportedPages} | ${worst.toFixed(2)} | ${missing} | ${numbers.length === 0 ? '—' : off} | ${graded.notes.join(' ').slice(0, 120)} |`;
 }
 
 describe.skipIf(!ready)('Word export over the private corpus of real filings', () => {
@@ -45,7 +49,7 @@ describe.skipIf(!ready)('Word export over the private corpus of real filings', (
     const files = (await readdir(dir)).filter((name) => /\.pdf$/i.test(name)).sort();
     expect(files.length).toBeGreaterThan(0);
     const rows: string[] = [
-      '| document | pages | worst page median dy (pt) | words off | line numbers off | notes |',
+      '| document | pages | worst page median dy (pt) | words off | line numbers off their lines | notes |',
       '| --- | --- | --- | --- | --- | --- |',
     ];
     for (const file of files) {

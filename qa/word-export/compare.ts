@@ -35,6 +35,12 @@ export interface PageFidelity {
   medianDy: number;
   p95Dy: number;
   maxDy: number;
+  /**
+   * How far the page's text as a whole sits from the source's, signed: a
+   * scanned page moved onto its section's grid carries the scanner's wobble
+   * here, numbers and text alike.
+   */
+  shiftDy: number;
   lineNumbers: NumberMatch[];
 }
 
@@ -165,6 +171,10 @@ export function comparePage(source: BboxPage, exported: BboxPage): PageFidelity 
     medianDy: quantile(dys, 0.5),
     p95Dy: quantile(dys, 0.95),
     maxDy: dys.length === 0 ? 0 : Math.max(...dys),
+    shiftDy: quantile(
+      matched.map((word) => word.dy),
+      0.5
+    ),
     lineNumbers: lineNumbersOf(source, exported),
   };
 }
@@ -181,18 +191,36 @@ export function compareDocuments(
   };
 }
 
+/** A number further than this, points, from where it belongs is off. */
+const NUMBER_TOLERANCE = 0.5;
+
+/** Numbers missing or off where the source page printed them. */
+export function numbersOffPaper(page: PageFidelity): number {
+  return page.lineNumbers.filter(
+    (entry) => entry.dy === null || Math.abs(entry.dy) > NUMBER_TOLERANCE
+  ).length;
+}
+
+/**
+ * Numbers missing or off THEIR LINES: measured against the page's text, not
+ * the paper. What an attorney sees is whether line 14 is beside number 14; a
+ * scan whose page sat two points low on the glass is not a number off.
+ */
+export function numbersOffLines(page: PageFidelity): number {
+  return page.lineNumbers.filter(
+    (entry) => entry.dy === null || Math.abs(entry.dy - page.shiftDy) > NUMBER_TOLERANCE
+  ).length;
+}
+
 /** One line per page an attorney (or a failing test) can read. */
 export function summarize(fidelity: Fidelity): string[] {
   const lines = [`pages: source ${fidelity.sourcePages}, export ${fidelity.exportedPages}`];
   for (const page of fidelity.pages) {
     const numbers = page.lineNumbers;
-    const numbersOff = numbers.filter(
-      (entry) => entry.dy === null || Math.abs(entry.dy) > 0.5
-    ).length;
     lines.push(
       `p${page.page}: words ${page.sourceWords}→${page.exportedWords} (missing ${page.missing.length}, extra ${page.extra.length}); ` +
         `baseline dy median ${page.medianDy.toFixed(2)} p95 ${page.p95Dy.toFixed(2)} max ${page.maxDy.toFixed(2)}; ` +
-        `line numbers ${numbers.length}${numbers.length > 0 ? `, off ${numbersOff}` : ''}`
+        `line numbers ${numbers.length}${numbers.length > 0 ? `, off their lines ${numbersOffLines(page)}, off the paper ${numbersOffPaper(page)}` : ''}`
     );
   }
   return lines;

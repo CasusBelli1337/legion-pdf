@@ -26,6 +26,7 @@ import {
   picturesToKeep,
 } from './picture-pages';
 import type { PagePicture } from './picture-pages';
+import { pleadingPagesOf } from './pleading-pages';
 import { scanAppendixSections } from './scan-appendix';
 import { sectionBands } from './section-bands';
 import { halfPoints, runStyleFor } from './styles';
@@ -119,11 +120,12 @@ function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] 
 }
 
 function assembleSection(
-  pages: PageLayout[],
+  sourcePages: PageLayout[],
   fonts: Fonts,
   assembly: Assembly,
   options: DocxBuildOptions
 ): void {
+  const pages = pleadingPagesOf(sourcePages);
   const provisional = sectionGeometry(pages);
   const builds = pages.map((layout) =>
     pageParagraphs(layout, provisional, { scanPictures: options.scanPictures ?? 'omit' })
