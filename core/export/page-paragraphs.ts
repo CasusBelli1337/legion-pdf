@@ -28,6 +28,7 @@ import type { BodyFrame, Paragraph, TextParagraph } from './model';
 import type { SectionGeometry } from './page-setup';
 import { columnRunsOf } from './page-setup';
 import { paragraphsOf } from './paragraphs';
+import { fitRecognizedLines } from './recognized-fit';
 import { LINE_NUMBERS_NOTE, NUMBERED_LINES_NOTE, PLEADING_NOTE, type Pleading } from './pleading';
 import { ruledTablesOf } from './tables';
 
@@ -220,9 +221,10 @@ function columnFlow(
   notes: string[],
   options: PageOptions
 ): Paragraph[] {
-  const lines = linesOf(withoutStrayNumbers(runs, pleading), layout.rules);
-  const ruled = ruledTablesOf(lines, layout.rules, frame);
   const recognized = isRecognized(runs);
+  const read = linesOf(withoutStrayNumbers(runs, pleading), layout.rules);
+  const lines = recognized ? fitRecognizedLines(read, frame) : read;
+  const ruled = ruledTablesOf(lines, layout.rules, frame);
   const text = paragraphsOf(
     lines.filter((line) => !ruled.consumed.has(line)),
     {

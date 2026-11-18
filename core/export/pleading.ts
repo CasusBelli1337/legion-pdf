@@ -195,16 +195,39 @@ function styleOf(xs: readonly number[]): { style: RuleStyle; x: number | null } 
   };
 }
 
+/** At most this share of the numbers may repeat a value before the page is a stack of mini-pages. */
+const MAX_REPEAT_SHARE = 0.15;
+
+/**
+ * Values that repeat all down the column are a stack of mini-pages (a
+ * condensed transcript), not one page's column: null. One or two repeats are
+ * an OCR's misreads — "14" read as "J" and "4" leaves a second 4 beside line
+ * 14 — and only the number nearest its place on the grid is kept.
+ */
+function withoutMisreadRepeats(column: readonly Numbered[]): Numbered[] | null {
+  const distinct = new Set(column.map((entry) => entry.value)).size;
+  if (distinct === column.length) return [...column];
+  if (column.length - distinct > MAX_REPEAT_SHARE * column.length) return null;
+  const rough = medianGridOf(column);
+  const miss = (entry: Numbered): number =>
+    Math.abs(rough.firstBaseline - (entry.value - 1) * rough.pitchPt - entry.y);
+  const best = new Map<number, Numbered>();
+  for (const entry of column) {
+    const kept = best.get(entry.value);
+    if (kept === undefined || miss(entry) < miss(kept)) best.set(entry.value, entry);
+  }
+  return column.filter((entry) => best.get(entry.value) === entry);
+}
+
 /** The layout's pleading column, or null when the page is not pleading paper. */
 export function pleadingOf(layout: PageLayout): Pleading | null {
   const numbers = numbersOf(layout);
   if (numbers.length < MIN_NUMBERS) return null;
   const leftmost = Math.min(...numbers.map((entry) => entry.x));
-  const column = numbers.filter((entry) => entry.x - leftmost <= COLUMN_TOLERANCE + 8);
-  if (column.length < MIN_NUMBERS) return null;
-  const values = column.map((entry) => entry.value);
-  // A value that repeats is a stack of mini-pages (a condensed transcript), not one page's column.
-  if (new Set(values).size !== values.length || Math.max(...values) > MAX_LINE_NUMBER) return null;
+  const inColumn = numbers.filter((entry) => entry.x - leftmost <= COLUMN_TOLERANCE + 8);
+  const column = withoutMisreadRepeats(inColumn);
+  if (column === null || column.length < MIN_NUMBERS) return null;
+  if (Math.max(...column.map((entry) => entry.value)) > MAX_LINE_NUMBER) return null;
   const numberRight = Math.max(...column.map((entry) => entry.right));
   // A numbered list sits inside the body; pleading numbers sit left of all of
   // it. A couple of strays are an OCR's misread numbers, not body text.

@@ -107,12 +107,19 @@ export function columnRunsOf(layout: PageLayout): LayoutTextRun[][] {
   return columnsOf(runs, { left: extents.left, right: extents.right, textRight: extents.right });
 }
 
+/**
+ * Two sheets this close in size, points, are the same paper: a scanner's
+ * pages of one Letter document differ by a few points each, while Letter and
+ * A4 differ by seventeen across and fifty down.
+ */
+const SHEET_TOLERANCE = 6;
+
 function sameSheet(a: PageLayout, b: PageLayout): boolean {
   const first = pageSizeOf(a);
   const second = pageSizeOf(b);
   return (
-    Math.abs(first.width - second.width) <= 1 &&
-    Math.abs(first.height - second.height) <= 1 &&
+    Math.abs(first.width - second.width) <= SHEET_TOLERANCE &&
+    Math.abs(first.height - second.height) <= SHEET_TOLERANCE &&
     columnRunsOf(a).length === columnRunsOf(b).length &&
     (pleadingOf(a) === null) === (pleadingOf(b) === null)
   );

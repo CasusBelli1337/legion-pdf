@@ -25,6 +25,23 @@ describe('groupSections', () => {
   });
 });
 
+describe('groupSections on scanned paper', () => {
+  it('keeps a scanner’s pages, a few points apart in size, in one section', () => {
+    const sizes = [
+      { width: 604.8, height: 792.96 },
+      { width: 609.6, height: 794.88 },
+      { width: 605.76, height: 792.48 },
+    ];
+    const scans = sizes.map((size) => page([], { size }));
+    expect(groupSections(scans).map((s) => s.length)).toEqual([3]);
+  });
+
+  it('still parts Letter from A4', () => {
+    const a4 = page([], { size: { width: 595.28, height: 841.89 } });
+    expect(groupSections([page([]), a4]).map((s) => s.length)).toEqual([1, 1]);
+  });
+});
+
 describe('groupSections by columns', () => {
   it('gives a two-column page its own section', () => {
     const single = page(paragraphLines(3, 700));

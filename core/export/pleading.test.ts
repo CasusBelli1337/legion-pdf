@@ -24,6 +24,29 @@ describe('pleadingOf', () => {
     expect(pleadingOf(pleadingPage(50))).toBeNull();
   });
 
+  it('keeps the column when an OCR split one number in two and left a repeat', () => {
+    // "14" read as "J" and "4": a second 4 sits beside line 14.
+    const numbers = Array.from({ length: 28 }, (_unused, index) =>
+      run(index === 13 ? '4' : String(index + 1), 54, 720 - index * 24, {
+        sizePt: 10,
+        role: 'line-number',
+        width: 5,
+      })
+    );
+    const pleading = pleadingOf(page(numbers));
+    expect(pleading?.grid).toBe(true);
+    expect(pleading?.pitchPt).toBeCloseTo(24, 5);
+    expect(pleading?.firstBaseline).toBeCloseTo(720, 5);
+    expect(pleading?.count).toBe(28);
+  });
+
+  it('is null when the values repeat all down the column (a condensed transcript)', () => {
+    const numbers = Array.from({ length: 50 }, (_unused, index) =>
+      run(String((index % 25) + 1), 54, 760 - index * 14, { role: 'line-number', width: 5 })
+    );
+    expect(pleadingOf(page(numbers))).toBeNull();
+  });
+
   it('is null when the numbers are not in one column', () => {
     const scattered = page(
       Array.from({ length: 24 }, (_unused, index) =>
