@@ -40,6 +40,19 @@ describe('linesOf', () => {
     expect(lines).toHaveLength(1);
   });
 
+  it('sets the space after a raised footnote mark with the text that follows it', () => {
+    const [line] = linesOf([
+      run('a complete defense', 72, 700, { width: 100 }),
+      run('1', 172.5, 704.5, { sizePt: 8, width: 4 }),
+      run('– Ashford,', 179.5, 700, { width: 50 }),
+    ]);
+    expect(line!.cells[0]!.runs.map((entry) => entry.text)).toEqual([
+      'a complete defense',
+      '1',
+      ' – Ashford,',
+    ]);
+  });
+
   it('opens a new cell at a gap wider than a couple of ems', () => {
     const lines = linesOf([run('Item', 72, 700), run('$1,200.00', 300, 700)]);
     expect(lines[0]!.cells.map((cell) => cell.x)).toEqual([72, 300]);

@@ -18,17 +18,22 @@ import { extractPageLayout } from './extract-page-layout';
 import type { PageLike } from './extract-page-layout';
 import { measureImageObject, rasterizeImageObject } from './image-raster';
 import { rolesOf } from './page-roles';
+import { drawRegionOf, measureRegionOf } from './region-raster';
+import type { RenderablePage } from './region-raster';
 
 async function layoutOf(document: PDFDocumentProxy, request: LayoutRequest) {
   const engine = engineForDocument(document, request.docId);
   const classification = await engine.classifyPage(request.page);
-  const page = (await document.getPage(request.page)) as unknown as PageLike;
+  const pdfPage = await document.getPage(request.page);
+  const page = pdfPage as unknown as PageLike;
+  const drawable = pdfPage as unknown as RenderablePage;
   return extractPageLayout(page, {
     page: request.page,
     ops: OPS as unknown as Readonly<Record<string, number>>,
     roles: rolesOf(classification),
     printedPageNumber: classification.printedPageNumber,
     rasterize: request.pictures === false ? measureImageObject : rasterizeImageObject,
+    drawRegion: request.pictures === false ? measureRegionOf(drawable) : drawRegionOf(drawable),
   });
 }
 

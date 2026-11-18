@@ -7,7 +7,7 @@
  * all read as sitting in the top margin and landed 50 points up the Word page.
  */
 
-import type { LayoutImage, LayoutRule, LayoutTextRun } from '@shared/types';
+import type { LayoutCheckbox, LayoutImage, LayoutRule, LayoutTextRun } from '@shared/types';
 
 export interface PageOrigin {
   x: number;
@@ -49,4 +49,15 @@ export function fromOrigin(marks: PageMarks, origin: PageOrigin): PageMarks {
     images: marks.images.map((image) => ({ ...image, rect: moved(image.rect) })),
     rules: marks.rules.map((rule) => ({ ...rule, rect: moved(rule.rect) })),
   };
+}
+
+/** Drawn checkboxes measured from the page's own corner. */
+export function boxesFromOrigin(
+  boxes: readonly LayoutCheckbox[],
+  origin: PageOrigin
+): LayoutCheckbox[] {
+  return boxes.map((box) => ({
+    ...box,
+    rect: { ...box.rect, x: box.rect.x - origin.x, y: box.rect.y - origin.y },
+  }));
 }

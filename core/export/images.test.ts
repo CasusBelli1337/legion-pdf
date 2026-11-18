@@ -20,6 +20,14 @@ describe('planImages', () => {
     expect(plan.notes[0]).toMatch(/Page 4 is a scan/);
   });
 
+  it('says so when a page’s handwriting could not be carried over', () => {
+    const layout = page([run('DANA R. WHITLOCK', 308, 206)], { page: 3, inkLeftOut: 1 });
+    const plan = planImages(layout, FRAME, { hasText: true, hasHiddenText: false });
+    expect(plan.notes).toEqual([
+      'Page 3 has handwriting (a signature or a filled-in blank) that could not be carried over as a picture; it was left out.',
+    ]);
+  });
+
   it('keeps a full-page picture on a page with no text', () => {
     const layout = page([], { images: [image(0, 0, 612, 792)] });
     const plan = planImages(layout, FRAME, { hasText: false, hasHiddenText: false });
@@ -130,6 +138,26 @@ describe("a picture drawn over the page's words (a signature across its line)", 
     // Its box is a point at the foot of the page's text: nothing is left to displace.
     expect(paragraph!.top).toBe(paragraph!.image.rect.y);
     expect(isBehindPage(paragraph!)).toBe(false);
+  });
+
+  it('pins a picture whose bottom edge reaches just past a line’s baseline', () => {
+    // The signature's box ends 0.9 pt under the baseline of "By: ____": the line's letters stand in it.
+    const layout = page(
+      [run('By: ______________', 326, 663.9), run('Marlow Ashford', 348, 651.9)],
+      {
+        images: [image(349, 663, 160, 38)],
+      }
+    );
+    const plan = planImages(layout, FRAME, { hasText: true, hasHiddenText: false });
+    expect(pinOf(plan.paragraphs[0]!)).not.toBeNull();
+  });
+
+  it('leaves a picture that stands clear above a line inline', () => {
+    const layout = page([run('Figure 1: the lot line.', 72, 286)], {
+      images: [image(72, 300, 200, 150)],
+    });
+    const plan = planImages(layout, FRAME, { hasText: true, hasHiddenText: false });
+    expect(pinOf(plan.paragraphs[0]!)).toBeNull();
   });
 
   it('leaves a picture with no line of text at its height inline', () => {

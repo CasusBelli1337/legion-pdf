@@ -127,6 +127,21 @@ function tableWidth(run: LayoutTextRun): number | null {
   return (units * run.sizePt) / 1000;
 }
 
+/** A letter the table does not hold is taken as an average one. */
+const AVERAGE_UNITS = 500;
+
+/**
+ * How wide `text` is against other text in the same face, in Times' units.
+ * Text faces differ in how wide they run, far less in which letters are the
+ * narrow ones: "parties’" is 3.4 ems of Times and 3.7 of Century Schoolbook,
+ * and in both a tenth narrower than its eight characters suggest.
+ */
+export function relativeWidth(text: string): number {
+  let units = 0;
+  for (const char of text) units += TIMES[char] ?? AVERAGE_UNITS;
+  return units;
+}
+
 function isTimesRegular(font: LayoutFont | undefined): boolean {
   return font !== undefined && !font.bold && !font.italic && TIMES_REGULAR.test(font.name);
 }

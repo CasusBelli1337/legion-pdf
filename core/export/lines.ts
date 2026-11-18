@@ -13,6 +13,7 @@ import { columnsOf } from './columns';
 import { leaderParts } from './leaders';
 import {
   DOT_LEADER,
+  TRAILING_LEADER,
   dominantSize,
   opensCell,
   placeRun,
@@ -21,6 +22,7 @@ import {
   withoutTrailingLeader,
 } from './line-cells';
 import type { Cursor } from './line-cells';
+import { tabbedAfterMarker } from './list-marker';
 import type { BodyFrame, Cell, Line, StyledRun } from './model';
 import { hexColor } from './styles';
 import { onTiltedLine } from './tilted-line';
@@ -175,13 +177,17 @@ function assemble(draft: Draft, marks: Marks): Line {
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];
   const cursor: Cursor = { right: Number.NEGATIVE_INFINITY, leader: false, box: false };
+  const led = ordered.some((run) => DOT_LEADER.test(run.text) || TRAILING_LEADER.test(run.text));
   for (const run of ordered) {
     if (DOT_LEADER.test(run.text) && cells.length > 0) {
       // The dots are not text; the cell after them is a right-tabbed page number.
       cursor.leader = true;
     } else {
       const { text, leads } = withoutTrailingLeader(run.text);
-      const opens = opensCell(run, cursor, rules, line.baseline);
+      // A table of contents' entry keeps its number and title in one cell before the leader.
+      const opens =
+        opensCell(run, cursor, rules, line.baseline) ||
+        (!led && tabbedAfterMarker(cells, run, cursor.right));
       placeRun(cells, run, styled({ ...run, text }, marks.underlines, line), cursor, opens);
       cursor.leader = leads;
       cursor.box = standsAlone(run);

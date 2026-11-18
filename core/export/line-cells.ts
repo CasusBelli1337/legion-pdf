@@ -19,7 +19,7 @@ const COLUMN_GAP = 2.2;
 /** A run of dots (a table of contents' leader) between an entry and its page number. */
 export const DOT_LEADER = /^[.\s·…]{5,}$/;
 /** The same leader glued to the end of the entry's own run: "Judgment. ......". */
-const TRAILING_LEADER = /(\S)([.\s·…]*\.{5,}[.\s·…]*)$/;
+export const TRAILING_LEADER = /(\S)([.\s·…]*\.{5,}[.\s·…]*)$/;
 
 /** Raised alike, condensed alike, and neither one a footnote's reference mark (a mark never merges). */
 function sameSetting(a: StyledRun, b: StyledRun): boolean {
@@ -51,6 +51,13 @@ function appendRun(cell: Cell, run: StyledRun, spaced: boolean): void {
   const needsSpace = spaced && !previous.text.endsWith(' ') && !run.text.startsWith(' ');
   if (sameStyle(previous, run)) {
     previous.text += (needsSpace ? ' ' : '') + run.text;
+    return;
+  }
+  // The space after a raised mark is set at the text's size, not the mark's:
+  // carried on a footnote reference it came out a point narrower, and the
+  // next line's first word climbed onto the room that left.
+  if (needsSpace && previous.superscript === true && run.superscript !== true) {
+    cell.runs.push({ ...run, text: ` ${run.text}` });
     return;
   }
   if (needsSpace) previous.text += ' ';

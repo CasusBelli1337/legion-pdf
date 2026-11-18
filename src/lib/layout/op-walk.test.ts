@@ -40,8 +40,8 @@ describe('walkOperators', () => {
       OPS
     );
     expect(walk.texts).toEqual([
-      { colorHex: '#ff0000', hidden: false, letters: 5 },
-      { colorHex: '#000000', hidden: true, letters: 9 },
+      { colorHex: '#ff0000', hidden: false, letters: 5, doubled: [], endsSpaced: false },
+      { colorHex: '#000000', hidden: true, letters: 9, doubled: [], endsSpaced: false },
     ]);
   });
 
@@ -154,6 +154,52 @@ describe('checkboxes', () => {
       OPS
     );
     expect(walk.boxes).toEqual([]);
+  });
+});
+
+describe('walkOperators — spaces typed in pairs', () => {
+  const OPS = { showText: 1, moveText: 2, setFont: 3, setTextMatrix: 4, beginText: 5 };
+  /** Every glyph half an em wide, a space a quarter. */
+  const shown = (text: string) =>
+    [...text].map((unicode) => ({
+      unicode,
+      isSpace: unicode === ' ',
+      width: unicode === ' ' ? 250 : 500,
+    }));
+  const walk = (fnArray: number[], argsArray: unknown[]) =>
+    walkOperators({ fnArray, argsArray }, OPS).texts.map((text) => text.doubled);
+
+  it('sees a pair split across two show-text operators', () => {
+    const args = [[shown('lease. ')], [shown(' It was')]];
+    expect(walk([OPS.showText, OPS.showText], args)).toEqual([[], [0]]);
+  });
+
+  it('sees it across a move that leaves the pen where it was', () => {
+    // "lease. " is 3.25 ems of 12 pt type: the move restates the pen's place.
+    const args = [['f1', 12], [shown('lease. ')], [39, 0], [shown(' It was')]];
+    expect(walk([OPS.setFont, OPS.showText, OPS.moveText, OPS.showText], args)).toEqual([[], [0]]);
+  });
+
+  it('sees it across a new text object whose matrix puts the pen where it already was', () => {
+    // One-unit type under a 12× matrix at x=92: "lease. " ends 39 pt on, at 131.
+    const fns = [OPS.setTextMatrix, OPS.setFont, OPS.showText, OPS.beginText, OPS.setTextMatrix];
+    const args = [
+      [[12, 0, 0, 12, 92, 669]],
+      ['f1', 1],
+      [shown('lease. ')],
+      [],
+      [[12, 0, 0, 12, 131, 669]],
+    ];
+    expect(walk([...fns, OPS.showText], [...args, [shown(' It was')]])).toEqual([[], [0]]);
+    const elsewhere = [...args.slice(0, 4), [[12, 0, 0, 12, 140, 669]], [shown(' It was')]];
+    expect(walk([...fns, OPS.showText], elsewhere)).toEqual([[], []]);
+  });
+
+  it('does not pair a space with one drawn after the pen moved away, or to a new line', () => {
+    const along = [['f1', 12], [shown('/ ')], [6, 0], [shown(' / /')]];
+    expect(walk([OPS.setFont, OPS.showText, OPS.moveText, OPS.showText], along)).toEqual([[], []]);
+    const down = [['f1', 12], [shown('ends. ')], [0, -24], [shown(' Next')]];
+    expect(walk([OPS.setFont, OPS.showText, OPS.moveText, OPS.showText], down)).toEqual([[], []]);
   });
 });
 
