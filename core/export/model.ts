@@ -25,6 +25,8 @@ export interface StyledRun {
   superscript?: boolean;
   /** Word character scaling, per cent, when the line was set narrower than Word's face (run-scale.ts). */
   scalePct?: number;
+  /** The run IS the reference mark of this Word footnote (footnotes.ts); its digits are Word's to draw. */
+  footnote?: number;
 }
 
 /** One column of a line. Nearly every line has exactly one. */
@@ -84,6 +86,8 @@ export interface TextParagraph {
   /** Positive: first line indented. Negative: hanging indent (first line outdented). */
   firstLinePt: number;
   spaceBeforePt: number;
+  /** Space under the paragraph — only a page's last footnote has any (footnotes.ts). */
+  spaceAfterPt?: number;
   /** Tab stops, when the lines read as columns. */
   tabStops: TabStop[];
   /** Baseline of the first line — ordering key against images. */

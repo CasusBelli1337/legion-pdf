@@ -12,6 +12,7 @@
 import {
   AlignmentType,
   ColumnBreak,
+  FootnoteReference,
   LeaderType,
   LineRuleType,
   PageNumber,
@@ -71,8 +72,19 @@ function pieces(text: string): (string | typeof PageNumber.CURRENT)[] {
     .filter((part) => part !== '');
 }
 
+/** A footnote's reference mark: Word draws the number; whatever followed the digits stays text. */
+function footnoteMark(run: StyledRun, id: number, fonts: Fonts): TextRun[] {
+  const options = runOptions(run, fonts);
+  const after = run.text.replace(/^\s*\d+/, '');
+  return [
+    new TextRun({ ...options, children: [new FootnoteReference(id)] }),
+    ...(after === '' ? [] : [new TextRun({ ...options, children: [after] })]),
+  ];
+}
+
 /** One TextRun per hard line break, so a "\n" in the text becomes a Word line break. */
 function textRun(run: StyledRun, fonts: Fonts): TextRun[] {
+  if (run.footnote !== undefined) return footnoteMark(run, run.footnote, fonts);
   const options = runOptions(run, fonts);
   return run.text
     .split('\n')
@@ -214,7 +226,7 @@ export function docxTextParagraph(
       line: twips(paragraph.leadingPt),
       lineRule: LineRuleType.EXACT,
       before: twips(paragraph.spaceBeforePt),
-      after: 0,
+      after: twips(paragraph.spaceAfterPt ?? 0),
     },
     ...(indent === undefined ? {} : { indent }),
     tabStops: paragraph.tabStops.map((stop) => ({

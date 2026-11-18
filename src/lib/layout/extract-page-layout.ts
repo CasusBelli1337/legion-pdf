@@ -8,12 +8,14 @@
  */
 
 import type {
+  LayoutCheckbox,
   LayoutFont,
   LayoutImage,
   LayoutTextRole,
   LayoutTextRun,
   PageLayout,
 } from '@shared/types';
+import { CHECKBOX_FONT, CHECKBOX_FONT_KEY, checkboxRuns } from './checkbox-runs';
 import { alignTextStyles } from './colour-align';
 import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
@@ -187,6 +189,18 @@ async function imageOf(
   return { rect: transformedBox(op.ctm, UNIT_SQUARE), ...raster };
 }
 
+/** Each drawn checkbox joins the runs as a box character; the page keeps the boxes too. */
+function placeCheckboxes(
+  boxes: LayoutCheckbox[],
+  runs: LayoutTextRun[],
+  fonts: Record<string, LayoutFont>
+): Pick<PageLayout, 'checkboxes'> {
+  if (boxes.length === 0) return {};
+  runs.push(...checkboxRuns(boxes, runs));
+  fonts[CHECKBOX_FONT_KEY] = CHECKBOX_FONT;
+  return { checkboxes: boxes };
+}
+
 export async function extractPageLayout(page: PageLike, input: ExtractInput): Promise<PageLayout> {
   const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = page.view;
   const content = await page.getTextContent();
@@ -211,14 +225,17 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     const image = await imageOf(page, op, input);
     if (image !== null) images.push(image);
   }
+  const fonts = await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles);
+  const checkboxes = placeCheckboxes(walk.boxes, runs, fonts);
   return {
     page: input.page,
     size,
     rotation: page.rotate,
-    fonts: await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles),
+    fonts,
     runs,
     images,
     rules: walk.rules.map((rect) => ({ rect })),
+    ...checkboxes,
     printedPageNumber: input.printedPageNumber,
   };
 }

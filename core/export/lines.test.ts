@@ -46,6 +46,20 @@ describe('linesOf', () => {
     expect(lineText(lines[0]!)).toBe('Item\t$1,200.00');
   });
 
+  it('keeps a checkbox in a cell of its own, however close the text beside it', () => {
+    const [line] = linesOf([
+      run('a.', 140, 700),
+      run('\u2610', 160, 700, { width: 11.6 }),
+      run('By personal service.', 176, 700),
+    ]);
+    expect(line?.cells.map((cell) => cell.runs.map((entry) => entry.text).join(''))).toEqual([
+      'a.',
+      '\u2610',
+      'By personal service.',
+    ]);
+    expect(line?.cells[2]?.x).toBe(176);
+  });
+
   it('drops runs that are only whitespace', () => {
     expect(linesOf([run('   ', 72, 700), run('', 72, 686)])).toEqual([]);
   });

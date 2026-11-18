@@ -10,6 +10,16 @@
 import { Document, Packer, Paragraph as DocxParagraph } from 'docx';
 import type { ISectionOptions, Table } from 'docx';
 import type { ExportReceipt, LayoutFont, PageLayout, ScanPictureMode } from '@shared/types';
+import {
+  FOOTNOTES_NOTE,
+  footnoteBook,
+  footnoteNotes,
+  footnoteOptions,
+  separatorHeight,
+  takeFootnotes,
+  withFootnoteSeparator,
+} from './docx-footnotes';
+import type { FootnoteBook } from './docx-footnotes';
 import { docxImageParagraph } from './docx-image';
 import { PAGE_FIELD, docxTextParagraph } from './docx-paragraph';
 import { STAMP_NOTE, hasStamps } from './docx-section';
@@ -59,6 +69,7 @@ interface Assembly {
   paragraphCount: number;
   samples: string[];
   notes: Set<string>;
+  footnotes: FootnoteBook;
 }
 
 /** The plain prefix of a text: letters, digits, simple punctuation, before any field. */
@@ -118,6 +129,12 @@ function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] 
   });
 }
 
+/** Where Word ends the section's body, points above the paper's bottom edge (a negative margin is exact). */
+function wordBottomOf(section: Pick<ISectionOptions, 'properties'>, fallback: number): number {
+  const bottom = section.properties?.page?.margin?.bottom;
+  return typeof bottom === 'number' ? Math.abs(bottom) / 20 : fallback;
+}
+
 function assembleSection(
   pages: PageLayout[],
   fonts: Fonts,
@@ -133,9 +150,15 @@ function assembleSection(
     builds.filter((built) => built.columns.flat().length > 0).map((built) => built.box)
   );
   const topOfBody = geometry.size.height - geometry.margins.top;
+  const bands = sectionBands(pages, fonts, geometry);
+  const bodyBottom = wordBottomOf(bands.section, geometry.margins.bottom);
   const children: (DocxParagraph | Table)[] = [];
   builds.forEach((built, index) => {
     built.notes.forEach((note) => assembly.notes.add(note));
+    const layout = pages[index];
+    if (layout !== undefined) {
+      takeFootnotes(assembly.footnotes, { build: built, layout }, fonts, bodyBottom);
+    }
     // An empty page still turns the paper: one empty paragraph carries the break.
     const settled = withSpacers(settlePage(built, topOfBody), index > 0);
     if (hasTabColumns(settled)) assembly.notes.add(COLUMNS_NOTE);
@@ -149,7 +172,6 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const bands = sectionBands(pages, fonts, geometry);
   bands.notes.forEach((note) => assembly.notes.add(note));
   assembly.sections.push({ ...bands.section, children });
 }
@@ -172,13 +194,44 @@ function dominantStyle(layouts: readonly PageLayout[], fonts: Fonts) {
   return { font: top(byFont, 'Times New Roman'), size: top(bySize, 24) };
 }
 
+async function pack(
+  layouts: readonly PageLayout[],
+  fonts: Fonts,
+  assembly: Assembly,
+  options: DocxBuildOptions
+): Promise<Uint8Array> {
+  const style = dominantStyle(layouts, fonts);
+  const { footnotes, footnoteReference } = footnoteOptions(assembly.footnotes, fonts);
+  const document = new Document({
+    ...(options.title === undefined ? {} : { title: options.title }),
+    creator: 'Legion PDF',
+    styles: {
+      default: {
+        document: { run: { font: style.font, size: style.size } },
+        ...(footnoteReference === undefined ? {} : { footnoteReference }),
+      },
+    },
+    ...(footnotes === undefined ? {} : { footnotes }),
+    sections: assembly.sections,
+  });
+  const bytes = new Uint8Array(await Packer.toBuffer(document));
+  if (footnotes === undefined) return bytes;
+  return withFootnoteSeparator(bytes, separatorHeight(assembly.footnotes));
+}
+
 export async function buildDocx(
   layouts: readonly PageLayout[],
   options: DocxBuildOptions = {}
 ): Promise<DocxBuild> {
   if (layouts.length === 0) throw new Error('There are no pages to export.');
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
-  const assembly: Assembly = { sections: [], paragraphCount: 0, samples: [], notes: new Set() };
+  const assembly: Assembly = {
+    sections: [],
+    paragraphCount: 0,
+    samples: [],
+    notes: new Set(),
+    footnotes: footnoteBook(),
+  };
   const pictures = picturesToKeep(layouts, options.pagePictures);
   for (const part of partsOf(layouts, pictures)) {
     if (part.kind === 'picture') {
@@ -194,17 +247,12 @@ export async function buildDocx(
   const textPages = layouts.filter((layout) => !pictures.has(layout.page));
   assembly.sections.push(...scanAppendixSections(textPages, options.scanPictures ?? 'omit'));
   if (hasStamps(layouts)) assembly.notes.add(STAMP_NOTE);
-  const style = dominantStyle(layouts, fonts);
-  const document = new Document({
-    ...(options.title === undefined ? {} : { title: options.title }),
-    creator: 'Legion PDF',
-    styles: { default: { document: { run: { font: style.font, size: style.size } } } },
-    sections: assembly.sections,
-  });
-  const bytes = new Uint8Array(await Packer.toBuffer(document));
+  footnoteNotes(assembly.footnotes).forEach((note) => assembly.notes.add(note));
+  const bytes = await pack(layouts, fonts, assembly, options);
   await verifyDocx(bytes, {
     paragraphCount: assembly.paragraphCount,
     samples: assembly.samples.slice(0, 200),
+    footnotes: assembly.footnotes.notes.size,
   });
   const notes = [...assembly.notes];
   return {
@@ -217,7 +265,12 @@ export async function buildDocx(
 }
 
 /** Notes that say what the file KEPT; every other note says what it had to leave out. */
-const KEPT_NOTES: ReadonlySet<string> = new Set([PLEADING_NOTE, NUMBERED_LINES_NOTE, COLUMNS_NOTE]);
+const KEPT_NOTES: ReadonlySet<string> = new Set([
+  PLEADING_NOTE,
+  NUMBERED_LINES_NOTE,
+  COLUMNS_NOTE,
+  FOOTNOTES_NOTE,
+]);
 
 function isKept(note: string): boolean {
   return KEPT_NOTES.has(note) || isPicturePagesNote(note);
