@@ -16,6 +16,8 @@ import { STAMP_NOTE, hasStamps } from './docx-section';
 import { NUMBERED_LINES_NOTE, PLEADING_NOTE } from './pleading';
 import { docxTable } from './docx-table';
 import type { Paragraph, TextParagraph } from './model';
+import { opensNumbering } from './first-page-foot';
+import { numberingRuns, withFootNumbers } from './page-numbering';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
 import {
@@ -119,22 +121,15 @@ function withSpacers(paragraphs: Paragraph[], afterBreak: boolean): Paragraph[] 
   });
 }
 
-function assembleSection(
-  sourcePages: PageLayout[],
+type PageBuild = ReturnType<typeof pageParagraphs>;
+
+/** One section's body: each page's paragraphs, a page break before every page but the first. */
+function sectionChildren(
+  builds: readonly PageBuild[],
+  topOfBody: number,
   fonts: Fonts,
-  assembly: Assembly,
-  options: DocxBuildOptions
-): void {
-  const pages = pleadingPagesOf(sourcePages);
-  const provisional = sectionGeometry(pages);
-  const builds = pages.map((layout) =>
-    pageParagraphs(layout, provisional, { scanPictures: options.scanPictures ?? 'omit' })
-  );
-  const geometry = withVerticalMargins(
-    provisional,
-    builds.filter((built) => built.columns.flat().length > 0).map((built) => built.box)
-  );
-  const topOfBody = geometry.size.height - geometry.margins.top;
+  assembly: Assembly
+): (DocxParagraph | Table)[] {
   const children: (DocxParagraph | Table)[] = [];
   builds.forEach((built, index) => {
     built.notes.forEach((note) => assembly.notes.add(note));
@@ -151,9 +146,42 @@ function assembleSection(
     });
     assembly.paragraphCount += paragraphs.length;
   });
-  const bands = sectionBands(pages, fonts, geometry);
-  bands.notes.forEach((note) => assembly.notes.add(note));
-  assembly.sections.push({ ...bands.section, children });
+  return children;
+}
+
+/**
+ * Pages on one paper share one frame, however their numbering runs: the body
+ * is measured once over all of them, and each stretch of numbering
+ * (page-numbering.ts) is a section of its own in that frame, with its own
+ * head and foot.
+ */
+function assembleSections(
+  sourcePages: PageLayout[],
+  fonts: Fonts,
+  assembly: Assembly,
+  options: DocxBuildOptions
+): void {
+  const pages = pleadingPagesOf(sourcePages);
+  const provisional = sectionGeometry(pages);
+  const builds = pages.map((layout) =>
+    pageParagraphs(layout, provisional, { scanPictures: options.scanPictures ?? 'omit' })
+  );
+  const geometry = withVerticalMargins(
+    provisional,
+    builds.filter((built) => built.columns.flat().length > 0).map((built) => built.box)
+  );
+  const topOfBody = geometry.size.height - geometry.margins.top;
+  let done = 0;
+  for (const run of numberingRuns(pages, opensNumbering)) {
+    const own = builds.slice(done, done + run.length);
+    done += run.length;
+    const bands = sectionBands(run, fonts, geometry);
+    bands.notes.forEach((note) => assembly.notes.add(note));
+    assembly.sections.push({
+      ...bands.section,
+      children: sectionChildren(own, topOfBody, fonts, assembly),
+    });
+  }
 }
 
 /** The face and size most of the document's characters are set in. */
@@ -175,10 +203,11 @@ function dominantStyle(layouts: readonly PageLayout[], fonts: Fonts) {
 }
 
 export async function buildDocx(
-  layouts: readonly PageLayout[],
+  source: readonly PageLayout[],
   options: DocxBuildOptions = {}
 ): Promise<DocxBuild> {
-  if (layouts.length === 0) throw new Error('There are no pages to export.');
+  if (source.length === 0) throw new Error('There are no pages to export.');
+  const layouts = withFootNumbers(source);
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
   const assembly: Assembly = { sections: [], paragraphCount: 0, samples: [], notes: new Set() };
   const pictures = picturesToKeep(layouts, options.pagePictures);
@@ -188,7 +217,7 @@ export async function buildDocx(
       assembly.paragraphCount += 1;
     } else {
       for (const pages of groupSections(part.layouts)) {
-        assembleSection(pages, fonts, assembly, options);
+        assembleSections(pages, fonts, assembly, options);
       }
     }
   }

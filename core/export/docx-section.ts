@@ -7,14 +7,15 @@
  * by a PAGE field so the numbers keep counting after the attorney edits.
  */
 
-import { Column, Header, LineNumberRestartFormat, PageOrientation } from 'docx';
-import type { ISectionOptions, Paragraph as DocxParagraph } from 'docx';
+import { Column, Header, LineNumberRestartFormat, NumberFormat, PageOrientation } from 'docx';
+import type { IPageNumberTypeAttributes, ISectionOptions, Paragraph as DocxParagraph } from 'docx';
 import type { LayoutFont, LayoutTextRun, PageLayout } from '@shared/types';
 import { docxTextParagraph } from './docx-paragraph';
 import { pleadingFrame, pleadingHeader, pleadingMargins } from './docx-pleading';
 import { linesOf } from './lines';
 import { BASELINE_SHARE, twips } from './model';
 import type { BodyFrame, TextParagraph } from './model';
+import type { NumberStyle } from './page-numbering';
 import type { SectionGeometry } from './page-setup';
 import { paragraphsOf } from './paragraphs';
 
@@ -53,6 +54,7 @@ export interface BandDistances {
   /** The foot's top edge from the paper's bottom, points. */
   footerReachPt?: number;
   pageNumberStart?: number;
+  numberStyle?: NumberStyle;
 }
 
 /**
@@ -88,6 +90,14 @@ function bandDistance(
   return Math.max(0, Math.min(distance, marginPt - EMPTY_BAND_ROOM));
 }
 
+/** Where the section's numbering starts and whether it counts i, ii or 1, 2. */
+function pageNumbersFor(bands: BandDistances): { pageNumbers?: IPageNumberTypeAttributes } {
+  if (bands.pageNumberStart === undefined) return {};
+  const formatType =
+    bands.numberStyle === 'lowerRoman' ? NumberFormat.LOWER_ROMAN : NumberFormat.DECIMAL;
+  return { pageNumbers: { start: bands.pageNumberStart, formatType } };
+}
+
 export function sectionProperties(
   geometry: SectionGeometry,
   bands: BandDistances = {}
@@ -121,9 +131,7 @@ export function sectionProperties(
         pleading?.grid === true
           ? pleadingMargins(pleadingFrame(pleading, geometry), margin)
           : margin,
-      ...(bands.pageNumberStart === undefined
-        ? {}
-        : { pageNumbers: { start: bands.pageNumberStart } }),
+      ...pageNumbersFor(bands),
     },
     ...columnsFor(geometry),
     ...lineNumbersFor(geometry),
@@ -234,13 +242,29 @@ function placedParagraphs(
  * ("H", "KL", ")", a smudge read as punctuation), not a running head or foot.
  * Left in, every fragment becomes a paragraph of the header or footer, the
  * band grows past the margin, and Word squeezes the body onto page after page.
+ * A page number is the exception: "- 2 -" is short because it is one.
  */
 function isNoise(run: LayoutTextRun): boolean {
+  if (run.role === 'page-number') return false;
   return run.hidden === true && !/[A-Za-z0-9]{3}/.test(run.text);
 }
 
 /** Recognised text counts as a running head or foot only this close (× page height) to the paper's edge. */
 const RECOGNIZED_BAND_SHARE = 0.09;
+
+/** A column this long is pleading paper's, not a list's. */
+const NUMBERED_COLUMN = 20;
+
+/**
+ * Pleading paper says where the foot is: under the last numbered line. A scan
+ * with a deep bottom margin carries its foot well clear of the paper's edge,
+ * and the column of numbers vouches for it where the edge cannot.
+ */
+function belowNumberedLines(run: LayoutTextRun, page: PageLayout): boolean {
+  const numbers = page.runs.filter((each) => each.role === 'line-number');
+  if (numbers.length < NUMBERED_COLUMN) return false;
+  return run.y + run.sizePt <= Math.min(...numbers.map((each) => each.y));
+}
 
 /**
  * A recognised run far from the paper's edge is body text the classifier
@@ -248,9 +272,21 @@ const RECOGNIZED_BAND_SHARE = 0.09;
  * body, and Word would push the body onto more pages to make room.
  */
 function nearEdge(run: LayoutTextRun, page: PageLayout): boolean {
-  if (run.hidden !== true) return true;
+  if (run.hidden !== true || belowNumberedLines(run, page)) return true;
   const band = RECOGNIZED_BAND_SHARE * page.size.height;
   return run.y <= band || run.y >= page.size.height - band;
+}
+
+/**
+ * On a scan, the firm's slug in the margin left of the line numbers is
+ * four-point type: what the recognition makes of it is not the firm's name.
+ */
+export function isUnreadableSlug(run: LayoutTextRun, page: PageLayout): boolean {
+  if (run.hidden !== true || run.role !== 'footer') return false;
+  const numbers = page.runs.filter((each) => each.role === 'line-number');
+  if (numbers.length < NUMBERED_COLUMN) return false;
+  const columnRight = Math.max(...numbers.map((each) => each.x + each.width));
+  return run.x + run.width / 2 < columnRight;
 }
 
 /** The band's runs on the first page of the section that carries the band at all. */
@@ -261,6 +297,7 @@ export function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]
         wanted.includes(run.role) &&
         run.text.trim().length > 0 &&
         !isNoise(run) &&
+        !isUnreadableSlug(run, page) &&
         nearEdge(run, page)
     );
     if (runs.length > 0) return runs;

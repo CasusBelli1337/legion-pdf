@@ -7,8 +7,8 @@
 import { Footer, Header, LineRuleType, Paragraph as DocxParagraph } from 'docx';
 import type { ISectionOptions } from 'docx';
 import type { LayoutFont, PageLayout } from '@shared/types';
-import { PAGE_NUMBERS_NOTE, footerFor } from './docx-footer';
-import { headerFor, sectionProperties } from './docx-section';
+import { PAGE_NUMBERS_NOTE, SLUG_NOTE, footerFor } from './docx-footer';
+import { headerFor, isUnreadableSlug, sectionProperties } from './docx-section';
 import type { SectionGeometry } from './page-setup';
 
 type Fonts = Readonly<Record<string, LayoutFont>>;
@@ -56,11 +56,16 @@ export function sectionBands(
       footerPt: foot.footerPt,
       footerReachPt: foot.footerReachPt,
       pageNumberStart: foot.numberDropped === true ? undefined : foot.pageNumberStart,
+      numberStyle: foot.numberStyle,
     })
   );
   const headers = { default: header ?? new Header({ children: emptyBand() }) };
   const footers = { default: foot.footer ?? new Footer({ children: emptyBand() }) };
-  const notes = foot.numberDropped === true ? [PAGE_NUMBERS_NOTE] : [];
+  const slugDropped = pages.some((page) => page.runs.some((run) => isUnreadableSlug(run, page)));
+  const notes = [
+    ...(foot.numberDropped === true ? [PAGE_NUMBERS_NOTE] : []),
+    ...(slugDropped ? [SLUG_NOTE] : []),
+  ];
   if (foot.firstFooter === undefined) return { section: { properties, headers, footers }, notes };
   // "Different first page" asks for the first page's header as well as its footer.
   const firstHeader = headerFor(pages, fonts, geometry).header;

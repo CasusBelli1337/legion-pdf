@@ -189,10 +189,39 @@ Word after every change:
 - **Different first page.** A caption page with the running foot but no page
   number, followed by numbered pages, is a first-page footer plus a default
   footer with a PAGE field (`first-page-foot.ts`, `section-bands.ts`). Each
-  section states the number its first page takes. Numbers that restart or
-  skip (front matter in roman, the body restarting at 1) cannot be counted by
-  one footer: they are left out and the receipt says so, rather than one
-  page's number printed on every page.
+  section states the number its first page takes.
+- **Numbering that restarts or changes style is a section per stretch**
+  (`page-numbering.ts`, 2026-11-18). A brief numbers its tables i, ii and its
+  argument 1, 2, 3; a cover is "1" and the argument picks up at "2". The
+  pages of one paper still share ONE frame (measured once over all of them,
+  so nothing in the body moves), but each stretch of numbering is its own
+  Word section with its own start and format (`w:pgNumType w:start w:fmt`,
+  lowerRoman or decimal) and a PAGE field. Small roman numbers are read off
+  the foot here, not by the viewer (a foot item that is nothing but a
+  numeral). A lone unnumbered page ahead of a stretch stays with it as the
+  "different first page"; unnumbered pages anywhere else are a section with
+  no number. Not split: a sheet that prints several numbers (condensed
+  transcript) and the same "number" on every page (a phone number) — those
+  keep the left-out note.
+- **A numbered foot line keeps the whole width.** A line holding a slug and
+  the page number was measured to the number it happened to print; "2" is
+  wider than "1", the field wrapped onto its own line, and the foot grew into
+  the body. A left-set line with a PAGE field takes no right indent.
+- **A rule between the page number and the title** is a top border on the
+  title's paragraph, its height taken out of the gap that was there
+  (`footer-rule.ts`); a rule above the whole foot is still the first
+  paragraph's.
+- **A scan's foot** (2026-11-18). On pleading paper the foot is whatever
+  sits under the last numbered line, however far from the paper's edge (a
+  scan with a deep bottom margin carries it at 13% of the page; the 9% edge
+  band alone dropped it). "- 2 -" arrives from recognition in pieces ("-2",
+  "—") and above the band the viewer searches: the pieces are joined into
+  one page-number run, sized no smaller than the foot. A scanned page whose
+  number was missed takes the number its neighbours imply (between two that
+  count across it, or behind a numbered page whose foot it shares). The
+  footer is built from the page whose reading the other pages most agree
+  with (`recognized-foot.ts`), not the first. The firm's slug left of the
+  line numbers is four-point type and is left out with a note.
 - **The footer's rule is part of the footer's height.** Where the page's last
   line ends hard against it, the rule gives way by a point or so; drawn
   exactly, Word moved the body up and the footnote onto the next page
@@ -241,7 +270,7 @@ three points off their lines.
 | Size, bold, italic, colour, underline, superscript | Per run; a raised small run is a real superscript |
 | Lines of a paragraph | One flowing paragraph (tags decide where the PDF is tagged); a word broken at a line end is healed unless the hyphen is the word's own ("meet-and-confer", "self-employed"); deliberate breaks stay breaks |
 | Line pitch, gaps, indents, alignment, margins, columns, page breaks | As before — exact line boxes, space-before, indents from the section's margins |
-| Running head and foot | Real Word header and footer; the printed page number becomes a PAGE field only when the printed numbers count up page by page |
+| Running head and foot | Real Word header and footer; the printed page number becomes a PAGE field, in a section per stretch of numbering (roman front matter, restarts) |
 | Pleading paper | The header table of numbers and rules on the page's grid; the footer's rule as a paragraph border |
 | Ruled tables (caption boxes, proofs of service, schedules) | Real Word tables from the rule grid, fixed widths, exact row heights, borders only where drawn (`tables.ts`, `table-grid.ts`, `docx-table.ts`) |
 | Columns of text without rules | Tab stops |
@@ -309,9 +338,10 @@ from a layout read this way — its pictures are empty.
 - **Bates stamps** are left out (they differ on every page); a note says so.
 - **Footnotes** come through as small paragraphs at the foot of the page,
   not as Word footnotes; the short rule above them is not drawn.
-- **Page numbers that restart** (roman front matter, a body that begins
-  again at 1) are left out with a note; sections are not yet split where the
-  numbering changes.
+- **Page numbers on a sheet that prints several** (a condensed transcript)
+  are left out with a note. Upper-case roman numbers (I, II) are not read.
+- **A scan's firm slug** in the margin is left out with a note, and a scan
+  has no drawn rules, so its footer rule is not rebuilt.
 - **Checkbox glyphs** on form-style proofs of service are dropped.
 - **A scan's drawn lines** — the double rule beside the numbers, the rule
   down the right edge, a caption's box — are pixels, not rules, and are not
@@ -371,6 +401,7 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `core/export/pleading-pages.ts` | A pleading section's pages made ready for one header of numbers: scans onto one grid, the last line under number 28 back in the body |
 | `core/export/lines.ts`, `paragraphs.ts`, `page-paragraphs.ts` | Runs → lines → paragraphs → settled page |
 | `core/export/docx-section.ts`, `docx-footer.ts`, `margin-slug.ts` | Page setup, running head and foot, the slug in the margin |
+| `core/export/page-numbering.ts`, `first-page-foot.ts`, `recognized-foot.ts`, `footer-rule.ts` | Stretches of numbering (roman, restarts), the first page's own foot, a scan's clearest foot, the footer's rule |
 | `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |
 | `core/export/tables.ts`, `table-grid.ts`, `docx-table.ts` | Ruled tables |
 | `core/export/images.ts`, `docx-image.ts`, `scan-appendix.ts` | Pictures and scans |
