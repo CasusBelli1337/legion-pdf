@@ -161,9 +161,6 @@ out of the repo; the filings are referred to by number.
 - Green at `fc639ea`: typecheck, lint, 2,288 tests. `npm run test:word`
   reports the three known fixture defects above and passes the rest.
 - Working tree clean; nothing un-pushed on `origin/main`.
-- The pushed history (commits before `46e38c0`) carried real filing names in
-  the report tables and one test; scrubbed in `46e38c0`. Arthur to decide
-  whether that history matters for a public repo.
 
 ## Gotchas discovered this session
 
