@@ -7,6 +7,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import type { LayoutResponse, OcrRunDetail, OpResult, PageLayout } from '@shared/types';
 import { PHASE_BUILD, PHASE_READ, PHASE_RECOGNIZE, docxExporter } from './docx-exporter';
 import type { ExportContext, ExportJob } from './export-job';
+import { PHASE_PICTURES } from './page-pictures';
 
 /**
  * Real PDF bytes, because the exporter now reads them itself to find the pages
@@ -206,7 +207,15 @@ describe('scanned pages', () => {
     expect(parts.recognizeText).toHaveBeenCalledTimes(1);
     expect(parts.recognizeText.mock.calls[0]![2]).toEqual([2, 3]);
     expect(parts.adopt).toHaveBeenCalledWith(expect.any(Uint8Array), 'Motion.pdf');
-    expect(parts.layoutIds).toEqual(['adopted-doc', 'adopted-doc', 'adopted-doc']);
+    // Typed pages and scans together: read once to look for exhibits, then the adopted copy.
+    expect(parts.layoutIds).toEqual([
+      'doc',
+      'doc',
+      'doc',
+      'adopted-doc',
+      'adopted-doc',
+      'adopted-doc',
+    ]);
     expect(parts.closeDoc).toHaveBeenCalledWith('adopted-doc');
     expect(job.report).toHaveBeenCalledWith(0, 2, PHASE_RECOGNIZE);
     expect(job.report).toHaveBeenCalledWith(2, 2, PHASE_RECOGNIZE);
@@ -264,5 +273,54 @@ describe('scanned pages', () => {
       parts.context
     );
     expect(result.receipt).toEqual({ kept: [], dropped: [] });
+  });
+});
+
+describe('exhibits behind typed pages', () => {
+  const TYPED =
+    'The declarant states under penalty of perjury that each of the attached exhibits is a true copy.';
+
+  /** Page 1 is a typed declaration; every later page shows no words at all. */
+  function exhibitLayout(page: number): PageLayout {
+    const typed = layoutFor(page);
+    if (page !== 1) return { ...typed, runs: [] };
+    return { ...typed, runs: typed.runs.map((run) => ({ ...run, text: TYPED })) };
+  }
+
+  function exhibitFakes(draw: (page: number) => Uint8Array = () => new Uint8Array([1, 2, 3])) {
+    const parts = fakes((page) => ({ requestId: 'r', layout: exhibitLayout(page) }));
+    const drawn: number[] = [];
+    parts.context.requestRaster = ({ page }) => {
+      drawn.push(page);
+      return Promise.resolve({ png: draw(page), widthPx: 10, heightPx: 10 });
+    };
+    parts.context.toJpeg = (png) => png;
+    return { parts, drawn };
+  }
+
+  it('keeps each scanned exhibit as one picture and recognizes none of them', async () => {
+    const { parts, drawn } = exhibitFakes();
+    const outputPath = join(workDir, 'exhibits.docx');
+    const job = jobFor([1, 2, 3], outputPath, await pdfWith(3, [2, 3]));
+    const result = await docxExporter(job, parts.context);
+
+    expect(parts.recognizeText).not.toHaveBeenCalled();
+    expect(parts.layoutIds).toEqual(['doc', 'doc', 'doc']);
+    expect(drawn).toEqual([2, 3]);
+    expect(job.report).toHaveBeenCalledWith(2, 2, PHASE_PICTURES);
+    expect(result.pagesExported).toBe(3);
+    expect(result.receipt?.kept.join(' ')).toContain('Pages 2–3 are scans or drawings');
+    const zip = await JSZip.loadAsync(await readFile(outputPath));
+    const xml = await zip.file('word/document.xml')!.async('string');
+    expect(xml.match(/<w:drawing>/g)).toHaveLength(2);
+    expect(xml.match(/<w:sectPr/g)).toHaveLength(3);
+  });
+
+  it('stops, saving nothing, when an exhibit page cannot be drawn', async () => {
+    const { parts } = exhibitFakes(() => new Uint8Array());
+    const outputPath = join(workDir, 'undrawn.docx');
+    const job = jobFor([1, 2], outputPath, await pdfWith(2, [2]));
+    await expect(docxExporter(job, parts.context)).rejects.toThrow(/Page 2 could not be turned/);
+    await expect(readFile(outputPath)).rejects.toThrow();
   });
 });

@@ -18,6 +18,14 @@ import { docxTable } from './docx-table';
 import type { Paragraph, TextParagraph } from './model';
 import { hasTabColumns, pageParagraphs, settlePage } from './page-paragraphs';
 import { bodyRuns, groupSections, sectionGeometry, withVerticalMargins } from './page-setup';
+import {
+  isPicturePagesNote,
+  partsOf,
+  picturePageSection,
+  picturePagesNote,
+  picturesToKeep,
+} from './picture-pages';
+import type { PagePicture } from './picture-pages';
 import { scanAppendixSections } from './scan-appendix';
 import { halfPoints, runStyleFor } from './styles';
 import { verifyDocx } from './verify';
@@ -26,6 +34,8 @@ export interface DocxBuildOptions {
   title?: string;
   /** What becomes of a scanned page's picture; 'omit' when not given. */
   scanPictures?: ScanPictureMode;
+  /** Each page drawn whole, by page number; picture pages (picture-pages.ts) use theirs. */
+  pagePictures?: ReadonlyMap<number, PagePicture>;
 }
 
 export interface DocxBuild {
@@ -190,8 +200,20 @@ export async function buildDocx(
   if (layouts.length === 0) throw new Error('There are no pages to export.');
   const fonts: Fonts = Object.assign({}, ...layouts.map((layout) => layout.fonts));
   const assembly: Assembly = { sections: [], paragraphCount: 0, samples: [], notes: new Set() };
-  for (const pages of groupSections(layouts)) assembleSection(pages, fonts, assembly, options);
-  assembly.sections.push(...scanAppendixSections(layouts, options.scanPictures ?? 'omit'));
+  const pictures = picturesToKeep(layouts, options.pagePictures);
+  for (const part of partsOf(layouts, pictures)) {
+    if (part.kind === 'picture') {
+      assembly.sections.push(picturePageSection(part.layout, part.picture));
+      assembly.paragraphCount += 1;
+    } else {
+      for (const pages of groupSections(part.layouts)) {
+        assembleSection(pages, fonts, assembly, options);
+      }
+    }
+  }
+  if (pictures.size > 0) assembly.notes.add(picturePagesNote([...pictures.keys()]));
+  const textPages = layouts.filter((layout) => !pictures.has(layout.page));
+  assembly.sections.push(...scanAppendixSections(textPages, options.scanPictures ?? 'omit'));
   if (hasStamps(layouts)) assembly.notes.add(STAMP_NOTE);
   const style = dominantStyle(layouts, fonts);
   const document = new Document({
@@ -218,9 +240,13 @@ export async function buildDocx(
 /** Notes that say what the file KEPT; every other note says what it had to leave out. */
 const KEPT_NOTES: ReadonlySet<string> = new Set([PLEADING_NOTE, NUMBERED_LINES_NOTE, COLUMNS_NOTE]);
 
+function isKept(note: string): boolean {
+  return KEPT_NOTES.has(note) || isPicturePagesNote(note);
+}
+
 function receiptOf(notes: readonly string[]): ExportReceipt {
   return {
-    kept: notes.filter((note) => KEPT_NOTES.has(note)),
-    dropped: notes.filter((note) => !KEPT_NOTES.has(note)),
+    kept: notes.filter(isKept),
+    dropped: notes.filter((note) => !isKept(note)),
   };
 }

@@ -77,18 +77,19 @@ async function recognizePage(
 /**
  * The document with a text layer on every page that lacked one — the bytes
  * unchanged when nothing needed recognising. `pdfPath` is where the same bytes
- * live on disk (poppler reads files).
+ * live on disk (poppler reads files); `skip` names pages left as they are
+ * (exhibits kept as pictures).
  */
 export async function recognizeScannedPages(
   bytes: Uint8Array,
-  pdfPath: string
+  pdfPath: string,
+  skip: readonly number[] = []
 ): Promise<{ bytes: Uint8Array; recognized: number[]; wordsPerPage: number[] }> {
   const detected = await detectTextLayer(bytes);
-  if (detected.pagesNeedingOcr.length === 0) return { bytes, recognized: [], wordsPerPage: [] };
+  const needing = detected.pagesNeedingOcr.filter((page) => !skip.includes(page));
+  if (needing.length === 0) return { bytes, recognized: [], wordsPerPage: [] };
   const scratch = await mkdtemp(path.join(tmpdir(), 'wx-ocr-'));
-  const pages = await inBatches(detected.pagesNeedingOcr, WORKERS, (page) =>
-    recognizePage(pdfPath, page, scratch)
-  );
+  const pages = await inBatches(needing, WORKERS, (page) => recognizePage(pdfPath, page, scratch));
   const result = await writeTextLayer(bytes, pages);
   return {
     bytes: result.bytes,

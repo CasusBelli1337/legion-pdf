@@ -138,7 +138,30 @@ digits in a row (scanner noise) never enter a band.
 | Columns of text without rules | Tab stops |
 | Pictures | Inline PNGs at their size; a page of many small pictures (pen strokes) keeps its text and drops the strokes |
 | Scanned pages | Recognised with the bundled Tesseract first; the picture is left out, laid behind the text, or added as an appendix, as the Export panel's "Scanned pages" choice says; the receipt gives each page's average confidence |
+| Scanned exhibits behind typed pages | One picture of the whole page each, on a sheet of its own, never recognised (`picture-pages.ts`); the receipt lists the pages |
 | The court's e-filing stamp | Left out, and the receipt says so |
+
+## Exhibits — a scan behind typed pages is a picture, not text
+
+A declaration's exhibits (a signed trust, a photograph, a page of pen
+strokes) are not what the attorney edits, and recognised they come out as
+fragments Word re-wraps onto two or three sheets: a 107-page declaration with
+100 scanned exhibit pages exported as 180 pages. `picturePagesOf`
+(`core/export/picture-pages.ts`) reads only what is VISIBLE, so it answers
+the same before and after recognition: once the document has shown a typed
+page (twelve visible body words), every later page with no visible body words
+— or with a few over a full-page picture, a label on a scan — is a picture
+page. It gets a section of its own: the page's paper, no margins, one JPEG of
+the whole page (150 dpi, drawn by the renderer through `requestRaster`;
+`electron/services/export/page-pictures.ts`), its own empty header and footer.
+Typed slip sheets ("EXHIBIT A") stay text. A scan in FRONT of the typed pages
+(a conformed first page) and a document that is scans throughout stay
+recognised, editable text — so exporting just the exhibit pages gives their
+words. The exporter reads a mixed document's layouts once before recognition
+so exhibits are never sent to Tesseract (an unreadable photograph used to stop
+the whole export); the plan says how many pages will be pictures before the
+button, and the receipt lists them under Kept. The fidelity suite takes the
+same path (`qa/word-export/page-pictures.ts`, poppler for the picture).
 
 ## What is not preserved (yet)
 

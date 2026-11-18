@@ -2,7 +2,8 @@
  * What the Word exporter is handed. The job is the export registry's own
  * (`./exporter.ts`), so every format shares one shape; the context is the
  * one renderer round-trip Word needs — page layouts — so the exporter's tests
- * fake exactly that and nothing else. A function taking this narrower context
+ * fake exactly that and nothing else (page pictures, for exhibits, are
+ * optional: without them every page stays on the text path). A function taking this narrower context
  * is still a valid `Exporter` for the registry, whose context carries more.
  */
 
@@ -15,6 +16,6 @@ export type ExportContext = Pick<
   ExporterContext,
   'requestLayout' | 'recognizeText' | 'adopt' | 'closeDoc'
 > &
-  Partial<Pick<ExporterContext, 'requestRaster'>>;
+  Partial<Pick<ExporterContext, 'requestRaster' | 'toJpeg'>>;
 
 export type Exporter = (job: ExportJob, context: ExportContext) => Promise<ExportResult>;

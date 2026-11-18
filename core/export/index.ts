@@ -19,6 +19,8 @@ export type { RuledTables } from './tables';
 export { docxTable } from './docx-table';
 export { docxImageParagraph } from './docx-image';
 export { scanAppendixSections } from './scan-appendix';
+export { picturePagesOf, picturePagesNote, pageRanges } from './picture-pages';
+export type { PagePicture } from './picture-pages';
 export {
   groupSections,
   sectionGeometry,

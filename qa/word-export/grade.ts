@@ -8,12 +8,10 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { buildDocx } from '@core/export';
-import { layoutsOf } from '@renderer/lib/layout/node-pipeline.testkit';
 import { wordsOf } from './bbox';
 import { compareDocuments, summarize } from './compare';
 import type { Fidelity } from './compare';
-import { readPdf, recognizeScannedPages } from './ocr';
+import { exportLikeTheApp } from './page-pictures';
 import { rasterizePages, renderWithWord } from './word-render';
 
 export interface Graded {
@@ -38,8 +36,7 @@ export async function grade(
   options: GradeOptions = {}
 ): Promise<Graded> {
   const name = path.basename(sourcePath).replace(/\.pdf$/i, '');
-  const source = await recognizeScannedPages(await readPdf(sourcePath), sourcePath);
-  const build = await buildDocx(await layoutsOf(source.bytes), { title: name });
+  const { build, recognized, pictures } = await exportLikeTheApp(sourcePath, name);
   await mkdir(path.join(outputDir, 'png'), { recursive: true });
   const docxPath = path.join(outputDir, `${name}.docx`);
   await writeFile(docxPath, build.bytes);
@@ -52,7 +49,8 @@ export async function grade(
     JSON.stringify(
       {
         source: sourcePath,
-        recognized: source.recognized,
+        recognized,
+        pictures,
         notes: build.notes,
         receipt: build.receipt,
         summary,
