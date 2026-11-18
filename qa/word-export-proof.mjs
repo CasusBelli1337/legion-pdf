@@ -79,11 +79,21 @@ say('plan lines:', JSON.stringify(plan));
 await clickText('Choose where to save...');
 await page.waitForTimeout(600);
 await clickText('as Word document');
+// The open document's own words are on the page too ("could not" is common in
+// a brief), so the end of the export is read off the panel: the Stop button
+// goes away. A long document with picture pages can take several minutes.
+const exporting = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('button')].some((button) => button.innerText.trim() === 'Stop')
+  );
 await page.waitForFunction(
-  () => /\bKEPT\b|could not|Problem/i.test(document.body.innerText),
+  () => [...document.querySelectorAll('button')].some((b) => b.innerText.trim() === 'Stop'),
   null,
-  { timeout: 240000 }
+  { timeout: 15000 }
 );
+const deadline = Date.now() + 15 * 60_000;
+while ((await exporting()) && Date.now() < deadline) await page.waitForTimeout(1000);
+if (await exporting()) throw new Error('The export was still running after 15 minutes.');
 await page.waitForTimeout(600);
 await page.screenshot({ path: path.join(SHOTS, '02-receipt.png') });
 const text = await bodyText();
