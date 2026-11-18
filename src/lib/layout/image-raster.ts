@@ -7,6 +7,8 @@
  */
 
 import type { RasterizedImage } from './extract-page-layout';
+import { darkOfColour } from './scan-ink';
+import { isPageSized, scanRulesOf } from './scan-rules';
 
 /** pdfjs' ImageKind values. */
 const GRAYSCALE_1BPP = 1;
@@ -102,5 +104,10 @@ export async function rasterizeImageObject(value: unknown): Promise<RasterizedIm
     pixels.data.set(rgba);
     context.putImageData(pixels, 0, 0);
   }
-  return { png: await toPng(canvas), widthPx: value.width, heightPx: value.height };
+  const { width, height } = value;
+  const png = await toPng(canvas);
+  if (!isPageSized(width, height)) return { png, widthPx: width, heightPx: height };
+  const drawn = context.getImageData(0, 0, width, height).data;
+  const rules = scanRulesOf(darkOfColour(drawn, width, height, 4));
+  return { png, widthPx: width, heightPx: height, rules };
 }

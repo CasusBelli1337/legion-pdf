@@ -31,6 +31,7 @@ import { columnRunsOf } from './page-setup';
 import { asNumberedBlanks, markUnnumbered, numberedBlanks } from './numbered-lines';
 import { paragraphsOf } from './paragraphs';
 import { fitRecognizedLines } from './recognized-fit';
+import { withoutStrayNumbers } from './recognized-pages';
 import { LINE_NUMBERS_NOTE, NUMBERED_LINES_NOTE, PLEADING_NOTE, type Pleading } from './pleading';
 import { ruledTablesOf } from './tables';
 
@@ -88,14 +89,6 @@ export function isRecognized(runs: readonly LayoutTextRun[]): boolean {
     if (run.hidden === true) hidden += run.text.length;
   }
   return total > 0 && hidden > 0.5 * total;
-}
-
-/** A bare number sitting in the numbered column that the classifier did not claim (an OCR misread). */
-function withoutStrayNumbers(runs: LayoutTextRun[], pleading: Pleading | null): LayoutTextRun[] {
-  if (pleading === null) return runs;
-  return runs.filter(
-    (run) => !(/^\d{1,2}$/.test(run.text.trim()) && run.x + run.width <= pleading.numberRight + 2)
-  );
 }
 
 /** Top and bottom of a paragraph's box on the page, the way Word will lay it. */

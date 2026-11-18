@@ -20,6 +20,7 @@ import type { LayoutTextRun, PageLayout } from '@shared/types';
 import { median } from './paragraphs';
 import { pleadingOf, pleadingOfSection } from './pleading';
 import type { Pleading } from './pleading';
+import { withoutStrays } from './recognized-pages';
 
 /** Pitches further apart than this share are different paper, not one scanner's wobble. */
 const PITCH_TOLERANCE = 0.02;
@@ -166,9 +167,11 @@ function repeatedFeet(pages: readonly PageLayout[]): Set<string> {
 }
 
 /** A section's pages as the builder should see them; untouched when the section has no grid. */
-export function pleadingPagesOf(pages: PageLayout[]): PageLayout[] {
-  const section = pleadingOfSection(pages);
-  if (section === null || !section.grid) return pages;
+export function pleadingPagesOf(source: PageLayout[]): PageLayout[] {
+  const section = pleadingOfSection(source);
+  if (section === null) return source;
+  const pages = source.map((page) => withoutStrays(page, section));
+  if (!section.grid) return pages;
   const repeated = repeatedFeet(pages);
   const depths = pages.flatMap((page) => lineOneDepth(page) ?? []);
   const sheetHeight = pages[0]?.size.height ?? 0;

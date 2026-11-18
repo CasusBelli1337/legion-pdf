@@ -11,6 +11,7 @@ import type {
   LayoutCheckbox,
   LayoutFont,
   LayoutImage,
+  LayoutRule,
   LayoutTextRole,
   LayoutTextRun,
   PageLayout,
@@ -21,6 +22,8 @@ import { transformedBox, walkOperators } from './op-walk';
 import type { ImageOp, OpList, OpsTable } from './op-walk';
 import { stampRunIndexes } from './efiling-stamp';
 import { fromOrigin, originOf } from './page-origin';
+import { placedScanRules, withoutEchoes } from './scan-rule-placement';
+import type { PixelRule } from './scan-rules';
 import type { PageMarks } from './page-origin';
 import { blockOfEachText, blocksOf } from './struct-tags';
 import { reclaimTaggedBody } from './tagged-body';
@@ -62,6 +65,8 @@ export interface RasterizedImage {
   png: Uint8Array;
   widthPx: number;
   heightPx: number;
+  /** The rules found in a scanned page's ink (scan-rules.ts), in the picture's pixels. */
+  rules?: PixelRule[];
 }
 
 /** Turns a pdfjs image object into PNG bytes. The renderer has a canvas; tests fake it. */
@@ -178,17 +183,25 @@ async function blocksOfTextItems(page: PageLike): Promise<(BlockRef | undefined)
   return blockOfEachText(marked.items as MarkedItemLike[], blocks);
 }
 
+interface PlacedImage {
+  image: LayoutImage;
+  /** The scan's inked rules, on the page. */
+  rules: LayoutRule[];
+}
+
 async function imageOf(
   page: PageLike,
   op: ImageOp,
   input: ExtractInput
-): Promise<LayoutImage | null> {
+): Promise<PlacedImage | null> {
   const store = op.objId?.startsWith('g_') === true ? page.commonObjs : page.objs;
   const object = op.objId === null ? op.inline : await objectFrom(store, op.objId);
   if (object === null || object === undefined) return null;
   const raster = await input.rasterize(object);
   if (raster === null) return null;
-  return { rect: transformedBox(op.ctm, UNIT_SQUARE), ...raster };
+  const { rules, ...picture } = raster;
+  const image = { rect: transformedBox(op.ctm, UNIT_SQUARE), ...picture };
+  return { image, rules: placedScanRules(rules ?? [], image, op.ctm, page.view) };
 }
 
 /** Each drawn checkbox joins the runs as a box character; the page keeps the boxes too. */
@@ -217,8 +230,10 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     raw.runs.push(runOf(item, index, input, style, blocks[index]));
   });
   for (const op of walk.images) {
-    const image = await imageOf(page, op, input);
-    if (image !== null) raw.images.push(image);
+    const placed = await imageOf(page, op, input);
+    if (placed === null) continue;
+    raw.images.push(placed.image);
+    raw.rules = [...withoutEchoes(raw.rules, placed.rules), ...placed.rules];
   }
   const { runs, images, rules } = fromOrigin(raw, originOf(page.view));
   reclaimTaggedBody(runs);

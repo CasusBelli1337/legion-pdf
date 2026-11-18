@@ -13,6 +13,7 @@ import type { LayoutFont, LayoutTextRun, PageLayout } from '@shared/types';
 import { docxTextParagraph } from './docx-paragraph';
 import { pleadingFrame, pleadingHeader, pleadingMargins } from './docx-pleading';
 import { linesOf } from './lines';
+import { attendsPageNumber } from './recognized-foot';
 import { BASELINE_SHARE, twips } from './model';
 import type { BodyFrame, TextParagraph } from './model';
 import type { NumberStyle } from './page-numbering';
@@ -296,7 +297,7 @@ export function bandRuns(pages: readonly PageLayout[], wanted: readonly string[]
       (run) =>
         wanted.includes(run.role) &&
         run.text.trim().length > 0 &&
-        !isNoise(run) &&
+        (!isNoise(run) || attendsPageNumber(run, page)) &&
         !isUnreadableSlug(run, page) &&
         nearEdge(run, page)
     );

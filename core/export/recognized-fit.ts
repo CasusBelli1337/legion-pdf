@@ -24,6 +24,11 @@ const OTHER_WIDTH = 556;
 const SAFETY = 1.03;
 /** Room kept clear before a tab stop or the margin, points. */
 const CLEARANCE = 2;
+/** run-scale.ts condenses a recognised cell at least this wide, points, and never below this share. */
+const SCALED_FROM = 24;
+const MIN_SCALE_SHARE = 0.6;
+/** A width this far over its room, points, is the measurement's rounding. */
+const ROUNDING = 0.5;
 /** Never set a line smaller than this: below it the text is unreadable, and wrapping is the lesser harm. */
 const MIN_SIZE_PT = 6;
 
@@ -41,14 +46,29 @@ function cellWidth(cell: Cell, sizePt: number): number {
   return cell.runs.reduce((sum, run) => sum + timesWidth(run.text, sizePt), 0);
 }
 
+/**
+ * The share of its size a cell can keep in `room` points. A recognised cell
+ * wide enough to measure is condensed to the width the scan gave it
+ * (run-scale.ts): when that width fits, so does the cell, whatever Times would
+ * have made of it. Otherwise the type itself must fit, taken a little wider
+ * than the figures say and with room kept before the next stop.
+ */
+function cellShare(cell: Cell, sizePt: number, room: number): number {
+  const times = cellWidth(cell, sizePt);
+  if (times <= 0 || room <= CLEARANCE) return 1;
+  const natural = cell.right - cell.x;
+  const condensed = natural >= SCALED_FROM && natural <= room + ROUNDING;
+  if (condensed) return Math.min(1, natural / (MIN_SCALE_SHARE * times));
+  return Math.min(1, (room - CLEARANCE) / (times * SAFETY));
+}
+
 /** The largest share of its size the line can keep and still fit every cell's room. */
 function fitShare(line: Line, frame: BodyFrame): number {
   let share = 1;
   line.cells.forEach((cell, index) => {
     const next = line.cells[index + 1];
-    const room = (next === undefined ? frame.right : next.x) - cell.x - CLEARANCE;
-    const width = cellWidth(cell, line.sizePt) * SAFETY;
-    if (width > 0 && room > 0) share = Math.min(share, room / width);
+    const room = (next === undefined ? frame.right : next.x) - cell.x;
+    share = Math.min(share, cellShare(cell, line.sizePt, room));
   });
   return share;
 }

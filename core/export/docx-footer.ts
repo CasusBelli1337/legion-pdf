@@ -22,7 +22,7 @@ import { linesOf } from './lines';
 import { slugParagraph, splitMarginRuns } from './margin-slug';
 import type { TextParagraph } from './model';
 import { sectionNumberStyle } from './page-numbering';
-import { clearestFootFirst } from './recognized-foot';
+import { clearestFootFirst, withCommonNumberStyle } from './recognized-foot';
 import type { NumberStyle } from './page-numbering';
 import type { SectionGeometry } from './page-setup';
 
@@ -78,9 +78,12 @@ function footOf(
   sharedPt?: number
 ): SectionFoot {
   const wanted = ['footer', 'page-number'];
-  const band = bandRuns(
-    clearestFootFirst(source, (page) => bandRuns([page], wanted)),
-    wanted
+  const band = withCommonNumberStyle(
+    bandRuns(
+      clearestFootFirst(source, (page) => bandRuns([page], wanted)),
+      wanted
+    ),
+    source
   );
   const { runs, numberDropped } = footRuns(pages, band);
   if (runs.length === 0) return { footer: null, numberDropped };

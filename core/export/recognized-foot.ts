@@ -72,3 +72,50 @@ export function clearestFootFirst(
   const best = ranked[0]?.page;
   return best === undefined ? pages : [best, ...pages.filter((page) => page !== best)];
 }
+
+const DASH = /[-\u2010-\u2015\u0097]/;
+const ONLY_DASH = /^[-\u2010-\u2015\u0097]$/;
+/** Punctuation this close to a page number (× its size), on its line, is part of how it prints. */
+const ATTENDS_WITHIN = 2;
+/** Runs within this many points of each other share a baseline. */
+const SAME_LINE = 2;
+
+/**
+ * True for the dashes of "- 2 -": recognised punctuation right beside the
+ * page's number, on its line. Alone such a run is scanner noise; here it is
+ * how the filing prints its page numbers.
+ */
+export function attendsPageNumber(run: LayoutTextRun, page: PageLayout): boolean {
+  if (run.hidden !== true || !ONLY_DASH.test(run.text.trim())) return false;
+  return page.runs.some((number) => {
+    if (number.role !== 'page-number' || Math.abs(number.y - run.y) > SAME_LINE) return false;
+    // A number already read with its dashes ("- 2 -") has them.
+    if (DASH.test(number.text)) return false;
+    const gap = Math.max(run.x - (number.x + number.width), number.x - (run.x + run.width));
+    return gap <= ATTENDS_WITHIN * Math.max(number.sizePt, run.sizePt);
+  });
+}
+
+/**
+ * The foot's page number in the face and size most pages print it in. A
+ * scan's number is read in whatever the recognition made of each page — bold
+ * thirteen point on one, plain twelve on the rest — and the footer is built
+ * from one page.
+ */
+export function withCommonNumberStyle(
+  band: readonly LayoutTextRun[],
+  pages: readonly PageLayout[]
+): LayoutTextRun[] {
+  const isNumber = (run: LayoutTextRun): boolean =>
+    run.role === 'page-number' && run.hidden === true;
+  const counts = new Map<string, { run: LayoutTextRun; count: number }>();
+  for (const run of pages.flatMap((page) => page.runs.filter(isNumber))) {
+    const key = `${run.fontKey}|${Math.round(run.sizePt * 2)}`;
+    counts.set(key, { run, count: (counts.get(key)?.count ?? 0) + 1 });
+  }
+  const common = [...counts.values()].sort((a, b) => b.count - a.count)[0]?.run;
+  if (common === undefined) return [...band];
+  return band.map((run) =>
+    isNumber(run) ? { ...run, fontKey: common.fontKey, sizePt: common.sizePt } : run
+  );
+}
