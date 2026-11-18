@@ -401,6 +401,71 @@ Two bugs hid every e-signature on a proof of service:
 The fidelity suite's Node rasteriser has no alpha channel, so it lays a
 see-through signature on white; the app's canvas keeps the transparency.
 
+## Lines that break where the page broke them (2026-11-18)
+
+A page count can hold while a whole page sits a line high: a paragraph that
+re-wraps one line short in Word moves everything under it. Read off the
+per-page numbers of a declaration typed in a note-taking app (untagged,
+Century Schoolbook) and two tagged briefs:
+
+- **Two spaces after a sentence are two spaces.** pdfjs' text content folds
+  a run of spaces into one, but the line still measures what was typed. Every
+  sentence end set a space narrower, the next line's first word fitted on the
+  end, and a four-line paragraph came out three. The show-text operators
+  still carry every space glyph: `wide-spaces.ts` reads the pairs off them
+  and puts them back, located by the letters before them (the invariant
+  `colour-align.ts` matches on). A pair inside a text item is restored only
+  where the item has a lone space at that spot. A pair BETWEEN two items is
+  carried at the end of the first, and only where the gap to the next item
+  on the line is two spaces wide — the letters cannot tell "e-mail)  :" from
+  "e-mail):  ", and a pair set where one space was makes the line too long
+  for its paragraph (a proof of service ran onto a new page).
+- **Two spaces in the stream are not always two on the page.** Producers
+  that place each chunk with its own matrix draw "/␣", move, "␣/": one gap.
+  `text-pen.ts` follows the pen (text matrix, moves, glyph advances) just far
+  enough to say whether a space drawn after a move sits against the one
+  before it; a move that leaves the pen where it was changes nothing, any
+  other parts the pair.
+- **The tab after a paragraph's number is a tab** (`list-marker.ts`). "1."
+  and its text sat 26 pt apart, under the 2.2 em that marks a column, so they
+  were joined with a space and the first line came out two ems short. A gap
+  over an em after a lone "1.", "(a)", "iv." or bullet opens a cell. Not after
+  "IV." or "A." (headings, centred, keep their space), and not on a line with
+  a dot leader (a contents entry keeps number and title in one cell).
+- **The space after a footnote mark is the text's, not the mark's.** Joined
+  to the raised reference it was set at the reference's size, a point
+  narrower, and the next line's first word climbed (`appendRun`, `lines.ts`).
+- **A line's first word is weighed, not counted** (`wrap-ceiling.ts`). The
+  wrap ceiling needs the next line's first word's width and a line carries
+  only its text and edges. By character count "parties’" was a tenth too
+  wide and the ceiling let it fit with a third of a point to spare; weighed
+  on Times' advance widths as proportions (`relativeWidth`) it is right to
+  about one part in twenty, and the ceiling keeps that twentieth in hand.
+- **A line whose letters stand in a picture is under that picture.** A
+  signature's box reached a point past the baseline of "By: ____". The test
+  for "drawn over text" wanted the baseline two points inside the box, so the
+  picture went inline, the line could not sit inside it, and the name block
+  under an attorney's signature came out two points low. A baseline up to a
+  point under the picture's bottom edge now counts (`UNDERLAP_PT`,
+  `images.ts`) and the picture is pinned.
+
+**Handwriting on a typed page** (`src/lib/layout/ink-regions.ts`). A
+declaration signed in a note-taking app carries the signature as vector ink
+with an INVISIBLE reading of it laid over ("dalwhrl" across the signature,
+"13" on the date's blank). The export took the reading for an OCR layer and
+typed it beside the name; the ink, being neither text nor a picture, was
+gone. Invisible text on a page whose visible letters outnumber it five to one,
+with no picture under it, is such a reading: its words are dropped, a pen
+stroke the rule reader took for a rule goes with them, and the patch of page
+it covers (the reading's box plus three tenths of its size, four points at
+least) is drawn as a picture — by pdfjs on the renderer's canvas at 200 dpi
+(`region-raster.ts`), by poppler in the fidelity suite. The patch lies over
+the page's words, so `planImages` pins it. Typed text under the patch (the
+signature line, the top of the printed name) is in the picture too, and
+shows through as a faint double if the attorney retypes it. Where the patch
+cannot be drawn the layout says so (`inkLeftOut`) and the receipt carries a
+note; a turned page's reading is left as it was.
+
 ## Scans — two things paper does that a typed PDF never does
 
 - **A page box that does not start at zero.** A scanner that crops a landscape
@@ -437,6 +502,13 @@ see-through signature on white; the app's canvas keeps the transparency.
 - **A scan's drawn lines** — the double rule beside the numbers, the rule
   down the right edge, a caption's box — are pixels, not rules, and are not
   redrawn on a scanned pleading.
+- **A word at a line's end can still sit one line off** inside a paragraph
+  whose line count holds: Word 2013's layout squeezes the spaces of a
+  justified line to take one more word, and a block quote the source set
+  with squeezed spaces runs a word long in Word.
+- **Uneven line pitch** (a source set "at least" 24 pt whose lines with an
+  italic citation sit 24.7 pt apart) is evened out: the text stays on the
+  numbers' grid, a few points from where the source let it drift.
 - **Condensed (4-up) transcripts** export as two Word columns per sheet.
 - **Rotated pages** keep their text coordinates in the unrotated frame.
 - **Small caps, letter spacing, shading** are not read.
@@ -495,6 +567,9 @@ sees on each page (`qa/output/word-export/<name>.layout.json`) and, with
 | `core/export/page-numbering.ts`, `first-page-foot.ts`, `recognized-foot.ts`, `footer-rule.ts` | Stretches of numbering (roman, restarts), the first page's own foot, a scan's clearest foot, the footer's rule |
 | `core/export/footnotes.ts`, `docx-footnotes.ts` | Footnotes found under their rule; Word footnotes, the mark's style, the separator |
 | `src/lib/layout/checkbox-runs.ts` (+ `op-walk.ts`) | Drawn checkboxes as ☐ / ☒ on their lines |
+| `src/lib/layout/wide-spaces.ts`, `text-pen.ts` | Two spaces where two were typed, read off the show-text operators; the pen followed across moves |
+| `src/lib/layout/ink-regions.ts`, `region-raster.ts` | Handwriting on a typed page: its invisible reading dropped, its patch of page drawn as a picture |
+| `core/export/list-marker.ts`, `wrap-ceiling.ts` | The tab after a paragraph number; how wide a paragraph may be before a first word climbs |
 | `core/export/run-scale.ts` | Character scaling for text set narrower than Word's face |
 | `core/export/tables.ts`, `table-grid.ts`, `docx-table.ts` | Ruled tables |
 | `core/export/images.ts`, `docx-image.ts`, `scan-appendix.ts` | Pictures and scans |

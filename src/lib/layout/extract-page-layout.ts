@@ -17,11 +17,14 @@ import type {
 } from '@shared/types';
 import { CHECKBOX_FONT, CHECKBOX_FONT_KEY, checkboxRuns } from './checkbox-runs';
 import { alignTextStyles } from './colour-align';
+import { withWideSpaces } from './wide-spaces';
 import { transformedBox, walkOperators } from './op-walk';
-import type { ImageOp, OpList, OpsTable } from './op-walk';
+import type { ImageOp, OpList, OpsTable, TextOp } from './op-walk';
 import { stampRunIndexes } from './efiling-stamp';
+import { pictureInk } from './ink-regions';
+import type { RegionDrawer } from './ink-regions';
 import { fromOrigin, originOf } from './page-origin';
-import type { PageMarks } from './page-origin';
+import type { PageMarks, PageOrigin } from './page-origin';
 import { blockOfEachText, blocksOf } from './struct-tags';
 import { reclaimTaggedBody } from './tagged-body';
 import type { BlockRef, MarkedItemLike, StructNodeLike } from './struct-tags';
@@ -67,12 +70,16 @@ export interface RasterizedImage {
 /** Turns a pdfjs image object into PNG bytes. The renderer has a canvas; tests fake it. */
 export type ImageRasterizer = (image: unknown) => Promise<RasterizedImage | null>;
 
+export type { RegionDrawer };
+
 export interface ExtractInput {
   page: number;
   ops: OpsTable;
   roles: ReadonlyMap<number, LayoutTextRole>;
   printedPageNumber: number | null;
   rasterize: ImageRasterizer;
+  /** For handwriting (ink-regions.ts); without it the ink is left out and the layout says so. */
+  drawRegion?: RegionDrawer;
 }
 
 /** How long to wait for pdfjs to deliver a font or image object. */
@@ -203,37 +210,67 @@ function placeCheckboxes(
   return { checkboxes: boxes };
 }
 
-export async function extractPageLayout(page: PageLike, input: ExtractInput): Promise<PageLayout> {
-  const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = page.view;
-  const content = await page.getTextContent();
-  const walk = walkOperators(await page.getOperatorList(), input.ops);
-  const items = content.items.map((item) => (isTextItem(item) ? item : { str: '' }));
-  const styles = alignTextStyles(items, walk.texts);
-  const blocks = await blocksOfTextItems(page);
-  const raw: PageMarks = { runs: [], images: [], rules: walk.rules.map((rect) => ({ rect })) };
-  content.items.forEach((item, index) => {
-    if (!isTextItem(item) || item.str.length === 0) return;
+/** The page's text items as runs: coloured and typed (two spaces where two were typed) from the operators. */
+function textRuns(
+  all: readonly unknown[],
+  ops: readonly TextOp[],
+  blocks: readonly (BlockRef | undefined)[],
+  input: ExtractInput
+): LayoutTextRun[] {
+  const items = all.map((item) => (isTextItem(item) ? item : { str: '' }));
+  const styles = alignTextStyles(items, ops);
+  const texts = withWideSpaces(items, ops);
+  return all.flatMap((item, index) => {
+    if (!isTextItem(item) || item.str.length === 0) return [];
     const style = styles[index] ?? { colorHex: '#000000', hidden: false };
-    raw.runs.push(runOf(item, index, input, style, blocks[index]));
+    return [runOf({ ...item, str: texts[index] ?? item.str }, index, input, style, blocks[index])];
   });
-  for (const op of walk.images) {
+}
+
+async function imagesOf(
+  page: PageLike,
+  ops: readonly ImageOp[],
+  input: ExtractInput
+): Promise<LayoutImage[]> {
+  const images: LayoutImage[] = [];
+  for (const op of ops) {
     const image = await imageOf(page, op, input);
-    if (image !== null) raw.images.push(image);
+    if (image !== null) images.push(image);
   }
-  const { runs, images, rules } = fromOrigin(raw, originOf(page.view));
-  reclaimTaggedBody(runs);
-  const size = { width: x1 - x0, height: y1 - y0 };
+  return images;
+}
+
+function markStamps(runs: LayoutTextRun[], size: PageLayout['size']): void {
   for (const index of stampRunIndexes(runs, size)) {
     const run = runs[index];
     if (run !== undefined) run.role = 'stamp';
   }
-  const fonts = await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles);
-  const origin = originOf(page.view);
-  const boxes = walk.boxes.map((box) => ({
+}
+
+function boxesFromOrigin(boxes: readonly LayoutCheckbox[], origin: PageOrigin): LayoutCheckbox[] {
+  return boxes.map((box) => ({
     ...box,
     rect: { ...box.rect, x: box.rect.x - origin.x, y: box.rect.y - origin.y },
   }));
-  const checkboxes = placeCheckboxes(boxes, runs, fonts);
+}
+
+export async function extractPageLayout(page: PageLike, input: ExtractInput): Promise<PageLayout> {
+  const [x0 = 0, y0 = 0, x1 = 0, y1 = 0] = page.view;
+  const content = await page.getTextContent();
+  const walk = walkOperators(await page.getOperatorList(), input.ops);
+  const blocks = await blocksOfTextItems(page);
+  const raw: PageMarks = {
+    runs: textRuns(content.items, walk.texts, blocks, input),
+    images: await imagesOf(page, walk.images, input),
+    rules: walk.rules.map((rect) => ({ rect })),
+  };
+  const inkLeftOut = await pictureInk(raw, input.drawRegion, page.rotate);
+  const { runs, images, rules } = fromOrigin(raw, originOf(page.view));
+  reclaimTaggedBody(runs);
+  const size = { width: x1 - x0, height: y1 - y0 };
+  markStamps(runs, size);
+  const fonts = await fontsOf(page, new Set(runs.map((run) => run.fontKey)), content.styles);
+  const checkboxes = placeCheckboxes(boxesFromOrigin(walk.boxes, originOf(page.view)), runs, fonts);
   return {
     page: input.page,
     size,
@@ -243,6 +280,7 @@ export async function extractPageLayout(page: PageLike, input: ExtractInput): Pr
     images,
     rules,
     ...checkboxes,
+    ...(inkLeftOut > 0 ? { inkLeftOut } : {}),
     printedPageNumber: input.printedPageNumber,
   };
 }

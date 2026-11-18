@@ -27,6 +27,28 @@ describe('paragraphsOf — where a paragraph ends', () => {
     expect(paragraphsOf(lines, { frame: FRAME })).toHaveLength(1);
   });
 
+  it('keeps an indented first line with the line it wrapped onto, though it sits evenly between the margins', () => {
+    // 36 pt in, 36 pt short of the measure: centred by the numbers, a first line by its wrap.
+    const lines = linesOf([
+      run('I declare under penalty of perjury that the foregoing is', 108, 700, { width: 396 }),
+      run('acknowledgement is true and correct to the best of it.', 72, 676, { width: 300 }),
+    ]);
+    const paragraphs = paragraphsOf(lines, { frame: FRAME });
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0]!.alignment).toBe('left');
+    expect(paragraphs[0]!.firstLinePt).toBe(36);
+  });
+
+  it('still parts a centred heading from the text under it', () => {
+    const lines = linesOf([
+      run('STATEMENT OF FACTS', 250, 700, { width: 112 }),
+      run('The lease was signed in March and the tenant moved in that week.', 72, 676, {
+        width: 440,
+      }),
+    ]);
+    expect(paragraphsOf(lines, { frame: FRAME })).toHaveLength(2);
+  });
+
   it('breaks at a blank line', () => {
     const lines = linesOf([
       line(78, 72, 700),

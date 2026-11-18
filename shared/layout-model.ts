@@ -91,6 +91,8 @@ export interface PageLayout {
   rules: LayoutRule[];
   /** Drawn checkboxes; each also stands in `runs` as a box character, so it flows with its line. */
   checkboxes?: LayoutCheckbox[];
+  /** Patches of handwriting (a signature in ink) that could not be drawn as pictures and were left out. */
+  inkLeftOut?: number;
   /** The number PRINTED on the page, when one was recognised. */
   printedPageNumber: number | null;
 }

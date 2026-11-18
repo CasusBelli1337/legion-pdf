@@ -10,6 +10,7 @@
  */
 
 import { lineText } from './lines';
+import { firstWordWidth, wrapCeiling } from './wrap-ceiling';
 import type { Alignment, BodyFrame, Line, TextParagraph } from './model';
 import { tabStopsOf } from './tables';
 
@@ -200,13 +201,28 @@ function looksSeparate({ previous, current }: Neighbours, leading: number): bool
   return isTabular(previous) || isTabular(current);
 }
 
+/**
+ * An indented first line that ran to the measure and wrapped onto a flush
+ * line: a paragraph, however evenly the indent and the ragged end happen to
+ * sit ("I declare under penalty of perjury…" came out a centred heading over
+ * a paragraph of its own). A heading stops where it likes; this line stopped
+ * where the next word no longer fitted.
+ */
+function wrappedOnto(previous: Line, current: Line, frame: BodyFrame): boolean {
+  const flush = Math.abs(current.x - frame.left) <= EDGE * current.sizePt;
+  const indented = previous.x - frame.left <= DEEP_INDENT;
+  const room = frame.textRight - previous.right;
+  return flush && indented && room < 0.25 * current.sizePt + firstWordWidth(current);
+}
+
 /** The typesetter's signals that a new paragraph begins with `current`. */
 function setApart(lines: Neighbours, after: Line | undefined, frame: BodyFrame): boolean {
   const { previous, current } = lines;
   // A centred line above a flush one is a heading — unless they share a left
   // edge, when the "centred" line is the first line of an indented block.
   const shifted = Math.abs(previous.x - current.x) > 0.5 * current.sizePt;
-  if (shifted && isCentered(previous, frame) !== isCentered(current, frame)) return true;
+  const centredApart = shifted && isCentered(previous, frame) !== isCentered(current, frame);
+  if (centredApart && !wrappedOnto(previous, current, frame)) return true;
   if (startsBlock(current) || deeplyShifted(lines) || changesFace(lines)) return true;
   if (irregularGapAbove(lines, after)) return true;
   return startsIndented(lines) || endedShort(previous, current, frame);
@@ -264,39 +280,6 @@ interface Indents {
   left: number;
   right: number;
   first: number;
-}
-
-/** Roughly how wide a line's first word is, from the run that holds it. */
-function firstWordWidth(line: Line): number {
-  const run = line.cells[0]?.runs[0];
-  if (run === undefined || run.text.length === 0) return 0;
-  const word = run.text.trimStart().split(/\s/)[0] ?? '';
-  return (run.text.length === 0 ? 0 : word.length / run.text.length) * lineRunWidth(line);
-}
-
-/** The first run's advance, from the line's geometry (runs carry no width of their own). */
-function lineRunWidth(line: Line): number {
-  const cell = line.cells[0];
-  if (cell === undefined) return 0;
-  const chars = cell.runs.reduce((sum, run) => sum + run.text.length, 0);
-  const firstChars = cell.runs[0]?.text.length ?? 0;
-  const cellRight = line.cells[1]?.x ?? line.right;
-  return chars === 0 ? 0 : ((cellRight - cell.x) * firstChars) / chars;
-}
-
-/**
- * The widest the paragraph may be before Word could pull a line's first word
- * up onto the line above it: just short of the tightest such fit.
- */
-function wrapCeiling(lines: readonly Line[]): number {
-  let ceiling = Number.POSITIVE_INFINITY;
-  lines.slice(1).forEach((line, index) => {
-    const above = lines[index];
-    if (above === undefined) return;
-    const space = 0.25 * line.sizePt;
-    ceiling = Math.min(ceiling, above.right + space + firstWordWidth(line));
-  });
-  return ceiling;
 }
 
 function indentsOf(

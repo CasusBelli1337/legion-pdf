@@ -82,8 +82,15 @@ export function pinOf(paragraph: ImageParagraph): PagePin | null {
   return PINNED.get(paragraph) ?? null;
 }
 
-/** A baseline this far inside the picture's box is a line the picture is drawn over. */
+/** A baseline this far under the picture's top edge is a line the picture is drawn over. */
 const OVERLAP_PT = 2;
+/**
+ * And one this far under its BOTTOM edge still is: the line's letters stand
+ * in the picture. A signature whose box reached a point past the baseline of
+ * "By: ______" went inline, the line could not sit inside it, and the whole
+ * name block came out two points low.
+ */
+const UNDERLAP_PT = 1;
 
 /**
  * True when a visible line of the page's text sits at the picture's height —
@@ -96,7 +103,7 @@ function isOverText(image: LayoutImage, layout: PageLayout): boolean {
       run.role === 'body' &&
       run.hidden !== true &&
       run.text.trim().length > 0 &&
-      run.y >= y + OVERLAP_PT &&
+      run.y >= y - UNDERLAP_PT &&
       run.y <= y + height - OVERLAP_PT
   );
 }
@@ -224,8 +231,15 @@ function scanPicture(
   else if (mode === 'omit') plan.notes.push(scanOmittedNote(layout.page));
 }
 
+export const inkLeftOutNote = (page: number): string =>
+  `Page ${page} has handwriting (a signature or a filled-in blank) that could not be carried over as a picture; it was left out.`;
+
+function inkNotes(layout: PageLayout): string[] {
+  return (layout.inkLeftOut ?? 0) > 0 ? [inkLeftOutNote(layout.page)] : [];
+}
+
 export function planImages(layout: PageLayout, frame: BodyFrame, text: ImagePlanInput): ImagePlan {
-  const plan: ImagePlan = { paragraphs: [], notes: [] };
+  const plan: ImagePlan = { paragraphs: [], notes: inkNotes(layout) };
   const pictures = layout.images.filter(
     (image) => image.rect.width >= MIN_PICTURE_PT && image.rect.height >= MIN_PICTURE_PT
   );

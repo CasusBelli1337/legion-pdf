@@ -7,7 +7,7 @@
  */
 
 import path from 'node:path';
-import type { PageLayout } from '@shared/types';
+import type { PageLayout, PdfRect } from '@shared/types';
 import { createSelectCopyEngine } from '@renderer/features/select-copy/engine';
 import { createPdfjsSource } from '@renderer/features/select-copy/pdfjs-source';
 import { extractPageLayout } from './extract-page-layout';
@@ -77,8 +77,24 @@ export async function rasterizeInNode(image: unknown): Promise<RasterizedImage |
 }
 
 /** Every page of the document as the layouts the Word exporter is handed. */
-export async function layoutsOf(bytes: Uint8Array): Promise<PageLayout[]> {
+export interface PagePatch {
+  page: number;
+  /** The page's box, [x0, y0, x1, y1]. */
+  view: readonly number[];
+  rect: PdfRect;
+}
+
+export interface LayoutOptions {
+  /** Node has no canvas to draw a patch of page on; the suite hands in poppler (handwriting, ink-regions.ts). */
+  drawPatch?: (patch: PagePatch) => Promise<RasterizedImage | null>;
+}
+
+export async function layoutsOf(
+  bytes: Uint8Array,
+  options: LayoutOptions = {}
+): Promise<PageLayout[]> {
   const { OPS } = await pdfjs();
+  const { drawPatch } = options;
   const document = await openBytes(bytes);
   const engine = createSelectCopyEngine(createPdfjsSource(document as never, 'fixture'));
   const layouts: PageLayout[] = [];
@@ -92,6 +108,9 @@ export async function layoutsOf(bytes: Uint8Array): Promise<PageLayout[]> {
         roles: rolesOf(classification),
         printedPageNumber: classification.printedPageNumber,
         rasterize: rasterizeInNode,
+        ...(drawPatch === undefined
+          ? {}
+          : { drawRegion: (rect) => drawPatch({ page, view: pdfPage.view, rect }) }),
       })
     );
   }

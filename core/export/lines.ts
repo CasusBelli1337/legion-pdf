@@ -12,6 +12,7 @@ import { CHECKBOX_CHECKED, CHECKBOX_EMPTY } from '@shared/layout-model';
 import type { LayoutRule, LayoutTextRun } from '@shared/types';
 import { columnsOf } from './columns';
 import { leaderParts } from './leaders';
+import { tabbedAfterMarker } from './list-marker';
 import type { BodyFrame, Cell, Line, StyledRun } from './model';
 import { hexColor } from './styles';
 import { onTiltedLine } from './tilted-line';
@@ -173,6 +174,13 @@ function appendRun(cell: Cell, run: StyledRun, spaced: boolean): void {
     previous.text += (needsSpace ? ' ' : '') + run.text;
     return;
   }
+  // The space after a raised mark is set at the text's size, not the mark's:
+  // carried on a footnote reference it came out a point narrower, and the
+  // next line's first word climbed onto the room that left.
+  if (needsSpace && previous.superscript === true && run.superscript !== true) {
+    cell.runs.push({ ...run, text: ` ${run.text}` });
+    return;
+  }
   if (needsSpace) previous.text += ' ';
   cell.runs.push(run);
 }
@@ -323,13 +331,17 @@ function assemble(draft: Draft, rules: readonly LayoutRule[]): Line {
   const line = { baseline: baselineOf(ordered, sizePt), sizePt };
   const cells: Cell[] = [];
   const cursor: Cursor = { right: Number.NEGATIVE_INFINITY, leader: false, box: false };
+  const led = ordered.some((run) => DOT_LEADER.test(run.text) || TRAILING_LEADER.test(run.text));
   for (const run of ordered) {
     if (DOT_LEADER.test(run.text) && cells.length > 0) {
       // The dots are not text; the cell after them is a right-tabbed page number.
       cursor.leader = true;
     } else {
       const { text, leads } = withoutTrailingLeader(run.text);
-      const opens = opensCell(run, cursor, rules, line.baseline);
+      // A table of contents' entry keeps its number and title in one cell before the leader.
+      const opens =
+        opensCell(run, cursor, rules, line.baseline) ||
+        (!led && tabbedAfterMarker(cells, run, cursor.right));
       placeRun(cells, run, styled({ ...run, text }, rules, line), cursor, opens);
       cursor.leader = leads;
       cursor.box = isCheckbox(run);

@@ -10,6 +10,12 @@
  */
 
 import type { PdfRect } from '@shared/types';
+import { PEN_OPS, newPen, showWithPen } from './text-pen';
+import type { Pen } from './text-pen';
+import { glyphShape } from './wide-spaces';
+import type { GlyphShape } from './wide-spaces';
+
+export { countLetters } from './wide-spaces';
 
 export type Matrix = readonly [number, number, number, number, number, number];
 export type OpsTable = Readonly<Record<string, number>>;
@@ -19,11 +25,9 @@ export interface OpList {
   argsArray: readonly unknown[];
 }
 
-export interface TextOp {
+export interface TextOp extends GlyphShape {
   colorHex: string;
   hidden: boolean;
-  /** Letters and digits shown — what the text items are matched against. */
-  letters: number;
 }
 
 export interface ImageOp {
@@ -51,10 +55,13 @@ interface State {
   stack: Matrix[];
   fill: string;
   hidden: boolean;
+  /** Where the text pen is, for telling two spaces typed together from two set apart (wide-spaces.ts). */
+  pen: Pen;
   out: OpWalk;
 }
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
+
 /** Text render modes 3 and 7 draw nothing: invisible text, i.e. an OCR layer. */
 const INVISIBLE_MODES = new Set([3, 7]);
 /** A filled shape thinner than this and longer than the other is a rule. */
@@ -96,13 +103,6 @@ export function transformedBox(matrix: Matrix, box: PdfRect): PdfRect {
   return { x: left, y: bottom, width: Math.max(...xs) - left, height: Math.max(...ys) - bottom };
 }
 
-const LETTER = /[\p{L}\p{N}]/gu;
-
-/** Letters and digits in a string, NFKC-normalised so a ligature counts its letters. */
-export function countLetters(text: string): number {
-  return text.normalize('NFKC').match(LETTER)?.length ?? 0;
-}
-
 function isMatrix(value: unknown): value is Matrix {
   return Array.isArray(value) && value.length === 6 && value.every((n) => typeof n === 'number');
 }
@@ -117,16 +117,6 @@ function numbersOf(value: unknown): number[] | null {
   if (!ArrayBuffer.isView(value) && !Array.isArray(value)) return null;
   const list = Array.from(value as ArrayLike<number>);
   return list.every((n) => typeof n === 'number') ? list : null;
-}
-
-function glyphLetters(glyphs: unknown): number {
-  if (!Array.isArray(glyphs)) return 0;
-  let letters = 0;
-  for (const glyph of glyphs) {
-    const unicode = (glyph as { unicode?: unknown } | null)?.unicode;
-    if (typeof unicode === 'string') letters += countLetters(unicode);
-  }
-  return letters;
 }
 
 function isRule(rect: PdfRect): boolean {
@@ -231,10 +221,16 @@ function repeatImage(state: State, args: readonly unknown[]): void {
   }
 }
 
+/** The pen's operators (text-pen.ts), each handed the walk's pen. */
+const PEN_HANDLERS: Record<string, Handler> = Object.fromEntries(
+  Object.entries(PEN_OPS).map(([name, op]) => [name, (state, args) => op(state.pen, args)])
+);
+
 function handlers(ops: OpsTable): Map<number, Handler> {
   const painted = opCodes(ops, [...FILLS, ...STROKES]);
   const stroked = opCodes(ops, STROKES);
   const table: Record<string, Handler> = {
+    ...PEN_HANDLERS,
     save: (state) => state.stack.push(state.ctm),
     restore: (state) => {
       state.ctm = state.stack.pop() ?? IDENTITY;
@@ -249,11 +245,9 @@ function handlers(ops: OpsTable): Map<number, Handler> {
       state.hidden = typeof mode === 'number' && INVISIBLE_MODES.has(mode);
     },
     showText: (state, [glyphs]) => {
-      state.out.texts.push({
-        colorHex: state.fill,
-        hidden: state.hidden,
-        letters: glyphLetters(glyphs),
-      });
+      const shape = glyphShape(glyphs, state.pen.spaced);
+      showWithPen(state.pen, glyphs, shape.endsSpaced);
+      state.out.texts.push({ colorHex: state.fill, hidden: state.hidden, ...shape });
     },
     paintImageXObject: (state, [objId]) => {
       if (typeof objId === 'string') {
@@ -289,6 +283,7 @@ export function walkOperators(list: OpList, ops: OpsTable): OpWalk {
     stack: [],
     fill: '#000000',
     hidden: false,
+    pen: newPen(),
     out: { texts: [], images: [], rules: [], boxes: [] },
   };
   const table = handlers(ops);

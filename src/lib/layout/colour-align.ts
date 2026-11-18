@@ -10,7 +10,9 @@
  */
 
 import { countLetters } from './op-walk';
-import type { TextOp } from './op-walk';
+import type { TextOp as WalkedText } from './op-walk';
+
+type TextOp = Pick<WalkedText, 'colorHex' | 'hidden' | 'letters'>;
 
 export interface ItemStyle {
   colorHex: string;
