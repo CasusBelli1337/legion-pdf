@@ -1,10 +1,10 @@
 /**
  * What a Word export is about to do, said BEFORE the button is pressed.
  *
- * The three things that surprise an attorney after the fact are the three
- * things this answers: a scan that had to be read by a machine, pleading paper
- * whose numbered lines have to be rebuilt, and Bates numbers that cannot come
- * across. Saying them first turns "why is my export wrong?" into a choice.
+ * The things that surprise an attorney after the fact are the things this
+ * answers: a scan that had to be read by a machine, scanned exhibits kept as
+ * pictures, pleading paper whose numbered lines have to be rebuilt, and Bates
+ * numbers that cannot come across. Saying them first turns "why is my export wrong?" into a choice.
  *
  * Looking is cheap and must stay cheap — the panel asks again on every change
  * of document, format, or page range — so only the first few pages that hold
@@ -13,7 +13,7 @@
  */
 
 import { detectTextLayer } from '@core/ocr';
-import { pleadingOf } from '@core/export';
+import { picturePagesOf, pleadingOf } from '@core/export';
 import type { ExportFormat, ExportPlan, OcrDetectResult, PageLayout } from '@shared/types';
 
 /** Pages sampled for pleading paper and stamps. Three is enough to know. */
@@ -21,8 +21,10 @@ export const SAMPLE_PAGES = 3;
 
 export interface PlanFacts {
   pageCount: number;
-  /** 1-based pages with no text layer. */
+  /** 1-based pages with no text layer that will be recognized. */
   scannedPages: number[];
+  /** 1-based pages with no text layer that come behind typed pages: kept as pictures. */
+  exhibitPages?: number[];
   /** 1-based sampled pages that are pleading paper. */
   pleadingPages: number[];
   /** A Bates number or stamp was seen on a sampled page. */
@@ -46,11 +48,20 @@ function scanLine(count: number): string {
   );
 }
 
+function exhibitLine(count: number): string {
+  return count === 1
+    ? '1 scanned page sits behind typed pages (an exhibit). It will be kept as a picture of the page; export it on its own to get its words.'
+    : `${count} scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.`;
+}
+
 /** The sentences the panel shows, in the order they matter to the attorney. */
 export function planLines(facts: PlanFacts): string[] {
   const lines: string[] = [];
   if (facts.pleadingPages.length > 0) lines.push(PLEADING_LINE);
   if (facts.scannedPages.length > 0) lines.push(scanLine(facts.scannedPages.length));
+  if ((facts.exhibitPages ?? []).length > 0) {
+    lines.push(exhibitLine(facts.exhibitPages?.length ?? 0));
+  }
   if (facts.stamped) lines.push(BATES_LINE);
   return lines;
 }
@@ -75,19 +86,48 @@ async function layoutOrNull(input: PlanInput, page: number): Promise<PageLayout 
   }
 }
 
-async function factsOf(input: PlanInput, scannedPages: number[]): Promise<PlanFacts> {
-  const typed = input.pages.filter((page) => !scannedPages.includes(page)).slice(0, SAMPLE_PAGES);
+/**
+ * The scans that come after the first sampled page the exporter would call
+ * typed — the ones it keeps as pictures. Judged with the exporter's own rule
+ * (`picturePagesOf`) over the sampled page and bare stand-ins for the scans,
+ * so the plan and the export cannot disagree about a page with no text.
+ */
+function exhibitsAmong(scannedPages: readonly number[], sampled: readonly PageLayout[]): number[] {
+  const bare = scannedPages.map((page): PageLayout => ({
+    page,
+    size: { width: 612, height: 792 },
+    rotation: 0,
+    fonts: {},
+    runs: [],
+    images: [],
+    rules: [],
+    printedPageNumber: null,
+  }));
+  const inOrder = [...sampled, ...bare].sort((a, b) => a.page - b.page);
+  const pictures = new Set(picturePagesOf(inOrder));
+  return scannedPages.filter((page) => pictures.has(page));
+}
+
+async function factsOf(input: PlanInput, noTextPages: number[]): Promise<PlanFacts> {
+  const typed = input.pages.filter((page) => !noTextPages.includes(page)).slice(0, SAMPLE_PAGES);
   const facts: PlanFacts = {
     pageCount: input.pages.length,
-    scannedPages,
+    scannedPages: noTextPages,
     pleadingPages: [],
     stamped: false,
   };
+  const sampled: PageLayout[] = [];
   for (const page of typed) {
     const layout = await layoutOrNull(input, page);
     if (layout === null) continue;
+    sampled.push(layout);
     if (pleadingOf(layout) !== null) facts.pleadingPages.push(page);
     if (layout.runs.some((run) => run.role === 'stamp')) facts.stamped = true;
+  }
+  const exhibits = exhibitsAmong(noTextPages, sampled);
+  if (exhibits.length > 0) {
+    facts.exhibitPages = exhibits;
+    facts.scannedPages = noTextPages.filter((page) => !exhibits.includes(page));
   }
   return facts;
 }

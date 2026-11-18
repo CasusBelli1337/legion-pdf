@@ -183,4 +183,25 @@ describe('exportPlan', () => {
     expect(plan.scannedPages).toEqual([]);
     expect(plan.lines).toEqual([]);
   });
+
+  it('says scans behind a typed page will be kept as pictures, and asks nothing about them', async () => {
+    const typed = (page: number): PageLayout => {
+      const base = layout(page);
+      const text =
+        'I declare under penalty of perjury that the attached exhibits are true and correct copies.';
+      return { ...base, runs: base.runs.map((run) => ({ ...run, text })) };
+    };
+    const plan = await exportPlan({
+      format: 'docx',
+      pages: [1, 2, 3, 4],
+      bytes,
+      requestLayout: (page) => Promise.resolve(typed(page)),
+      detect: detected([1, 3, 4], 4),
+    });
+    // Page 1 is a scan BEFORE any typed page: it is still recognized.
+    expect(plan.scannedPages).toEqual([1]);
+    expect(plan.lines).toContain(
+      '2 scanned pages sit behind typed pages (exhibits). Each will be kept as a picture of the page; export them on their own to get their words.'
+    );
+  });
 });

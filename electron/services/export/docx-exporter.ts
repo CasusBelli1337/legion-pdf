@@ -13,12 +13,13 @@
 
 import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { buildDocx } from '@core/export';
+import { buildDocx, picturePagesOf } from '@core/export';
 import type { DocxBuild } from '@core/export';
 import { detectTextLayer } from '@core/ocr';
 import type { ExportResult, PageLayout } from '@shared/types';
 import { writeFileAtomic } from '../atomic-write';
 import type { ExportContext, ExportJob, Exporter } from './export-job';
+import { canDrawPages, pagePicturesOf } from './page-pictures';
 import {
   DETECTION_FAILED_NOTE,
   PHASE_RECOGNIZE,
@@ -121,17 +122,50 @@ function assertExportable(job: ExportJob): string {
   return outputPath;
 }
 
+/**
+ * Scans stapled behind typed pages are exhibits: core keeps each as a picture
+ * of the page, so they are not recognized at all. Telling them apart takes the
+ * layouts, which is why a document that MIXES typed pages and scans is read
+ * once before recognition; one that is typed throughout, or scans throughout,
+ * is read once as before.
+ */
+async function firstRead(
+  job: ExportJob,
+  context: ExportContext,
+  scans: readonly number[]
+): Promise<{ layouts: PageLayout[] | null; toRecognize: number[] }> {
+  const mixed = scans.length > 0 && scans.length < job.pages.length;
+  if (!mixed || !canDrawPages(context)) return { layouts: null, toRecognize: [...scans] };
+  const layouts = await layoutsOf(job, context, job.docId);
+  const exhibits = new Set(picturePagesOf(layouts));
+  return { layouts, toRecognize: scans.filter((page) => !exhibits.has(page)) };
+}
+
+/** The first read when nothing had to be recognized; otherwise the recognized copy, read anew. */
+function finalLayouts(
+  job: ExportJob,
+  context: ExportContext,
+  first: PageLayout[] | null,
+  recognition: Recognition | null
+): Promise<PageLayout[]> {
+  if (recognition === null && first !== null) return Promise.resolve(first);
+  return layoutsOf(job, context, recognition?.docId ?? job.docId);
+}
+
 export const docxExporter: Exporter = async (job, context) => {
   const outputPath = assertExportable(job);
   const scanned = await scannedPagesOf(job);
+  const first = await firstRead(job, context, scanned.pages);
   const recognition =
-    scanned.pages.length === 0 ? null : await recognizeScans(job, context, scanned.pages);
+    first.toRecognize.length === 0 ? null : await recognizeScans(job, context, first.toRecognize);
   try {
-    const layouts = await layoutsOf(job, context, recognition?.docId ?? job.docId);
+    const layouts = await finalLayouts(job, context, first.layouts, recognition);
+    const pagePictures = await pagePicturesOf(job, context, picturePagesOf(layouts));
     job.report(job.pages.length, job.pages.length, PHASE_BUILD);
     const build = await buildDocx(layouts, {
       title: stem(job.fileName),
       scanPictures: job.options.scanPictures ?? 'omit',
+      pagePictures,
     });
     await writeFileAtomic(outputPath, build.bytes);
     await proveWritten(outputPath, build.bytes.byteLength);
