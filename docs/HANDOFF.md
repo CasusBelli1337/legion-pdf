@@ -1,4 +1,37 @@
-# Handoff — Legion PDF (updated 2026-09-15 evening, v0.6.0)
+# Handoff — Legion PDF (updated 2026-11-18, v0.7.0)
+
+## v0.7 update (2026-11-18) — Word export holds on real served filings
+
+The September build multiplied the page count of six of twelve real served
+filings. v0.7.0 fixes that and works down the visible gaps; the reference
+(`docs/references/word-export.md`) records every cause, read it before
+touching `core/export`.
+
+- **All twelve real filings keep their page count in real Word**, and the
+  five corpus fixtures pass `npm run test:word`. Grade the real ones with
+  `WORD_PRIVATE_CORPUS=~/projects/legion-librarius-private-corpus/served npm
+  run test:word -- private-corpus` (report in `served/report/SUMMARY.md`;
+  the filings stay OUTSIDE the repo and are referred to by number only).
+- **Word renders on the `word-vm` Windows VM** (`ssh word-vm`); the suite
+  finds it by itself and no longer skips silently on Linux.
+- **What changed**, one line each: every section states its own header and
+  footer (no inherited pleading numbers); scanned exhibits and loose scanned
+  sheets (envelopes) are kept as pictures, and the preview counts them the
+  way the export does; scanned pleadings sit on one number grid, with rules
+  and caption boxes read from the page picture; page numbering that restarts
+  or turns roman is its own section with real PAGE fields; footnotes are real
+  Word footnotes; drawn checkboxes come through as ☐ / ☒; signatures (image
+  or ink) are pinned in place; typed double spaces and list-marker tabs are
+  kept, so lines break where the source breaks them.
+- **Known gaps** (also under "What is not preserved" in the reference): a
+  scan's bold/italic; stray words from a FILED stamp on a raw scan; a few
+  single words a line off inside paragraphs whose line count holds (06 p13,
+  01 p3–p5, 04 p8/p10/p11); pinned signatures do not move with edited text;
+  upper-case roman page numbers; continued footnotes; scanned checkboxes.
+- `qa/word-export-proof.mjs <pdf> <out.docx>` drives the BUILT app through a
+  real export (`npm run build` first, `DISPLAY=:1`).
+- **Installer**: built on the `word-vm` Windows VM (no Windows host any
+  more); recipe in `docs/TROUBLESHOOTING.md` § "Windows packaging".
 
 ## v0.6 update (2026-09-15) — Word export for litigators; read this first
 
